@@ -4,4 +4,6 @@
  */
 
 export * from './fireworks';
+export * from './openrouter';
+export * from './manager';
 export * from '../../shared/types/llm';
