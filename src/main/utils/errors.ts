@@ -371,6 +371,35 @@ export class CircuitBreaker {
   reset(): void {
     this.transitionTo(CircuitState.CLOSED);
   }
+
+  /**
+   * Check if an attempt can be made (for manual circuit breaker usage)
+   */
+  canAttempt(): boolean {
+    // Check if we should transition from OPEN to HALF_OPEN
+    if (this.state === CircuitState.OPEN) {
+      if (Date.now() - this.lastFailureTime >= this.options.timeout) {
+        this.transitionTo(CircuitState.HALF_OPEN);
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Record a successful attempt (for manual circuit breaker usage)
+   */
+  recordSuccess(): void {
+    this.onSuccess();
+  }
+
+  /**
+   * Record a failed attempt (for manual circuit breaker usage)
+   */
+  recordFailure(): void {
+    this.onFailure();
+  }
 }
 
 // ============================================================================

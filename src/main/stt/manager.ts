@@ -97,7 +97,7 @@ export class STTManager extends EventEmitter implements STTProvider {
     this.deepgramBreaker = new CircuitBreaker('deepgram', {
       failureThreshold: this.config.errorThreshold,
       timeout: this.config.fallbackCooldown,
-      onStateChange: (from, to) => {
+      onStateChange: (_from, to) => {
         if (to === CircuitState.OPEN) {
           logger.warn('Deepgram circuit breaker opened - switching to fallback');
           this.switchToFallback('Circuit breaker opened');

@@ -5,6 +5,7 @@
 
 // Providers
 export * from './deepgram';
+export * from './offline';
 export * from './vosk';
 
 // Manager with auto-fallback
