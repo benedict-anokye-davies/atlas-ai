@@ -65,6 +65,8 @@ const novaAPI = {
       'get-app-path',
       'is-dev',
       'get-nova-status',
+      'get-config',
+      'log',
       'nova:process-audio',
       'nova:send-message',
     ];
@@ -72,6 +74,11 @@ const novaAPI = {
       return ipcRenderer.invoke(channel, ...args);
     }
     throw new Error(`Invalid channel: ${channel}`);
+  },
+  
+  // Logging helper
+  log: (level: string, module: string, message: string, meta?: Record<string, unknown>): void => {
+    ipcRenderer.invoke('log', level, module, message, meta);
   },
 };
 

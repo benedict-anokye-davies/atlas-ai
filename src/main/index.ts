@@ -6,6 +6,13 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
 import { getConfig, isConfigValid, getSafeConfig, getConfigValidation } from './config';
+import { 
+  mainLogger, 
+  ipcLogger, 
+  createModuleLogger, 
+  shutdownLogger,
+  PerformanceTimer 
+} from './utils/logger';
 
 // Keep a global reference of the window object
 let mainWindow: BrowserWindow | null = null;
@@ -13,10 +20,15 @@ let mainWindow: BrowserWindow | null = null;
 // Check if we're in development mode
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+// Performance timer for startup
+const startupTimer = new PerformanceTimer('Startup');
+
 /**
  * Create the main application window
  */
 function createWindow(): void {
+  startupTimer.start('createWindow');
+  
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -48,17 +60,19 @@ function createWindow(): void {
   // Show window when ready to prevent visual flash
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
-    console.log('[Nova] Main window ready');
+    startupTimer.end('createWindow');
+    mainLogger.info('Main window ready');
   });
 
   // Handle window closed
   mainWindow.on('closed', () => {
     mainWindow = null;
+    mainLogger.info('Main window closed');
   });
 
   // Log any load errors
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
-    console.error(`[Nova] Failed to load: ${errorCode} - ${errorDescription}`);
+    mainLogger.error(`Failed to load: ${errorCode} - ${errorDescription}`);
   });
 }
 
@@ -68,7 +82,8 @@ function createWindow(): void {
 
 // Create window when Electron is ready
 app.whenReady().then(() => {
-  console.log('[Nova] App ready, creating window...');
+  startupTimer.end('appReady');
+  mainLogger.info('App ready, creating window...');
   createWindow();
 
   // On macOS, re-create window when dock icon is clicked
@@ -82,13 +97,15 @@ app.whenReady().then(() => {
 // Quit when all windows are closed (except on macOS)
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    mainLogger.info('All windows closed, quitting app');
     app.quit();
   }
 });
 
 // Handle app before quit
-app.on('before-quit', () => {
-  console.log('[Nova] App quitting...');
+app.on('before-quit', async () => {
+  mainLogger.info('App quitting, cleaning up...');
+  await shutdownLogger();
 });
 
 /**
@@ -111,7 +128,7 @@ ipcMain.handle('is-dev', () => {
   return isDev;
 });
 
-// Placeholder for Nova status
+// Get Nova status
 ipcMain.handle('get-nova-status', () => {
   const validation = getConfigValidation();
   return {
@@ -129,6 +146,30 @@ ipcMain.handle('get-config', () => {
 });
 
 /**
+ * Renderer Logging IPC
+ * Allows renderer to log through main process logger
+ */
+ipcMain.handle('log', (_event, level: string, module: string, message: string, meta?: Record<string, unknown>) => {
+  const logger = createModuleLogger(`Renderer:${module}`);
+  switch (level) {
+    case 'debug':
+      logger.debug(message, meta);
+      break;
+    case 'info':
+      logger.info(message, meta);
+      break;
+    case 'warn':
+      logger.warn(message, meta);
+      break;
+    case 'error':
+      logger.error(message, meta);
+      break;
+    default:
+      logger.info(message, meta);
+  }
+});
+
+/**
  * Security: Prevent new window creation
  */
 app.on('web-contents-created', (_event, contents) => {
@@ -137,15 +178,22 @@ app.on('web-contents-created', (_event, contents) => {
   });
 });
 
+// Start timing
+startupTimer.start('appReady');
+
 // Log startup info
 const config = getConfig();
-console.log('[Nova] Starting Nova Desktop...');
-console.log(`[Nova] Environment: ${isDev ? 'development' : 'production'}`);
-console.log(`[Nova] Electron: ${process.versions.electron}`);
-console.log(`[Nova] Node: ${process.versions.node}`);
-console.log(`[Nova] Platform: ${process.platform}`);
-console.log(`[Nova] Config valid: ${isConfigValid()}`);
+mainLogger.info('Starting Nova Desktop...', {
+  environment: isDev ? 'development' : 'production',
+  electron: process.versions.electron,
+  node: process.versions.node,
+  platform: process.platform,
+  configValid: isConfigValid(),
+});
+
 if (!isConfigValid()) {
   const validation = getConfigValidation();
-  console.warn(`[Nova] Missing API keys: ${validation.missing.join(', ')}`);
+  mainLogger.warn('Missing API keys', { missing: validation.missing });
 }
+
+ipcLogger.info('IPC handlers registered');
