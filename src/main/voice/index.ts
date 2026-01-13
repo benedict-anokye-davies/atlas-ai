@@ -6,3 +6,4 @@
 export * from './wake-word';
 export * from './vad';
 export * from './pipeline';
+export * from './voice-pipeline';
