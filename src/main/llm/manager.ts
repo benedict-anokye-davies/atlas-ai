@@ -6,7 +6,7 @@
 
 import { EventEmitter } from 'events';
 import { createModuleLogger } from '../utils/logger';
-import { CircuitBreaker } from '../utils/errors';
+import { CircuitBreaker, CircuitState } from '../utils/errors';
 import {
   LLMProvider,
   LLMConfig,
@@ -83,41 +83,41 @@ export interface LLMManagerEvents extends LLMEvents {
 export class LLMManager extends EventEmitter implements LLMProvider {
   readonly name = 'llm-manager';
   private config: Required<LLMManagerConfig>;
-  
+
   // Providers
   private fireworksLLM: FireworksLLM | null = null;
   private openrouterLLM: OpenRouterLLM | null = null;
   private activeProvider: LLMProvider | null = null;
   private activeProviderType: LLMProviderType | null = null;
-  
+
   // Circuit breaker for Fireworks
   private fireworksBreaker: CircuitBreaker;
-  
+
   // State tracking
   private consecutiveErrors = 0;
   private lastFallbackTime = 0;
   private _status: LLMStatus = LLMStatus.IDLE;
-  
+
   // Shared conversation context
   private sharedContext: ConversationContext | null = null;
 
   constructor(config?: Partial<LLMManagerConfig>) {
     super();
     this.config = { ...DEFAULT_LLM_MANAGER_CONFIG, ...config } as Required<LLMManagerConfig>;
-    
+
     // Initialize circuit breaker for Fireworks
-    this.fireworksBreaker = new CircuitBreaker({
+    this.fireworksBreaker = new CircuitBreaker('fireworks', {
       failureThreshold: this.config.errorThreshold,
-      resetTimeoutMs: this.config.fallbackCooldown,
-      onOpen: () => {
-        logger.warn('Fireworks circuit breaker opened - switching to fallback');
-        this.switchToFallback('Circuit breaker opened');
-      },
-      onHalfOpen: () => {
-        logger.info('Fireworks circuit breaker half-open - will retry primary');
-      },
-      onClose: () => {
-        logger.info('Fireworks circuit breaker closed - primary available');
+      timeout: this.config.fallbackCooldown,
+      onStateChange: (_from, to) => {
+        if (to === CircuitState.OPEN) {
+          logger.warn('Fireworks circuit breaker opened - switching to fallback');
+          this.switchToFallback('Circuit breaker opened');
+        } else if (to === CircuitState.HALF_OPEN) {
+          logger.info('Fireworks circuit breaker half-open - will retry primary');
+        } else if (to === CircuitState.CLOSED) {
+          logger.info('Fireworks circuit breaker closed - primary available');
+        }
       },
     });
 
@@ -232,7 +232,7 @@ export class LLMManager extends EventEmitter implements LLMProvider {
           this.fireworksBreaker.recordSuccess();
         }
         this.emit('response', response);
-        
+
         // Emit cost update for OpenRouter
         if (type === 'openrouter' && this.openrouterLLM) {
           this.emit('cost-update', this.openrouterLLM.getCosts());
@@ -345,13 +345,18 @@ export class LLMManager extends EventEmitter implements LLMProvider {
     }
 
     // Use shared context if enabled and no context provided
-    const useContext = context || (this.config.sharedContext ? this.sharedContext : undefined);
+    const useContext =
+      context || (this.config.sharedContext ? (this.sharedContext ?? undefined) : undefined);
 
     try {
       return await this.activeProvider.chat(message, useContext);
     } catch (error) {
       // Try fallback on error
-      if (this.config.autoFallback && this.activeProviderType === 'fireworks' && this.openrouterLLM) {
+      if (
+        this.config.autoFallback &&
+        this.activeProviderType === 'fireworks' &&
+        this.openrouterLLM
+      ) {
         logger.info('Attempting fallback after chat error');
         await this.switchToFallback((error as Error).message);
         return await this.openrouterLLM.chat(message, useContext);
@@ -372,13 +377,18 @@ export class LLMManager extends EventEmitter implements LLMProvider {
     }
 
     // Use shared context if enabled and no context provided
-    const useContext = context || (this.config.sharedContext ? this.sharedContext : undefined);
+    const useContext =
+      context || (this.config.sharedContext ? (this.sharedContext ?? undefined) : undefined);
 
     try {
       yield* this.activeProvider.chatStream(message, useContext);
     } catch (error) {
       // Try fallback on error
-      if (this.config.autoFallback && this.activeProviderType === 'fireworks' && this.openrouterLLM) {
+      if (
+        this.config.autoFallback &&
+        this.activeProviderType === 'fireworks' &&
+        this.openrouterLLM
+      ) {
         logger.info('Attempting fallback after stream error');
         await this.switchToFallback((error as Error).message);
         yield* this.openrouterLLM.chatStream(message, useContext);
@@ -446,7 +456,7 @@ export class LLMManager extends EventEmitter implements LLMProvider {
    */
   switchToProvider(type: LLMProviderType): void {
     const provider = type === 'fireworks' ? this.fireworksLLM : this.openrouterLLM;
-    
+
     if (!provider) {
       throw new Error(`Provider ${type} not available`);
     }
