@@ -23,6 +23,9 @@
     "prepare": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "@deepgram/sdk": "^4.11.3",
+    "@picovoice/porcupine-node": "^4.0.1",
+    "@picovoice/pvrecorder-node": "^1.2.8",
     "dotenv": "^16.3.1",
     "electron-store": "^8.1.0",
     "winston": "^3.11.0",
