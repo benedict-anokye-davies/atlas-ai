@@ -6,6 +6,41 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 /**
+ * IPC Result type
+ */
+interface IPCResult<T = unknown> {
+  success: boolean;
+  error?: string;
+  data?: T;
+}
+
+/**
+ * Voice Pipeline Status
+ */
+interface VoicePipelineStatus {
+  state: string;
+  isListening: boolean;
+  isSpeaking: boolean;
+  audioLevel: number;
+  sttProvider: string | null;
+  llmProvider: string | null;
+  isTTSSpeaking: boolean;
+  currentTranscript: string;
+  currentResponse: string;
+}
+
+/**
+ * Voice Pipeline Config
+ */
+interface VoicePipelineConfig {
+  sttProvider?: 'deepgram' | 'vosk' | 'whisper';
+  llmProvider?: 'fireworks' | 'openrouter';
+  ttsEnabled?: boolean;
+  bargeInEnabled?: boolean;
+  systemPrompt?: string;
+}
+
+/**
  * Nova API exposed to renderer
  */
 const novaAPI = {
@@ -24,7 +59,7 @@ const novaAPI = {
   // Platform info
   platform: process.platform,
 
-  // Voice control
+  // Voice control (wake word only - legacy)
   voice: {
     startWakeWord: (): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke('voice:start-wake-word'),
@@ -47,7 +82,34 @@ const novaAPI = {
     }> => ipcRenderer.invoke('voice:get-status'),
   },
 
-  // Audio Pipeline control
+  // Full Voice Pipeline (STT + LLM + TTS)
+  nova: {
+    // Lifecycle
+    start: (config?: Partial<VoicePipelineConfig>): Promise<IPCResult> =>
+      ipcRenderer.invoke('nova:start', config),
+    stop: (): Promise<IPCResult> => ipcRenderer.invoke('nova:stop'),
+    shutdown: (): Promise<IPCResult> => ipcRenderer.invoke('nova:shutdown'),
+
+    // Status
+    getStatus: (): Promise<IPCResult<VoicePipelineStatus>> => ipcRenderer.invoke('nova:get-status'),
+
+    // Interaction
+    triggerWake: (): Promise<IPCResult> => ipcRenderer.invoke('nova:trigger-wake'),
+    sendText: (text: string): Promise<IPCResult> => ipcRenderer.invoke('nova:send-text', text),
+
+    // Context management
+    clearHistory: (): Promise<IPCResult> => ipcRenderer.invoke('nova:clear-history'),
+    getContext: (): Promise<IPCResult> => ipcRenderer.invoke('nova:get-context'),
+    getMetrics: (): Promise<IPCResult> => ipcRenderer.invoke('nova:get-metrics'),
+
+    // Configuration
+    updateConfig: (config: Partial<VoicePipelineConfig>): Promise<IPCResult> =>
+      ipcRenderer.invoke('nova:update-config', config),
+    getConfig: (): Promise<IPCResult<VoicePipelineConfig | null>> =>
+      ipcRenderer.invoke('nova:get-config'),
+  },
+
+  // Audio Pipeline control (wake word + VAD only - legacy)
   pipeline: {
     start: (): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke('pipeline:start'),
@@ -99,7 +161,7 @@ const novaAPI = {
       'nova:response',
       'nova:error',
       'nova:audio-level',
-      // Pipeline events
+      // Legacy pipeline events
       'nova:pipeline-state',
       'nova:wake-word',
       'nova:speech-start',
@@ -107,6 +169,20 @@ const novaAPI = {
       'nova:barge-in',
       'nova:listening-timeout',
       'nova:processing-timeout',
+      // Voice pipeline events (STT + LLM + TTS)
+      'nova:state-change',
+      'nova:transcript-interim',
+      'nova:transcript-final',
+      'nova:response-start',
+      'nova:response-chunk',
+      'nova:response-complete',
+      'nova:audio-chunk',
+      'nova:synthesis-complete',
+      'nova:speaking-start',
+      'nova:speaking-end',
+      'nova:started',
+      'nova:stopped',
+      'nova:provider-change',
     ];
     if (validChannels.includes(channel)) {
       const subscription = (_event: Electron.IpcRendererEvent, ...args: unknown[]) =>
@@ -140,7 +216,7 @@ const novaAPI = {
       'voice:get-audio-devices',
       'voice:set-audio-device',
       'voice:get-status',
-      // Pipeline channels
+      // Legacy pipeline channels
       'pipeline:start',
       'pipeline:stop',
       'pipeline:get-status',
@@ -154,6 +230,18 @@ const novaAPI = {
       'pipeline:update-config',
       'pipeline:start-speaking',
       'pipeline:finish-speaking',
+      // Voice pipeline channels (STT + LLM + TTS)
+      'nova:start',
+      'nova:stop',
+      'nova:shutdown',
+      'nova:get-status',
+      'nova:trigger-wake',
+      'nova:send-text',
+      'nova:clear-history',
+      'nova:get-context',
+      'nova:get-metrics',
+      'nova:update-config',
+      'nova:get-config',
     ];
     if (validChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);

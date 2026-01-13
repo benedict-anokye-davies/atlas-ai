@@ -16,6 +16,8 @@ import {
 } from './utils/logger';
 import { WakeWordDetector, getWakeWordDetector, shutdownWakeWordDetector } from './voice/wake-word';
 import { AudioPipeline, getAudioPipeline, shutdownAudioPipeline } from './voice/pipeline';
+import { shutdownVoicePipeline } from './voice/voice-pipeline';
+import { registerIPCHandlers, setMainWindow, cleanupIPC } from './ipc';
 import type { WakeWordEvent, VoicePipelineState, SpeechSegment } from '../shared/types/voice';
 
 // Keep a global reference of the window object
@@ -88,12 +90,24 @@ function createWindow(): void {
 app.whenReady().then(() => {
   startupTimer.end('appReady');
   mainLogger.info('App ready, creating window...');
+
+  // Register voice pipeline IPC handlers
+  registerIPCHandlers();
+
   createWindow();
+
+  // Set the main window for IPC event forwarding
+  if (mainWindow) {
+    setMainWindow(mainWindow);
+  }
 
   // On macOS, re-create window when dock icon is clicked
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
+      if (mainWindow) {
+        setMainWindow(mainWindow);
+      }
     }
   });
 });
@@ -109,6 +123,8 @@ app.on('window-all-closed', () => {
 // Handle app before quit
 app.on('before-quit', async () => {
   mainLogger.info('App quitting, cleaning up...');
+  await cleanupIPC();
+  await shutdownVoicePipeline();
   await shutdownAudioPipeline();
   await shutdownWakeWordDetector();
   await shutdownLogger();

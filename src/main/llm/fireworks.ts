@@ -14,7 +14,6 @@ import {
   LLMEvents,
   LLMResponse,
   LLMStreamChunk,
-  ChatMessage,
   ConversationContext,
   DEFAULT_LLM_CONFIG,
   NOVA_SYSTEM_PROMPT,
@@ -101,9 +100,7 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
     const userName = context?.userName || 'User';
     const timestamp = new Date().toLocaleString();
 
-    return template
-      .replace('{timestamp}', timestamp)
-      .replace('{userName}', userName);
+    return template.replace('{timestamp}', timestamp).replace('{userName}', userName);
   }
 
   /**
@@ -291,7 +288,7 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
 
         const delta = chunk.choices[0]?.delta?.content || '';
         const finishReason = chunk.choices[0]?.finish_reason as LLMStreamChunk['finishReason'];
-        
+
         if (delta) {
           accumulated += delta;
         }
@@ -327,9 +324,9 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
         finishReason: 'stop',
         latency,
         usage: {
-          promptTokens: estimateTokenCount(messages.map(m => m.content).join('')),
+          promptTokens: estimateTokenCount(messages.map((m) => m.content).join('')),
           completionTokens: estimateTokenCount(accumulated),
-          totalTokens: estimateTokenCount(messages.map(m => m.content).join('') + accumulated),
+          totalTokens: estimateTokenCount(messages.map((m) => m.content).join('') + accumulated),
         },
       };
 
@@ -436,7 +433,7 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
    */
   updateConfig(config: Partial<FireworksConfig>): void {
     this.config = { ...this.config, ...config };
-    
+
     // Recreate client if baseURL or apiKey changed
     if (config.baseURL || config.apiKey) {
       this.client = new OpenAI({
@@ -445,7 +442,7 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
         timeout: this.config.timeout,
       });
     }
-    
+
     logger.info('Configuration updated', { model: this.config.model });
   }
 
@@ -497,7 +494,10 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
 /**
  * Create a FireworksLLM instance with API key
  */
-export function createFireworksLLM(apiKey: string, config?: Partial<FireworksConfig>): FireworksLLM {
+export function createFireworksLLM(
+  apiKey: string,
+  config?: Partial<FireworksConfig>
+): FireworksLLM {
   return new FireworksLLM({ apiKey, ...config });
 }
 
