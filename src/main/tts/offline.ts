@@ -48,8 +48,10 @@ export const PIPER_VOICES: Record<string, PiperVoice> = {
     language: 'en_US',
     quality: 'medium',
     sampleRate: 22050,
-    downloadUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx',
-    configUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx.json',
+    downloadUrl:
+      'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx',
+    configUrl:
+      'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx.json',
     size: 63,
   },
   'en_US-lessac-medium': {
@@ -58,8 +60,10 @@ export const PIPER_VOICES: Record<string, PiperVoice> = {
     language: 'en_US',
     quality: 'medium',
     sampleRate: 22050,
-    downloadUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx',
-    configUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json',
+    downloadUrl:
+      'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx',
+    configUrl:
+      'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json',
     size: 63,
   },
   'en_GB-alba-medium': {
@@ -68,8 +72,10 @@ export const PIPER_VOICES: Record<string, PiperVoice> = {
     language: 'en_GB',
     quality: 'medium',
     sampleRate: 22050,
-    downloadUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_GB/alba/medium/en_GB-alba-medium.onnx',
-    configUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_GB/alba/medium/en_GB-alba-medium.onnx.json',
+    downloadUrl:
+      'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_GB/alba/medium/en_GB-alba-medium.onnx',
+    configUrl:
+      'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_GB/alba/medium/en_GB-alba-medium.onnx.json',
     size: 63,
   },
 };
@@ -118,7 +124,8 @@ function generateId(): string {
  * Get default paths based on platform
  */
 function getDefaultPaths(): { piperPath: string; modelsPath: string } {
-  const userDataPath = app?.getPath?.('userData') || join(process.env.HOME || process.env.USERPROFILE || '.', '.nova');
+  const userDataPath =
+    app?.getPath?.('userData') || join(process.env.HOME || process.env.USERPROFILE || '.', '.nova');
   const modelsPath = join(userDataPath, 'models', 'piper');
 
   // Platform-specific Piper executable
@@ -339,10 +346,13 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
     }
 
     try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        fileStream.write(Buffer.from(value));
+      let done = false;
+      while (!done) {
+        const result = await reader.read();
+        done = result.done;
+        if (result.value) {
+          fileStream.write(Buffer.from(result.value));
+        }
       }
     } finally {
       fileStream.close();
@@ -363,10 +373,7 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
 
-      const args = [
-        '--model', modelPath,
-        '--output_raw',
-      ];
+      const args = ['--model', modelPath, '--output_raw'];
 
       if (this.config.speakingRate && this.config.speakingRate !== 1.0) {
         args.push('--length_scale', String(1 / this.config.speakingRate));
@@ -413,8 +420,10 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
 
       const args = [
         '--stdout',
-        '-v', 'en-us',
-        '-s', String(Math.round(175 * (this.config.speakingRate || 1.0))),
+        '-v',
+        'en-us',
+        '-s',
+        String(Math.round(175 * (this.config.speakingRate || 1.0))),
         text,
       ];
 

@@ -184,7 +184,7 @@ export class NovaTray extends EventEmitter {
 
     // State-specific decorations
     switch (state) {
-      case 'listening':
+      case 'listening': {
         // Pulsing inner circle for listening
         const pulseRadius = radius * 0.6 * (0.8 + 0.2 * Math.sin(frame * 0.5));
         svg += `<circle cx="${center}" cy="${center}" r="${pulseRadius}" fill="${colors.secondary}" opacity="0.8" />`;
@@ -192,8 +192,9 @@ export class NovaTray extends EventEmitter {
         svg += `<rect x="${center - 1.5}" y="${center - 3}" width="3" height="4" rx="1" fill="white" />`;
         svg += `<path d="M${center - 2.5} ${center + 1} Q${center - 2.5} ${center + 3} ${center} ${center + 3} Q${center + 2.5} ${center + 3} ${center + 2.5} ${center + 1}" stroke="white" stroke-width="1" fill="none" />`;
         break;
+      }
 
-      case 'processing':
+      case 'processing': {
         // Spinning indicator for processing
         const angle = (frame * 30) % 360;
         const rad = (angle * Math.PI) / 180;
@@ -209,14 +210,16 @@ export class NovaTray extends EventEmitter {
           svg += `<circle cx="${trailX}" cy="${trailY}" r="${2 - i * 0.4}" fill="white" opacity="${1 - i * 0.25}" />`;
         }
         break;
+      }
 
-      case 'speaking':
+      case 'speaking': {
         // Sound waves for speaking
         const waveOffset = (frame % 3) * 0.5;
         svg += `<path d="M${center - 1} ${center - 2} L${center - 1} ${center + 2}" stroke="white" stroke-width="1.5" stroke-linecap="round" />`;
         svg += `<path d="M${center + 1} ${center - 3 + waveOffset} Q${center + 3} ${center} ${center + 1} ${center + 3 - waveOffset}" stroke="white" stroke-width="1" fill="none" opacity="0.8" />`;
         svg += `<path d="M${center + 2.5} ${center - 4 + waveOffset} Q${center + 5} ${center} ${center + 2.5} ${center + 4 - waveOffset}" stroke="white" stroke-width="1" fill="none" opacity="0.5" />`;
         break;
+      }
 
       case 'error':
         // X mark for error

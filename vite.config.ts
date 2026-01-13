@@ -4,6 +4,17 @@ import electron from 'vite-plugin-electron';
 import electronRenderer from 'vite-plugin-electron-renderer';
 import { resolve } from 'path';
 
+// Native modules that should not be bundled
+const nativeModules = [
+  'electron',
+  '@picovoice/porcupine-node',
+  '@picovoice/pvrecorder-node',
+  '@ricky0123/vad-node',
+  'onnxruntime-node',
+  'vosk-koffi',
+  'koffi',
+];
+
 export default defineConfig({
   plugins: [
     react(),
@@ -17,7 +28,7 @@ export default defineConfig({
           build: {
             outDir: 'dist/main',
             rollupOptions: {
-              external: ['electron'],
+              external: nativeModules,
             },
           },
         },
@@ -30,6 +41,9 @@ export default defineConfig({
         vite: {
           build: {
             outDir: 'dist/preload',
+            rollupOptions: {
+              external: nativeModules,
+            },
           },
         },
       },

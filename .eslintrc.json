@@ -30,6 +30,26 @@
   "rules": {
     "react/react-in-jsx-scope": "off",
     "react/prop-types": "off",
+    "react/no-unknown-property": [
+      "error",
+      {
+        "ignore": [
+          "attach",
+          "count",
+          "array",
+          "itemSize",
+          "object",
+          "args",
+          "position",
+          "rotation",
+          "scale",
+          "intensity",
+          "castShadow",
+          "receiveShadow",
+          "dispose"
+        ]
+      }
+    ],
     "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/no-explicit-any": "warn",

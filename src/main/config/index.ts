@@ -208,4 +208,4 @@ export function getSafeConfig(): Record<string, unknown> {
   return safe;
 }
 
-export { NovaConfig, ConfigValidationResult };
+export type { NovaConfig, ConfigValidationResult };

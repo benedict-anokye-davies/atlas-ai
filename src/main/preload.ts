@@ -263,4 +263,5 @@ contextBridge.exposeInMainWorld('nova', novaAPI);
 // Type declaration for renderer
 export type NovaAPI = typeof novaAPI;
 
+// eslint-disable-next-line no-console
 console.log('[Nova] Preload script loaded');
