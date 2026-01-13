@@ -4,13 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import './styles/App.css';
-
-// Nova status type
-interface NovaStatus {
-  status: string;
-  version: string;
-  isDev: boolean;
-}
+import type { NovaStatus } from './types/nova';
 
 function App() {
   const [status, setStatus] = useState<NovaStatus | null>(null);
@@ -74,19 +68,3 @@ function App() {
 }
 
 export default App;
-
-// Extend Window interface for Nova API
-declare global {
-  interface Window {
-    nova?: {
-      getVersion: () => Promise<string>;
-      getAppPath: () => Promise<string>;
-      isDev: () => Promise<boolean>;
-      getStatus: () => Promise<NovaStatus>;
-      platform: string;
-      send: (channel: string, data?: unknown) => void;
-      on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
-      invoke: <T>(channel: string, ...args: unknown[]) => Promise<T>;
-    };
-  }
-}
