@@ -4,3 +4,4 @@
  */
 
 export * from './wake-word';
+export * from './vad';

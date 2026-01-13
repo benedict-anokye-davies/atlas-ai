@@ -107,3 +107,63 @@ export interface Transcript {
   confidence: number;
   timestamp: number;
 }
+
+/**
+ * VAD configuration options
+ */
+export interface VADConfig {
+  /** Speech probability threshold (0-1), default 0.5 */
+  threshold?: number;
+  /** Minimum speech duration in ms before triggering, default 250 */
+  minSpeechDuration?: number;
+  /** Silence duration in ms to end speech segment, default 1500 */
+  silenceDuration?: number;
+  /** Maximum speech duration in ms before forced end, default 30000 */
+  maxSpeechDuration?: number;
+  /** Sample rate, default 16000 */
+  sampleRate?: number;
+  /** Frame size in samples, default 512 */
+  frameSize?: number;
+}
+
+/**
+ * Default VAD configuration
+ */
+export const DEFAULT_VAD_CONFIG: Required<VADConfig> = {
+  threshold: 0.5,
+  minSpeechDuration: 250,
+  silenceDuration: 1500,
+  maxSpeechDuration: 30000,
+  sampleRate: 16000,
+  frameSize: 512,
+};
+
+/**
+ * Speech segment from VAD
+ */
+export interface SpeechSegment {
+  /** Audio samples for the speech segment */
+  audio: Float32Array;
+  /** Start timestamp in ms */
+  startTime: number;
+  /** End timestamp in ms */
+  endTime: number;
+  /** Duration in ms */
+  duration: number;
+  /** Whether segment was force-ended due to max duration */
+  forcedEnd: boolean;
+}
+
+/**
+ * VAD status
+ */
+export interface VADStatus {
+  /** Is VAD currently running */
+  isRunning: boolean;
+  /** Is speech currently detected */
+  isSpeaking: boolean;
+  /** Current speech probability (0-1) */
+  probability: number;
+  /** Duration of current speech segment in ms */
+  speechDuration: number;
+}
