@@ -5,10 +5,7 @@
 
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import { config } from 'dotenv';
-
-// Load environment variables
-config();
+import { getConfig, isConfigValid, getSafeConfig, getConfigValidation } from './config';
 
 // Keep a global reference of the window object
 let mainWindow: BrowserWindow | null = null;
@@ -116,11 +113,19 @@ ipcMain.handle('is-dev', () => {
 
 // Placeholder for Nova status
 ipcMain.handle('get-nova-status', () => {
+  const validation = getConfigValidation();
   return {
-    status: 'initializing',
+    status: isConfigValid() ? 'ready' : 'missing-config',
     version: app.getVersion(),
     isDev,
+    configValid: validation.valid,
+    missingKeys: validation.missing,
   };
+});
+
+// Get safe config (masked API keys)
+ipcMain.handle('get-config', () => {
+  return getSafeConfig();
 });
 
 /**
@@ -133,8 +138,14 @@ app.on('web-contents-created', (_event, contents) => {
 });
 
 // Log startup info
+const config = getConfig();
 console.log('[Nova] Starting Nova Desktop...');
 console.log(`[Nova] Environment: ${isDev ? 'development' : 'production'}`);
 console.log(`[Nova] Electron: ${process.versions.electron}`);
 console.log(`[Nova] Node: ${process.versions.node}`);
 console.log(`[Nova] Platform: ${process.platform}`);
+console.log(`[Nova] Config valid: ${isConfigValid()}`);
+if (!isConfigValid()) {
+  const validation = getConfigValidation();
+  console.warn(`[Nova] Missing API keys: ${validation.missing.join(', ')}`);
+}
