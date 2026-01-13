@@ -1,0 +1,138 @@
+/**
+ * Nova Desktop - App Styles
+ */
+
+.nova-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(180deg, var(--nova-bg-primary) 0%, var(--nova-bg-secondary) 100%);
+}
+
+/* Header */
+.nova-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+  -webkit-app-region: drag; /* Allow dragging window */
+}
+
+.nova-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--nova-accent) 0%, var(--nova-accent-light) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.nova-version {
+  font-size: 0.75rem;
+  color: var(--nova-text-secondary);
+  font-family: var(--font-mono);
+}
+
+/* Main content */
+.nova-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  gap: 2rem;
+}
+
+/* Orb placeholder */
+.nova-orb {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  -webkit-app-region: no-drag;
+}
+
+.nova-orb:hover {
+  transform: scale(1.05);
+}
+
+.nova-orb:active {
+  transform: scale(0.98);
+}
+
+.orb-core {
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, var(--orb-idle), #1e1b4b);
+  box-shadow: 
+    0 0 30px rgba(99, 102, 241, 0.5),
+    inset 0 0 30px rgba(99, 102, 241, 0.3);
+  transition: all 0.5s ease;
+}
+
+.orb-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 70%);
+  animation: pulse 3s ease-in-out infinite;
+}
+
+/* Listening state */
+.nova-orb.listening .orb-core {
+  background: radial-gradient(circle at 30% 30%, var(--orb-listening), #064e3b);
+  box-shadow: 
+    0 0 40px rgba(16, 185, 129, 0.6),
+    inset 0 0 30px rgba(16, 185, 129, 0.3);
+}
+
+.nova-orb.listening .orb-glow {
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.3) 0%, transparent 70%);
+  animation: glow 1.5s ease-in-out infinite;
+}
+
+/* Status text */
+.nova-status {
+  font-size: 1rem;
+  color: var(--nova-text-secondary);
+  text-align: center;
+  transition: color 0.3s ease;
+}
+
+.nova-orb.listening + .nova-status {
+  color: var(--orb-listening);
+}
+
+/* Footer */
+.nova-footer {
+  padding: 1rem 2rem;
+  border-top: 1px solid rgba(99, 102, 241, 0.1);
+  text-align: center;
+}
+
+.nova-footer p {
+  font-size: 0.875rem;
+  color: var(--nova-text-secondary);
+  font-family: var(--font-mono);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .nova-orb {
+    width: 150px;
+    height: 150px;
+  }
+  
+  .nova-header {
+    padding: 0.75rem 1rem;
+  }
+  
+  .nova-title {
+    font-size: 1.25rem;
+  }
+}

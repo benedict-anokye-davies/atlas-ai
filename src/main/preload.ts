@@ -1,0 +1,84 @@
+/**
+ * Nova Desktop - Preload Script
+ * Exposes safe APIs to the renderer process via contextBridge
+ */
+
+import { contextBridge, ipcRenderer } from 'electron';
+
+/**
+ * Nova API exposed to renderer
+ */
+const novaAPI = {
+  // App info
+  getVersion: (): Promise<string> => ipcRenderer.invoke('get-app-version'),
+  getAppPath: (): Promise<string> => ipcRenderer.invoke('get-app-path'),
+  isDev: (): Promise<boolean> => ipcRenderer.invoke('is-dev'),
+  
+  // Nova status
+  getStatus: (): Promise<{
+    status: string;
+    version: string;
+    isDev: boolean;
+  }> => ipcRenderer.invoke('get-nova-status'),
+
+  // Platform info
+  platform: process.platform,
+  
+  // IPC communication
+  send: (channel: string, data?: unknown): void => {
+    const validChannels = [
+      'nova:wake',
+      'nova:listen',
+      'nova:speak',
+      'nova:stop',
+      'nova:settings',
+    ];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.send(channel, data);
+    }
+  },
+  
+  on: (channel: string, callback: (...args: unknown[]) => void): (() => void) => {
+    const validChannels = [
+      'nova:status',
+      'nova:transcript',
+      'nova:response',
+      'nova:error',
+      'nova:audio-level',
+    ];
+    if (validChannels.includes(channel)) {
+      const subscription = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => 
+        callback(...args);
+      ipcRenderer.on(channel, subscription);
+      
+      // Return cleanup function
+      return () => {
+        ipcRenderer.removeListener(channel, subscription);
+      };
+    }
+    return () => {}; // No-op cleanup for invalid channels
+  },
+  
+  invoke: async <T>(channel: string, ...args: unknown[]): Promise<T> => {
+    const validChannels = [
+      'get-app-version',
+      'get-app-path',
+      'is-dev',
+      'get-nova-status',
+      'nova:process-audio',
+      'nova:send-message',
+    ];
+    if (validChannels.includes(channel)) {
+      return ipcRenderer.invoke(channel, ...args);
+    }
+    throw new Error(`Invalid channel: ${channel}`);
+  },
+};
+
+// Expose to renderer
+contextBridge.exposeInMainWorld('nova', novaAPI);
+
+// Type declaration for renderer
+export type NovaAPI = typeof novaAPI;
+
+console.log('[Nova] Preload script loaded');
