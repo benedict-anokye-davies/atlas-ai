@@ -183,6 +183,8 @@ const novaAPI = {
       'nova:started',
       'nova:stopped',
       'nova:provider-change',
+      // Tray events
+      'nova:open-settings',
     ];
     if (validChannels.includes(channel)) {
       const subscription = (_event: Electron.IpcRendererEvent, ...args: unknown[]) =>

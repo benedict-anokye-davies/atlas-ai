@@ -16,12 +16,19 @@ import {
 } from './utils/logger';
 import { WakeWordDetector, getWakeWordDetector, shutdownWakeWordDetector } from './voice/wake-word';
 import { AudioPipeline, getAudioPipeline, shutdownAudioPipeline } from './voice/pipeline';
-import { shutdownVoicePipeline } from './voice/voice-pipeline';
+import { getVoicePipeline, shutdownVoicePipeline, VoicePipeline } from './voice/voice-pipeline';
 import { registerIPCHandlers, setMainWindow, cleanupIPC } from './ipc';
+import { initializeTray, shutdownTray, NovaTray } from './tray';
 import type { WakeWordEvent, VoicePipelineState, SpeechSegment } from '../shared/types/voice';
 
 // Keep a global reference of the window object
 let mainWindow: BrowserWindow | null = null;
+
+// System tray instance
+let tray: NovaTray | null = null;
+
+// Full voice pipeline instance (for tray integration)
+let fullVoicePipeline: VoicePipeline | null = null;
 
 // Check if we're in development mode
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
@@ -87,7 +94,7 @@ function createWindow(): void {
  */
 
 // Create window when Electron is ready
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   startupTimer.end('appReady');
   mainLogger.info('App ready, creating window...');
 
@@ -101,16 +108,126 @@ app.whenReady().then(() => {
     setMainWindow(mainWindow);
   }
 
+  // Initialize system tray
+  try {
+    tray = await initializeTray(mainWindow || undefined);
+    setupTrayIntegration();
+    mainLogger.info('System tray initialized');
+  } catch (error) {
+    mainLogger.error('Failed to initialize system tray', { error: (error as Error).message });
+  }
+
   // On macOS, re-create window when dock icon is clicked
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
       if (mainWindow) {
         setMainWindow(mainWindow);
+        tray?.setMainWindow(mainWindow);
       }
     }
   });
 });
+
+/**
+ * Setup tray integration with voice pipeline
+ */
+function setupTrayIntegration(): void {
+  if (!tray) return;
+
+  // Handle push-to-talk from tray
+  tray.on('push-to-talk', async () => {
+    voiceLogger.info('Push-to-talk triggered from tray');
+    try {
+      if (!fullVoicePipeline) {
+        fullVoicePipeline = getVoicePipeline();
+        connectPipelineToTray(fullVoicePipeline);
+      }
+      fullVoicePipeline.triggerWake();
+    } catch (error) {
+      voiceLogger.error('Push-to-talk failed', { error: (error as Error).message });
+    }
+  });
+
+  // Handle start pipeline from tray
+  tray.on('start-pipeline', async () => {
+    voiceLogger.info('Starting pipeline from tray');
+    try {
+      if (!fullVoicePipeline) {
+        fullVoicePipeline = getVoicePipeline();
+        connectPipelineToTray(fullVoicePipeline);
+      }
+      await fullVoicePipeline.start();
+      tray?.setRunning(true);
+    } catch (error) {
+      voiceLogger.error('Failed to start pipeline from tray', { error: (error as Error).message });
+    }
+  });
+
+  // Handle stop pipeline from tray
+  tray.on('stop-pipeline', async () => {
+    voiceLogger.info('Stopping pipeline from tray');
+    try {
+      if (fullVoicePipeline) {
+        await fullVoicePipeline.stop();
+        tray?.setRunning(false);
+      }
+    } catch (error) {
+      voiceLogger.error('Failed to stop pipeline from tray', { error: (error as Error).message });
+    }
+  });
+
+  // Handle toggle window from tray
+  tray.on('toggle-window', () => {
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    }
+  });
+
+  // Handle settings from tray
+  tray.on('settings', () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+      // Send event to renderer to open settings
+      mainWindow.webContents.send('nova:open-settings');
+    }
+  });
+
+  voiceLogger.info('Tray integration setup complete');
+}
+
+/**
+ * Connect voice pipeline events to tray state
+ */
+function connectPipelineToTray(pipeline: VoicePipeline): void {
+  if (!tray) return;
+
+  pipeline.on('state-change', (state: VoicePipelineState) => {
+    tray?.setState(state);
+  });
+
+  pipeline.on('started', () => {
+    tray?.setRunning(true);
+    tray?.setState('idle');
+  });
+
+  pipeline.on('stopped', () => {
+    tray?.setRunning(false);
+    tray?.setState('idle');
+  });
+
+  pipeline.on('error', () => {
+    tray?.setState('error');
+  });
+
+  voiceLogger.info('Pipeline connected to tray');
+}
 
 // Quit when all windows are closed (except on macOS)
 app.on('window-all-closed', () => {
@@ -123,6 +240,7 @@ app.on('window-all-closed', () => {
 // Handle app before quit
 app.on('before-quit', async () => {
   mainLogger.info('App quitting, cleaning up...');
+  await shutdownTray();
   await cleanupIPC();
   await shutdownVoicePipeline();
   await shutdownAudioPipeline();
