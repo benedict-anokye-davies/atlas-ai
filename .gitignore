@@ -47,6 +47,7 @@ temp/
 
 # Nova specific
 .nova/
+.sessions/
 
 # Python (for offline fallbacks)
 __pycache__/
