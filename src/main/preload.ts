@@ -13,7 +13,7 @@ const novaAPI = {
   getVersion: (): Promise<string> => ipcRenderer.invoke('get-app-version'),
   getAppPath: (): Promise<string> => ipcRenderer.invoke('get-app-path'),
   isDev: (): Promise<boolean> => ipcRenderer.invoke('is-dev'),
-  
+
   // Nova status
   getStatus: (): Promise<{
     status: string;
@@ -23,21 +23,38 @@ const novaAPI = {
 
   // Platform info
   platform: process.platform,
-  
+
+  // Voice control
+  voice: {
+    startWakeWord: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('voice:start-wake-word'),
+    stopWakeWord: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('voice:stop-wake-word'),
+    pauseWakeWord: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('voice:pause-wake-word'),
+    resumeWakeWord: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('voice:resume-wake-word'),
+    setSensitivity: (sensitivity: number): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('voice:set-sensitivity', sensitivity),
+    getAudioDevices: (): Promise<Array<{ index: number; name: string; isDefault: boolean }>> =>
+      ipcRenderer.invoke('voice:get-audio-devices'),
+    setAudioDevice: (deviceIndex: number): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('voice:set-audio-device', deviceIndex),
+    getStatus: (): Promise<{
+      wakeWordActive: boolean;
+      wakeWordPaused: boolean;
+      configValid: boolean;
+    }> => ipcRenderer.invoke('voice:get-status'),
+  },
+
   // IPC communication
   send: (channel: string, data?: unknown): void => {
-    const validChannels = [
-      'nova:wake',
-      'nova:listen',
-      'nova:speak',
-      'nova:stop',
-      'nova:settings',
-    ];
+    const validChannels = ['nova:wake', 'nova:listen', 'nova:speak', 'nova:stop', 'nova:settings'];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
   },
-  
+
   on: (channel: string, callback: (...args: unknown[]) => void): (() => void) => {
     const validChannels = [
       'nova:status',
@@ -47,10 +64,10 @@ const novaAPI = {
       'nova:audio-level',
     ];
     if (validChannels.includes(channel)) {
-      const subscription = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => 
+      const subscription = (_event: Electron.IpcRendererEvent, ...args: unknown[]) =>
         callback(...args);
       ipcRenderer.on(channel, subscription);
-      
+
       // Return cleanup function
       return () => {
         ipcRenderer.removeListener(channel, subscription);
@@ -58,7 +75,7 @@ const novaAPI = {
     }
     return () => {}; // No-op cleanup for invalid channels
   },
-  
+
   invoke: async <T>(channel: string, ...args: unknown[]): Promise<T> => {
     const validChannels = [
       'get-app-version',
@@ -69,13 +86,21 @@ const novaAPI = {
       'log',
       'nova:process-audio',
       'nova:send-message',
+      'voice:start-wake-word',
+      'voice:stop-wake-word',
+      'voice:pause-wake-word',
+      'voice:resume-wake-word',
+      'voice:set-sensitivity',
+      'voice:get-audio-devices',
+      'voice:set-audio-device',
+      'voice:get-status',
     ];
     if (validChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
     }
     throw new Error(`Invalid channel: ${channel}`);
   },
-  
+
   // Logging helper
   log: (level: string, module: string, message: string, meta?: Record<string, unknown>): void => {
     ipcRenderer.invoke('log', level, module, message, meta);

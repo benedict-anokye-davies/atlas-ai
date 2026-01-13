@@ -5,7 +5,7 @@
 | Terminal | Session ID  | Status  | Current Task                      | Files Locked                                  | Last Updated         |
 | -------- | ----------- | ------- | --------------------------------- | --------------------------------------------- | -------------------- |
 | 1        | session-001 | ACTIVE  | Task 5: Wake Word Detection       | src/main/voice/\*.ts, tests/wake-word.test.ts | 2026-01-13 06:00 UTC |
-| 2        | session-002 | ACTIVE  | Task 8: Speech-to-Text (Deepgram) | src/main/stt/\*.ts, tests/stt.test.ts         | 2026-01-13 06:02 UTC |
+| 2        | session-002 | ACTIVE  | Task 10: LLM Integration (Fireworks) | src/main/llm/\*.ts, tests/llm.test.ts      | 2026-01-13 06:06 UTC |
 | 3        | -           | OFFLINE | -                                 | -                                             | -                    |
 
 ---
@@ -44,9 +44,9 @@
 - [ ] Task 5: Wake Word Detection (Porcupine) - IN PROGRESS (Terminal 1)
 - [ ] Task 6: Voice Activity Detection (Silero VAD)
 - [ ] Task 7: Audio Pipeline Manager
-- [ ] Task 8: Speech-to-Text (Deepgram) - IN PROGRESS (Terminal 2)
+- [x] Task 8: Speech-to-Text (Deepgram) - COMPLETED (Terminal 2)
 - [ ] Task 9: Offline STT Fallback (Vosk)
-- [ ] Task 10: LLM Integration (Fireworks)
+- [ ] Task 10: LLM Integration (Fireworks) - IN PROGRESS (Terminal 2)
 - [ ] Task 11: LLM Fallback (OpenRouter)
 - [ ] Task 12: Text-to-Speech (ElevenLabs)
 - [ ] Task 13: Offline TTS Fallback
@@ -57,7 +57,7 @@
 ### In Progress:
 
 - Task 5: Wake Word Detection (Terminal 1)
-- Task 8: Speech-to-Text (Terminal 2)
+- Task 10: LLM Integration (Terminal 2)
 
 ### Completed:
 
@@ -65,6 +65,7 @@
 - [x] Task 2: Environment & Configuration (Terminal 1)
 - [x] Task 3: Logging System (Terminal 1)
 - [x] Task 4: Error Handling & Recovery (Terminal 2)
+- [x] Task 8: Speech-to-Text (Terminal 2)
 
 ---
 
@@ -81,6 +82,11 @@ Use this section to leave messages for other sessions:
                                - Global error handler, retry utilities, circuit breaker
                                - React ErrorBoundary, crash recovery, notifications
                                Starting Task 8 (Deepgram STT) next.
+
+[2026-01-13 06:06] Terminal 2: Completed Task 8 (Deepgram STT). 67 tests passing.
+                               - DeepgramSTT class with streaming transcription
+                               - Interim/final results, VAD events, word timing
+                               Starting Task 10 (LLM Fireworks) next.
 ```
 
 ---

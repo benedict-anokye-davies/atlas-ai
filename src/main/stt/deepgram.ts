@@ -72,11 +72,11 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
   constructor(config: Partial<DeepgramConfig> = {}) {
     super();
     this.config = { ...DEFAULT_DEEPGRAM_CONFIG, ...config } as DeepgramConfig;
-    
+
     if (!this.config.apiKey) {
       throw new Error('Deepgram API key is required');
     }
-    
+
     logger.info('DeepgramSTT initialized', { model: this.config.model });
   }
 
@@ -331,9 +331,9 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
 
       // Log transcription
       if (result.isFinal) {
-        logger.info('Final transcript', { 
-          text: result.text, 
-          confidence: result.confidence.toFixed(2) 
+        logger.info('Final transcript', {
+          text: result.text,
+          confidence: result.confidence.toFixed(2),
         });
       } else {
         logger.debug('Interim transcript', { text: result.text });
@@ -361,7 +361,7 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
     if (this._status !== STTStatus.CLOSED && this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       logger.info(`Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
-      
+
       setTimeout(() => {
         this.start().catch((error) => {
           logger.error('Reconnection failed', { error: error.message });
@@ -375,7 +375,7 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
    */
   private startKeepAlive(): void {
     this.stopKeepAlive();
-    
+
     // Send keep-alive every 10 seconds
     this.keepAliveInterval = setInterval(() => {
       if (this.connection && this._status === STTStatus.CONNECTED) {
@@ -403,7 +403,7 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
    */
   async stop(): Promise<void> {
     logger.info('Stopping Deepgram connection');
-    
+
     this.stopKeepAlive();
     this.setStatus(STTStatus.CLOSED);
 
@@ -431,11 +431,9 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
 
     try {
       // Convert Int16Array to Buffer if needed
-      const buffer = audioData instanceof Buffer 
-        ? audioData 
-        : Buffer.from(audioData.buffer);
+      const buffer = audioData instanceof Buffer ? audioData : Buffer.from(audioData.buffer);
 
-      this.connection!.send(buffer);
+      this.connection!.send(buffer as unknown as ArrayBuffer);
     } catch (error) {
       logger.error('Error sending audio', { error: (error as Error).message });
       this.emit('error', error as Error);

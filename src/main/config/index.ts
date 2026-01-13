@@ -18,16 +18,6 @@ import {
 dotenvConfig();
 
 /**
- * Convert environment variable name to config key
- * PORCUPINE_API_KEY -> porcupineApiKey
- */
-function envToConfigKey(envKey: string): string {
-  return envKey
-    .toLowerCase()
-    .replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-}
-
-/**
  * Expand ~ to home directory
  */
 function expandPath(path: string): string {
@@ -35,17 +25,6 @@ function expandPath(path: string): string {
     return path.replace('~', homedir());
   }
   return resolve(path);
-}
-
-/**
- * Get a single config value from environment
- */
-function getEnvValue(key: string): string | undefined {
-  const envKey = key
-    .replace(/([A-Z])/g, '_$1')
-    .toUpperCase()
-    .replace(/^_/, '');
-  return process.env[envKey];
 }
 
 /**
@@ -62,14 +41,11 @@ function loadConfig(): NovaConfig {
     perplexityApiKey: process.env.PERPLEXITY_API_KEY,
 
     // ElevenLabs settings
-    elevenlabsVoiceId:
-      process.env.ELEVENLABS_VOICE_ID || DEFAULT_CONFIG.elevenlabsVoiceId!,
+    elevenlabsVoiceId: process.env.ELEVENLABS_VOICE_ID || DEFAULT_CONFIG.elevenlabsVoiceId!,
 
     // LLM settings
-    fireworksModel:
-      process.env.FIREWORKS_MODEL || DEFAULT_CONFIG.fireworksModel!,
-    openrouterModel:
-      process.env.OPENROUTER_MODEL || DEFAULT_CONFIG.openrouterModel!,
+    fireworksModel: process.env.FIREWORKS_MODEL || DEFAULT_CONFIG.fireworksModel!,
+    openrouterModel: process.env.OPENROUTER_MODEL || DEFAULT_CONFIG.openrouterModel!,
 
     // Environment
     nodeEnv: (process.env.NODE_ENV as NovaConfig['nodeEnv']) || 'development',
@@ -81,22 +57,15 @@ function loadConfig(): NovaConfig {
       process.env.AUDIO_SAMPLE_RATE || String(DEFAULT_CONFIG.audioSampleRate),
       10
     ),
-    audioChannels: parseInt(
-      process.env.AUDIO_CHANNELS || String(DEFAULT_CONFIG.audioChannels),
-      10
-    ),
+    audioChannels: parseInt(process.env.AUDIO_CHANNELS || String(DEFAULT_CONFIG.audioChannels), 10),
 
     // Voice settings
     wakeWordSensitivity: parseFloat(
-      process.env.WAKE_WORD_SENSITIVITY ||
-        String(DEFAULT_CONFIG.wakeWordSensitivity)
+      process.env.WAKE_WORD_SENSITIVITY || String(DEFAULT_CONFIG.wakeWordSensitivity)
     ),
-    vadThreshold: parseFloat(
-      process.env.VAD_THRESHOLD || String(DEFAULT_CONFIG.vadThreshold)
-    ),
+    vadThreshold: parseFloat(process.env.VAD_THRESHOLD || String(DEFAULT_CONFIG.vadThreshold)),
     vadSilenceDuration: parseInt(
-      process.env.VAD_SILENCE_DURATION ||
-        String(DEFAULT_CONFIG.vadSilenceDuration),
+      process.env.VAD_SILENCE_DURATION || String(DEFAULT_CONFIG.vadSilenceDuration),
       10
     ),
 
@@ -198,9 +167,7 @@ export function isConfigValid(): boolean {
 /**
  * Get a specific config value
  */
-export function getConfigValue<K extends keyof NovaConfig>(
-  key: K
-): NovaConfig[K] {
+export function getConfigValue<K extends keyof NovaConfig>(key: K): NovaConfig[K] {
   return getConfig()[key];
 }
 

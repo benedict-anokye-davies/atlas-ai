@@ -3,7 +3,7 @@
  * Global error handler, retry utilities, circuit breaker, and recovery
  */
 
-import { app, dialog, BrowserWindow } from 'electron';
+import { app, dialog } from 'electron';
 import { createModuleLogger } from './logger';
 import { existsSync, writeFileSync, readFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
@@ -96,7 +96,7 @@ export function installGlobalErrorHandler(options: GlobalErrorHandlerOptions = {
   // Handle unhandled promise rejections
   process.on('unhandledRejection', async (reason: unknown) => {
     const error = reason instanceof Error ? reason : new Error(String(reason));
-    
+
     errorLogger.error('Unhandled Promise Rejection', {
       message: error.message,
       stack: error.stack,
@@ -176,10 +176,7 @@ const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, 'retryCondition' | 'onR
 /**
  * Execute a function with retry logic and exponential backoff
  */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
   const opts = { ...DEFAULT_RETRY_OPTIONS, ...options };
   let lastError: Error | null = null;
   let delayMs = opts.initialDelayMs;
@@ -243,15 +240,15 @@ export function createRetryable<T, Args extends unknown[]>(
 // ============================================================================
 
 export enum CircuitState {
-  CLOSED = 'CLOSED',     // Normal operation
-  OPEN = 'OPEN',         // Failing, reject all calls
-  HALF_OPEN = 'HALF_OPEN' // Testing if service recovered
+  CLOSED = 'CLOSED', // Normal operation
+  OPEN = 'OPEN', // Failing, reject all calls
+  HALF_OPEN = 'HALF_OPEN', // Testing if service recovered
 }
 
 export interface CircuitBreakerOptions {
-  failureThreshold?: number;     // Number of failures before opening
-  successThreshold?: number;     // Number of successes in half-open before closing
-  timeout?: number;              // Time in ms before trying again (half-open)
+  failureThreshold?: number; // Number of failures before opening
+  successThreshold?: number; // Number of successes in half-open before closing
+  timeout?: number; // Time in ms before trying again (half-open)
   onStateChange?: (from: CircuitState, to: CircuitState) => void;
 }
 
@@ -266,7 +263,8 @@ export class CircuitBreaker {
   private failures: number = 0;
   private successes: number = 0;
   private lastFailureTime: number = 0;
-  private options: Required<Omit<CircuitBreakerOptions, 'onStateChange'>> & Pick<CircuitBreakerOptions, 'onStateChange'>;
+  private options: Required<Omit<CircuitBreakerOptions, 'onStateChange'>> &
+    Pick<CircuitBreakerOptions, 'onStateChange'>;
   private logger = createModuleLogger('CircuitBreaker');
 
   constructor(
@@ -285,12 +283,10 @@ export class CircuitBreaker {
       if (Date.now() - this.lastFailureTime >= this.options.timeout) {
         this.transitionTo(CircuitState.HALF_OPEN);
       } else {
-        throw new NovaError(
-          `Circuit breaker '${this.name}' is OPEN`,
-          'CIRCUIT_OPEN',
-          true,
-          { name: this.name, state: this.state }
-        );
+        throw new NovaError(`Circuit breaker '${this.name}' is OPEN`, 'CIRCUIT_OPEN', true, {
+          name: this.name,
+          state: this.state,
+        });
       }
     }
 
@@ -506,7 +502,7 @@ class ErrorNotificationManager {
     };
 
     this.notifications.push(fullNotification);
-    
+
     // Keep only last 100 notifications
     if (this.notifications.length > 100) {
       this.notifications = this.notifications.slice(-100);
@@ -593,10 +589,12 @@ export function sleep(ms: number): Promise<void> {
  */
 export function isRetryableError(error: Error): boolean {
   // Network errors
-  if (error.message.includes('ECONNRESET') ||
-      error.message.includes('ETIMEDOUT') ||
-      error.message.includes('ECONNREFUSED') ||
-      error.message.includes('ENOTFOUND')) {
+  if (
+    error.message.includes('ECONNRESET') ||
+    error.message.includes('ETIMEDOUT') ||
+    error.message.includes('ECONNREFUSED') ||
+    error.message.includes('ENOTFOUND')
+  ) {
     return true;
   }
 

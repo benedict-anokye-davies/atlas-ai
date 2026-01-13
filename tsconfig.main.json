@@ -5,7 +5,7 @@
     "moduleResolution": "node",
     "lib": ["ES2022"],
     "outDir": "dist/main",
-    "rootDir": "src/main",
+    "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -31,5 +31,5 @@
     }
   },
   "include": ["src/main/**/*", "src/shared/**/*"],
-  "exclude": ["node_modules", "dist", "release"]
+  "exclude": ["node_modules", "dist", "release", "src/renderer/**/*"]
 }

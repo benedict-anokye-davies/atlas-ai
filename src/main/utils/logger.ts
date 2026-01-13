@@ -5,7 +5,6 @@
 
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
-import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
 import { getConfig } from '../config';
 

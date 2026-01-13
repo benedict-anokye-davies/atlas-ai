@@ -5,14 +5,17 @@
 
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import { getConfig, isConfigValid, getSafeConfig, getConfigValidation } from './config';
-import { 
-  mainLogger, 
-  ipcLogger, 
-  createModuleLogger, 
+import { isConfigValid, getSafeConfig, getConfigValidation } from './config';
+import {
+  mainLogger,
+  ipcLogger,
+  voiceLogger,
+  createModuleLogger,
   shutdownLogger,
-  PerformanceTimer 
+  PerformanceTimer,
 } from './utils/logger';
+import { WakeWordDetector, getWakeWordDetector, shutdownWakeWordDetector } from './voice/wake-word';
+import type { WakeWordEvent } from '../shared/types/voice';
 
 // Keep a global reference of the window object
 let mainWindow: BrowserWindow | null = null;
@@ -28,7 +31,7 @@ const startupTimer = new PerformanceTimer('Startup');
  */
 function createWindow(): void {
   startupTimer.start('createWindow');
-  
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -105,8 +108,75 @@ app.on('window-all-closed', () => {
 // Handle app before quit
 app.on('before-quit', async () => {
   mainLogger.info('App quitting, cleaning up...');
+  await shutdownWakeWordDetector();
   await shutdownLogger();
 });
+
+/**
+ * Voice Pipeline Setup
+ */
+let wakeWordDetector: WakeWordDetector | null = null;
+
+/**
+ * Initialize voice pipeline components
+ */
+async function initializeVoicePipeline(): Promise<void> {
+  if (!isConfigValid()) {
+    voiceLogger.warn('Voice pipeline disabled - missing API keys');
+    return;
+  }
+
+  try {
+    voiceLogger.info('Initializing voice pipeline...');
+    wakeWordDetector = getWakeWordDetector();
+
+    // Set up wake word event handlers
+    wakeWordDetector.on('wake', (event: WakeWordEvent) => {
+      voiceLogger.info('Wake word detected!', {
+        keyword: event.keyword,
+        confidence: event.confidence,
+      });
+      // Send to renderer
+      mainWindow?.webContents.send('nova:status', {
+        type: 'wake-word',
+        event,
+      });
+    });
+
+    wakeWordDetector.on('audio-level', (level: number) => {
+      // Throttle audio level updates to prevent flooding
+      mainWindow?.webContents.send('nova:audio-level', level);
+    });
+
+    wakeWordDetector.on('error', (error: Error) => {
+      voiceLogger.error('Wake word detector error', { error: error.message });
+      mainWindow?.webContents.send('nova:error', {
+        type: 'wake-word',
+        message: error.message,
+      });
+    });
+
+    wakeWordDetector.on('started', () => {
+      voiceLogger.info('Wake word detection started');
+      mainWindow?.webContents.send('nova:status', {
+        type: 'wake-word-started',
+      });
+    });
+
+    wakeWordDetector.on('stopped', () => {
+      voiceLogger.info('Wake word detection stopped');
+      mainWindow?.webContents.send('nova:status', {
+        type: 'wake-word-stopped',
+      });
+    });
+
+    voiceLogger.info('Voice pipeline initialized');
+  } catch (error) {
+    voiceLogger.error('Failed to initialize voice pipeline', {
+      error: (error as Error).message,
+    });
+  }
+}
 
 /**
  * IPC Handlers
@@ -149,25 +219,28 @@ ipcMain.handle('get-config', () => {
  * Renderer Logging IPC
  * Allows renderer to log through main process logger
  */
-ipcMain.handle('log', (_event, level: string, module: string, message: string, meta?: Record<string, unknown>) => {
-  const logger = createModuleLogger(`Renderer:${module}`);
-  switch (level) {
-    case 'debug':
-      logger.debug(message, meta);
-      break;
-    case 'info':
-      logger.info(message, meta);
-      break;
-    case 'warn':
-      logger.warn(message, meta);
-      break;
-    case 'error':
-      logger.error(message, meta);
-      break;
-    default:
-      logger.info(message, meta);
+ipcMain.handle(
+  'log',
+  (_event, level: string, module: string, message: string, meta?: Record<string, unknown>) => {
+    const logger = createModuleLogger(`Renderer:${module}`);
+    switch (level) {
+      case 'debug':
+        logger.debug(message, meta);
+        break;
+      case 'info':
+        logger.info(message, meta);
+        break;
+      case 'warn':
+        logger.warn(message, meta);
+        break;
+      case 'error':
+        logger.error(message, meta);
+        break;
+      default:
+        logger.info(message, meta);
+    }
   }
-});
+);
 
 /**
  * Security: Prevent new window creation
@@ -182,7 +255,6 @@ app.on('web-contents-created', (_event, contents) => {
 startupTimer.start('appReady');
 
 // Log startup info
-const config = getConfig();
 mainLogger.info('Starting Nova Desktop...', {
   environment: isDev ? 'development' : 'production',
   electron: process.versions.electron,
@@ -197,3 +269,84 @@ if (!isConfigValid()) {
 }
 
 ipcLogger.info('IPC handlers registered');
+
+/**
+ * Voice Pipeline IPC Handlers
+ */
+
+// Start wake word detection
+ipcMain.handle('voice:start-wake-word', async () => {
+  if (!wakeWordDetector) {
+    await initializeVoicePipeline();
+  }
+  if (wakeWordDetector) {
+    await wakeWordDetector.start();
+    return { success: true };
+  }
+  return { success: false, error: 'Wake word detector not initialized' };
+});
+
+// Stop wake word detection
+ipcMain.handle('voice:stop-wake-word', async () => {
+  if (wakeWordDetector) {
+    await wakeWordDetector.stop();
+    return { success: true };
+  }
+  return { success: false, error: 'Wake word detector not initialized' };
+});
+
+// Pause wake word detection
+ipcMain.handle('voice:pause-wake-word', () => {
+  if (wakeWordDetector) {
+    wakeWordDetector.pause();
+    return { success: true };
+  }
+  return { success: false, error: 'Wake word detector not initialized' };
+});
+
+// Resume wake word detection
+ipcMain.handle('voice:resume-wake-word', () => {
+  if (wakeWordDetector) {
+    wakeWordDetector.resume();
+    return { success: true };
+  }
+  return { success: false, error: 'Wake word detector not initialized' };
+});
+
+// Set wake word sensitivity
+ipcMain.handle('voice:set-sensitivity', (_event, sensitivity: number) => {
+  if (wakeWordDetector) {
+    try {
+      wakeWordDetector.setSensitivity(sensitivity);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+  return { success: false, error: 'Wake word detector not initialized' };
+});
+
+// Get audio devices
+ipcMain.handle('voice:get-audio-devices', () => {
+  return WakeWordDetector.getAudioDevices();
+});
+
+// Set audio device
+ipcMain.handle('voice:set-audio-device', (_event, deviceIndex: number) => {
+  if (wakeWordDetector) {
+    wakeWordDetector.setAudioDevice(deviceIndex);
+    return { success: true };
+  }
+  return { success: false, error: 'Wake word detector not initialized' };
+});
+
+// Get voice pipeline status
+ipcMain.handle('voice:get-status', () => {
+  return {
+    wakeWordActive: wakeWordDetector?.running ?? false,
+    wakeWordPaused: wakeWordDetector?.paused ?? false,
+    configValid: isConfigValid(),
+  };
+});
+
+voiceLogger.info('Voice IPC handlers registered');
