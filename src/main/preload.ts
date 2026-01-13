@@ -47,6 +47,43 @@ const novaAPI = {
     }> => ipcRenderer.invoke('voice:get-status'),
   },
 
+  // Audio Pipeline control
+  pipeline: {
+    start: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('pipeline:start'),
+    stop: (): Promise<{ success: boolean; error?: string }> => ipcRenderer.invoke('pipeline:stop'),
+    getStatus: (): Promise<{
+      state: string;
+      isListening: boolean;
+      isSpeaking: boolean;
+      audioLevel: number;
+      lastWakeWord?: unknown;
+      error?: string;
+    }> => ipcRenderer.invoke('pipeline:get-status'),
+    triggerWake: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('pipeline:trigger-wake'),
+    cancel: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('pipeline:cancel'),
+    pause: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('pipeline:pause'),
+    resume: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('pipeline:resume'),
+    setInputDevice: (deviceIndex: number): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('pipeline:set-input-device', deviceIndex),
+    setOutputDevice: (deviceIndex: number): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('pipeline:set-output-device', deviceIndex),
+    getConfig: (): Promise<Record<string, unknown> | null> =>
+      ipcRenderer.invoke('pipeline:get-config'),
+    updateConfig: (
+      config: Record<string, unknown>
+    ): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('pipeline:update-config', config),
+    startSpeaking: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('pipeline:start-speaking'),
+    finishSpeaking: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('pipeline:finish-speaking'),
+  },
+
   // IPC communication
   send: (channel: string, data?: unknown): void => {
     const validChannels = ['nova:wake', 'nova:listen', 'nova:speak', 'nova:stop', 'nova:settings'];
@@ -62,6 +99,14 @@ const novaAPI = {
       'nova:response',
       'nova:error',
       'nova:audio-level',
+      // Pipeline events
+      'nova:pipeline-state',
+      'nova:wake-word',
+      'nova:speech-start',
+      'nova:speech-segment',
+      'nova:barge-in',
+      'nova:listening-timeout',
+      'nova:processing-timeout',
     ];
     if (validChannels.includes(channel)) {
       const subscription = (_event: Electron.IpcRendererEvent, ...args: unknown[]) =>
@@ -86,6 +131,7 @@ const novaAPI = {
       'log',
       'nova:process-audio',
       'nova:send-message',
+      // Wake word channels
       'voice:start-wake-word',
       'voice:stop-wake-word',
       'voice:pause-wake-word',
@@ -94,6 +140,20 @@ const novaAPI = {
       'voice:get-audio-devices',
       'voice:set-audio-device',
       'voice:get-status',
+      // Pipeline channels
+      'pipeline:start',
+      'pipeline:stop',
+      'pipeline:get-status',
+      'pipeline:trigger-wake',
+      'pipeline:cancel',
+      'pipeline:pause',
+      'pipeline:resume',
+      'pipeline:set-input-device',
+      'pipeline:set-output-device',
+      'pipeline:get-config',
+      'pipeline:update-config',
+      'pipeline:start-speaking',
+      'pipeline:finish-speaking',
     ];
     if (validChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);

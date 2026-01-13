@@ -15,7 +15,8 @@ import {
   PerformanceTimer,
 } from './utils/logger';
 import { WakeWordDetector, getWakeWordDetector, shutdownWakeWordDetector } from './voice/wake-word';
-import type { WakeWordEvent } from '../shared/types/voice';
+import { AudioPipeline, getAudioPipeline, shutdownAudioPipeline } from './voice/pipeline';
+import type { WakeWordEvent, VoicePipelineState, SpeechSegment } from '../shared/types/voice';
 
 // Keep a global reference of the window object
 let mainWindow: BrowserWindow | null = null;
@@ -108,6 +109,7 @@ app.on('window-all-closed', () => {
 // Handle app before quit
 app.on('before-quit', async () => {
   mainLogger.info('App quitting, cleaning up...');
+  await shutdownAudioPipeline();
   await shutdownWakeWordDetector();
   await shutdownLogger();
 });
@@ -350,3 +352,201 @@ ipcMain.handle('voice:get-status', () => {
 });
 
 voiceLogger.info('Voice IPC handlers registered');
+
+/**
+ * Audio Pipeline IPC Handlers
+ */
+let audioPipeline: AudioPipeline | null = null;
+
+/**
+ * Initialize the audio pipeline with event forwarding to renderer
+ */
+async function initializeAudioPipeline(): Promise<AudioPipeline> {
+  if (audioPipeline) {
+    return audioPipeline;
+  }
+
+  audioPipeline = getAudioPipeline();
+
+  // Forward state changes to renderer
+  audioPipeline.on(
+    'state-change',
+    (state: VoicePipelineState, previousState: VoicePipelineState) => {
+      mainWindow?.webContents.send('nova:pipeline-state', { state, previousState });
+    }
+  );
+
+  // Forward wake word events
+  audioPipeline.on('wake-word', (event: WakeWordEvent) => {
+    mainWindow?.webContents.send('nova:wake-word', event);
+  });
+
+  // Forward speech events
+  audioPipeline.on('speech-start', (event) => {
+    mainWindow?.webContents.send('nova:speech-start', event);
+  });
+
+  audioPipeline.on('speech-segment', (segment: SpeechSegment) => {
+    // Convert Float32Array to base64 for IPC (can't send typed arrays directly)
+    const audioBase64 = Buffer.from(segment.audio.buffer).toString('base64');
+    mainWindow?.webContents.send('nova:speech-segment', {
+      ...segment,
+      audio: audioBase64,
+    });
+  });
+
+  // Forward audio level
+  audioPipeline.on('audio-level', (level: number) => {
+    mainWindow?.webContents.send('nova:audio-level', level);
+  });
+
+  // Forward errors
+  audioPipeline.on('error', (error: Error) => {
+    voiceLogger.error('Pipeline error', { error: error.message });
+    mainWindow?.webContents.send('nova:error', {
+      type: 'pipeline',
+      message: error.message,
+    });
+  });
+
+  // Forward barge-in
+  audioPipeline.on('barge-in', () => {
+    mainWindow?.webContents.send('nova:barge-in');
+  });
+
+  // Forward timeouts
+  audioPipeline.on('listening-timeout', () => {
+    mainWindow?.webContents.send('nova:listening-timeout');
+  });
+
+  audioPipeline.on('processing-timeout', () => {
+    mainWindow?.webContents.send('nova:processing-timeout');
+  });
+
+  voiceLogger.info('Audio pipeline initialized with IPC event forwarding');
+  return audioPipeline;
+}
+
+// Start audio pipeline
+ipcMain.handle('pipeline:start', async () => {
+  try {
+    const pipeline = await initializeAudioPipeline();
+    await pipeline.start();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+// Stop audio pipeline
+ipcMain.handle('pipeline:stop', async () => {
+  if (audioPipeline) {
+    await audioPipeline.stop();
+    return { success: true };
+  }
+  return { success: false, error: 'Pipeline not initialized' };
+});
+
+// Get pipeline status
+ipcMain.handle('pipeline:get-status', () => {
+  if (audioPipeline) {
+    return audioPipeline.getStatus();
+  }
+  return {
+    state: 'idle' as VoicePipelineState,
+    isListening: false,
+    isSpeaking: false,
+    audioLevel: 0,
+  };
+});
+
+// Trigger manual wake (push-to-talk)
+ipcMain.handle('pipeline:trigger-wake', () => {
+  if (audioPipeline) {
+    audioPipeline.triggerWake();
+    return { success: true };
+  }
+  return { success: false, error: 'Pipeline not initialized' };
+});
+
+// Cancel current interaction
+ipcMain.handle('pipeline:cancel', () => {
+  if (audioPipeline) {
+    audioPipeline.cancel();
+    return { success: true };
+  }
+  return { success: false, error: 'Pipeline not initialized' };
+});
+
+// Pause pipeline
+ipcMain.handle('pipeline:pause', () => {
+  if (audioPipeline) {
+    audioPipeline.pause();
+    return { success: true };
+  }
+  return { success: false, error: 'Pipeline not initialized' };
+});
+
+// Resume pipeline
+ipcMain.handle('pipeline:resume', () => {
+  if (audioPipeline) {
+    audioPipeline.resume();
+    return { success: true };
+  }
+  return { success: false, error: 'Pipeline not initialized' };
+});
+
+// Set input device
+ipcMain.handle('pipeline:set-input-device', (_event, deviceIndex: number) => {
+  if (audioPipeline) {
+    audioPipeline.setInputDevice(deviceIndex);
+    return { success: true };
+  }
+  return { success: false, error: 'Pipeline not initialized' };
+});
+
+// Set output device
+ipcMain.handle('pipeline:set-output-device', (_event, deviceIndex: number) => {
+  if (audioPipeline) {
+    audioPipeline.setOutputDevice(deviceIndex);
+    return { success: true };
+  }
+  return { success: false, error: 'Pipeline not initialized' };
+});
+
+// Get pipeline config
+ipcMain.handle('pipeline:get-config', () => {
+  if (audioPipeline) {
+    return audioPipeline.getConfig();
+  }
+  return null;
+});
+
+// Update pipeline config
+ipcMain.handle('pipeline:update-config', (_event, config: Record<string, unknown>) => {
+  if (audioPipeline) {
+    audioPipeline.updateConfig(config);
+    return { success: true };
+  }
+  return { success: false, error: 'Pipeline not initialized' };
+});
+
+// Signal that processing is complete, start speaking
+ipcMain.handle('pipeline:start-speaking', () => {
+  if (audioPipeline) {
+    audioPipeline.startSpeaking();
+    return { success: true };
+  }
+  return { success: false, error: 'Pipeline not initialized' };
+});
+
+// Signal that speaking is complete
+ipcMain.handle('pipeline:finish-speaking', () => {
+  if (audioPipeline) {
+    audioPipeline.finishSpeaking();
+    return { success: true };
+  }
+  return { success: false, error: 'Pipeline not initialized' };
+});
+
+voiceLogger.info('Pipeline IPC handlers registered');

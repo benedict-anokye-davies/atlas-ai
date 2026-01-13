@@ -1,7 +1,8 @@
 /**
- * Nova Voice Module Index
- * Exports all voice-related functionality
+ * Nova Voice Module
+ * Exports all voice-related components
  */
 
 export * from './wake-word';
 export * from './vad';
+export * from './pipeline';
