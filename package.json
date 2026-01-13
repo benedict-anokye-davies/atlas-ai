@@ -27,9 +27,13 @@
     "@picovoice/porcupine-node": "^4.0.1",
     "@picovoice/pvrecorder-node": "^1.2.8",
     "@ricky0123/vad-node": "^0.0.3",
+    "adm-zip": "^0.5.16",
     "dotenv": "^16.3.1",
     "electron-store": "^8.1.0",
+    "elevenlabs": "^1.59.0",
+    "onnxruntime-node": "^1.23.2",
     "openai": "^6.16.0",
+    "vosk-koffi": "^1.1.1",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",
     "zustand": "^4.4.7"
@@ -37,6 +41,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
+    "@types/adm-zip": "^0.5.7",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
