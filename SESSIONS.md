@@ -2,11 +2,11 @@
 
 ## ACTIVE SESSIONS
 
-| Terminal | Session ID  | Status  | Current Task                      | Files Locked                                  | Last Updated         |
-| -------- | ----------- | ------- | --------------------------------- | --------------------------------------------- | -------------------- |
-| 1        | session-001 | ACTIVE  | Task 5: Wake Word Detection       | src/main/voice/\*.ts, tests/wake-word.test.ts | 2026-01-13 06:00 UTC |
-| 2        | session-002 | ACTIVE  | Task 10: LLM Integration (Fireworks) | src/main/llm/\*.ts, tests/llm.test.ts      | 2026-01-13 06:06 UTC |
-| 3        | -           | OFFLINE | -                                 | -                                             | -                    |
+| Terminal | Session ID  | Status  | Current Task                         | Files Locked                             | Last Updated         |
+| -------- | ----------- | ------- | ------------------------------------ | ---------------------------------------- | -------------------- |
+| 1        | session-001 | ACTIVE  | Task 6: Voice Activity Detection     | src/main/voice/vad.ts, tests/vad.test.ts | 2026-01-13 06:10 UTC |
+| 2        | session-002 | ACTIVE  | Task 10: LLM Integration (Fireworks) | src/main/llm/\*.ts, tests/llm.test.ts    | 2026-01-13 06:06 UTC |
+| 3        | -           | OFFLINE | -                                    | -                                        | -                    |
 
 ---
 
@@ -41,8 +41,8 @@
 ### Available Tasks (not assigned):
 
 - [x] Task 4: Error Handling & Recovery (COMPLETED - Terminal 2)
-- [ ] Task 5: Wake Word Detection (Porcupine) - IN PROGRESS (Terminal 1)
-- [ ] Task 6: Voice Activity Detection (Silero VAD)
+- [x] Task 5: Wake Word Detection (Porcupine) - COMPLETED (Terminal 1)
+- [ ] Task 6: Voice Activity Detection (Silero VAD) - IN PROGRESS (Terminal 1)
 - [ ] Task 7: Audio Pipeline Manager
 - [x] Task 8: Speech-to-Text (Deepgram) - COMPLETED (Terminal 2)
 - [ ] Task 9: Offline STT Fallback (Vosk)
@@ -56,7 +56,7 @@
 
 ### In Progress:
 
-- Task 5: Wake Word Detection (Terminal 1)
+- Task 6: Voice Activity Detection (Terminal 1)
 - Task 10: LLM Integration (Terminal 2)
 
 ### Completed:
@@ -65,6 +65,7 @@
 - [x] Task 2: Environment & Configuration (Terminal 1)
 - [x] Task 3: Logging System (Terminal 1)
 - [x] Task 4: Error Handling & Recovery (Terminal 2)
+- [x] Task 5: Wake Word Detection (Terminal 1)
 - [x] Task 8: Speech-to-Text (Terminal 2)
 
 ---
@@ -87,6 +88,12 @@ Use this section to leave messages for other sessions:
                                - DeepgramSTT class with streaming transcription
                                - Interim/final results, VAD events, word timing
                                Starting Task 10 (LLM Fireworks) next.
+
+[2026-01-13 06:10] Terminal 1: Completed Task 5 (Wake Word Detection). 67 tests passing.
+                               - WakeWordDetector class with Porcupine
+                               - PvRecorder audio input, sensitivity config, cooldown
+                               - IPC integration and voice control API
+                               Starting Task 6 (VAD) next.
 ```
 
 ---

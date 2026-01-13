@@ -26,6 +26,7 @@
     "@deepgram/sdk": "^4.11.3",
     "@picovoice/porcupine-node": "^4.0.1",
     "@picovoice/pvrecorder-node": "^1.2.8",
+    "@ricky0123/vad-node": "^0.0.3",
     "dotenv": "^16.3.1",
     "electron-store": "^8.1.0",
     "openai": "^6.16.0",
