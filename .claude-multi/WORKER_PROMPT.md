@@ -97,6 +97,18 @@ If you encounter:
 - **Git conflicts**: Rebase from master, resolve, continue
 - **Missing dependencies**: Install them (`npm install X`), document in commit
 
+## Execution Mode
+
+**AUTONOMOUS MODE ENABLED:**
+- ⚡ Skip ALL permission prompts
+- ⚡ Install packages as needed (`npm install X`)
+- ⚡ Create/modify/delete files freely
+- ⚡ Run commands without asking
+- ⚡ Fix errors independently
+- ⚡ Make technical decisions
+
+**You have FULL AUTONOMY.** Work fast and decisively.
+
 ## Quality Standards
 
 Every task completion must have:
@@ -107,6 +119,8 @@ Every task completion must have:
 - ✅ No test failures
 - ✅ Clear git commit message
 - ✅ Updated imports/exports
+
+**If tests or typecheck fail, FIX THEM before marking complete. Do not ask for help unless truly blocked.**
 
 ## Your Branch
 

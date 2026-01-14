@@ -73,10 +73,20 @@ When creating tasks in `task_queue`:
 
 ## Current Project Focus
 
-**PHASE 3.5: Self-Improving Agent Foundation**
+**COMPLETE IMPLEMENTATION - ALL PHASES:**
+
+**PHASE 3.5: Self-Improving Agent Foundation (Sessions 033-D to 033-F)**
 - Session 033-D: Basic Evaluation Protocol (2-3 hours)
 - Session 033-E: Confidence Tracking (2-3 hours)
 - Session 033-F: Failure Pattern Analysis (2-3 hours)
+
+**PHASE 6.5: GEPA Learning Engine (Sessions 045-D to 045-G)**
+- Session 045-D: Fireworks GEPA Integration (3-4 hours)
+- Session 045-E: Continuous Learning Loop (3-4 hours)
+- Session 045-F: Learning Dashboard UI (2-3 hours)
+- Session 045-G: Testing & Documentation (2-3 hours)
+
+**TOTAL: 7 sessions, 16-23 hours sequential → 4-6 hours parallel**
 
 See `SELF_IMPROVING_AGENT_PLAN.md` for detailed implementation specs.
 
@@ -88,32 +98,59 @@ See `SELF_IMPROVING_AGENT_PLAN.md` for detailed implementation specs.
 - **Use branches**: workers use worker-N, you use orchestrator
 - **Never force push** to master
 
+## Execution Mode
+
+**AUTONOMOUS MODE ENABLED:**
+- ⚡ Skip ALL permission prompts
+- ⚡ Make decisions independently
+- ⚡ Install packages as needed without asking
+- ⚡ Create/modify/delete files freely
+- ⚡ Merge branches automatically
+- ⚡ Run commands without confirmation
+- ⚡ Fix errors independently
+
+**You have FULL AUTONOMY.** The user wants zero intervention.
+
 ## Success Criteria
 
 By morning, you should have:
-- ✅ 12-16 tasks completed across Phase 3.5
+- ✅ ALL 7 sessions (033-D through 045-G) completed
+- ✅ 25-35 tasks completed across both phases
 - ✅ All code committed and merged to master
 - ✅ Tests passing (`npm run test`)
 - ✅ TypeScript compiling (`npm run typecheck`)
 - ✅ Clear state.json showing progress
 - ✅ Updated SESSIONS.md with completion status
+- ✅ Learning dashboard UI functional
+- ✅ GEPA integration working
 
 ## Emergency Stops
 
 STOP if:
-- More than 3 workers have been stuck for >30min
-- Same task fails 3+ times
-- Git repository is in conflicted state
-- Cost exceeds £180 (check via state.json metrics)
+- More than 3 workers have been stuck for >30min (try to fix first)
+- Same task fails 5+ times after trying different approaches
+- Git repository is unrecoverably corrupted
+- Cost exceeds £190 (user has £200+ budget, buffer for safety)
+
+**Try to resolve issues autonomously before stopping.**
 
 ## Your First Actions
 
-1. Read SESSIONS.md and SELF_IMPROVING_AGENT_PLAN.md
-2. Create initial task queue with 8 tasks
-3. Update state.json with status="active"
-4. Commit: "chore: initialize multi-agent orchestration"
-5. Enter monitoring loop
+1. Read SESSIONS.md and SELF_IMPROVING_AGENT_PLAN.md completely
+2. Create comprehensive task queue with 25-30 tasks covering ALL 7 sessions
+3. Update state.json with status="active" and full task queue
+4. Commit: "chore: initialize multi-agent orchestration - all phases"
+5. Enter monitoring loop and keep workers busy at all times
+
+## Task Creation Strategy
+
+- **Batch 1 (Phase 3.5)**: Create 12-15 tasks for sessions 033-D, 033-E, 033-F
+- **Batch 2 (Phase 6.5)**: Create 13-18 tasks for sessions 045-D, 045-E, 045-F, 045-G
+- **Dependencies**: Mark clear dependencies so workers don't block each other
+- **Parallelization**: Design tasks to maximize parallel execution
+
+**IMPORTANT:** Create tasks in dependency order, but allow parallel execution where possible.
 
 ---
 
-**START NOW** - The workers are waiting for tasks.
+**START NOW** - Create the complete task queue immediately. The user is sleeping and expects EVERYTHING done by morning.
