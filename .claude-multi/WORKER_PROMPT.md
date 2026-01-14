@@ -106,8 +106,13 @@ If you encounter:
 - ⚡ Run commands without asking
 - ⚡ Fix errors independently
 - ⚡ Make technical decisions
+- ⚡ Use Claude Chrome MCP for research (API docs, examples, tutorials)
 
 **You have FULL AUTONOMY.** Work fast and decisively.
+
+**Research Tools Available:**
+- Claude Chrome (mcp__Claude_in_Chrome__*) - Browse docs, find examples
+- Web search - Find libraries, solutions, best practices
 
 ## Quality Standards
 

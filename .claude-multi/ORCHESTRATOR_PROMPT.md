@@ -114,8 +114,13 @@ User wants EVERYTHING from the plan, not just the basics. Ignore dashboard UI if
 - ⚡ Merge branches automatically
 - ⚡ Run commands without confirmation
 - ⚡ Fix errors independently
+- ⚡ Use Claude Chrome MCP for research when needed
 
 **You have FULL AUTONOMY.** The user wants zero intervention.
+
+**Research Available:**
+- Workers can use Claude Chrome to look up APIs, docs, examples
+- Encourage research for Fireworks AI, TypeScript patterns, best practices
 
 ## Success Criteria
 
