@@ -7,7 +7,7 @@ import { EventEmitter } from 'events';
 import { createModuleLogger } from '../../utils/logger';
 import { getVectorStore, VectorDocument, CleanupResult } from '../vector-store';
 import { getImportanceScorer, ScoredMemory } from '../importance-scorer';
-import { getMemorySummarizer, SummarizationResult } from './summarizer';
+import { getMemorySummarizer } from './summarizer';
 
 const logger = createModuleLogger('ConsolidationScheduler');
 

@@ -6,7 +6,6 @@
 import { EventEmitter } from 'events';
 import { createModuleLogger } from '../../utils/logger';
 import { getVectorStore, VectorSearchResult, VectorMetadata } from '../vector-store';
-import { getImportanceScorer, ScoredMemory } from '../importance-scorer';
 import { getSemanticChunker } from '../semantic-chunker';
 
 const logger = createModuleLogger('SemanticSearch');

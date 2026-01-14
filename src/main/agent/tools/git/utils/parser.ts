@@ -169,7 +169,7 @@ export function parseGitLog(output: string, branch: string): GitLogResult {
 /**
  * Parse git diff --numstat output
  */
-export function parseGitDiff(output: string, patchOutput?: string): GitDiffResult {
+export function parseGitDiff(output: string, _patchOutput?: string): GitDiffResult {
   const lines = output.trim().split('\n').filter(Boolean);
   const files: GitDiffEntry[] = [];
   let totalAdditions = 0;

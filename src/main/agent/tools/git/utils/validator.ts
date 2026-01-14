@@ -85,7 +85,7 @@ export function validateBranchName(name: string): ValidationResult {
   let error: string | undefined;
 
   // Check for invalid characters
-  const invalidChars = /[~^:?*\[\]\\@{}\s]/;
+  const invalidChars = /[~^:?*[\]\\@{}\s]/;
   if (invalidChars.test(name)) {
     valid = false;
     error = 'Branch name contains invalid characters';
@@ -286,7 +286,7 @@ export function validateRebaseOperation(options: {
  */
 export function validateFilePath(filePath: string): ValidationResult {
   const warnings: string[] = [];
-  let valid = true;
+  const valid = true;
   let error: string | undefined;
 
   // Check for path traversal

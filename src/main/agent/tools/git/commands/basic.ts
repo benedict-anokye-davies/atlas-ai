@@ -16,7 +16,6 @@ import {
 } from '../types';
 import { parseGitStatus } from '../utils/parser';
 import {
-  isGitRepository,
   findGitRoot,
   validateCommitMessage,
   validatePushOperation,
