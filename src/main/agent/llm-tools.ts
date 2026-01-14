@@ -77,6 +77,17 @@ export const VOICE_TOOLS = [
   'write_clipboard_text',
   // Screenshot - capture screen via voice
   'capture_screen',
+  // Git - common git operations via voice
+  'git_status',
+  'git_add',
+  'git_commit',
+  'git_push',
+  'git_pull',
+  'git_branch',
+  'git_checkout',
+  'git_diff',
+  'git_log',
+  'git_stash',
 ] as const;
 
 /**
@@ -127,7 +138,7 @@ export function getVoiceToolDefinitions(): LLMToolDefinition[] {
  * Get tool definitions by category
  */
 export function getToolDefinitionsByCategory(
-  categories: Array<'filesystem' | 'terminal' | 'browser' | 'screenshot' | 'clipboard' | 'search'>
+  categories: Array<'filesystem' | 'terminal' | 'browser' | 'screenshot' | 'clipboard' | 'search' | 'git'>
 ): LLMToolDefinition[] {
   const tools: AgentTool[] = [];
 
@@ -314,6 +325,157 @@ export function summarizeToolResultForVoice(
     case 'capture_screen':
       return 'I captured a screenshot.';
 
+    // Git tool summaries
+    case 'git_status': {
+      const branch = (data?.branch as string) || 'unknown';
+      const clean = data?.clean === true;
+      const staged = (data?.staged as unknown[]) || [];
+      const unstaged = (data?.unstaged as unknown[]) || [];
+      const untracked = (data?.untracked as unknown[]) || [];
+
+      if (clean) {
+        return `On branch ${branch}. Working tree is clean.`;
+      }
+
+      const parts = [`On branch ${branch}.`];
+      if (staged.length > 0) parts.push(`${staged.length} staged changes.`);
+      if (unstaged.length > 0) parts.push(`${unstaged.length} unstaged changes.`);
+      if (untracked.length > 0) parts.push(`${untracked.length} untracked files.`);
+      return parts.join(' ');
+    }
+
+    case 'git_add': {
+      const stagedFiles = (data?.staged as string[]) || [];
+      if (stagedFiles.length === 1 && stagedFiles[0] === 'all') {
+        return 'Staged all changes.';
+      }
+      return `Staged ${stagedFiles.length} file${stagedFiles.length !== 1 ? 's' : ''}.`;
+    }
+
+    case 'git_commit': {
+      const hash = ((data?.hash as string) || '').slice(0, 7);
+      return `Created commit ${hash}.`;
+    }
+
+    case 'git_push': {
+      const remote = (data?.remote as string) || 'origin';
+      return `Pushed to ${remote} successfully.`;
+    }
+
+    case 'git_pull': {
+      const updated = data?.updated === true;
+      const conflicts = data?.conflicts === true;
+      if (conflicts) {
+        return 'Pulled changes but there are merge conflicts that need resolution.';
+      }
+      return updated ? 'Pulled and applied new changes.' : 'Already up to date.';
+    }
+
+    case 'git_branch': {
+      if (data?.created) {
+        return `Created branch ${data.created}.`;
+      }
+      if (data?.deleted) {
+        return `Deleted branch ${data.deleted}.`;
+      }
+      const current = (data?.current as string) || '';
+      const branches = (data?.local as unknown[]) || [];
+      return `Current branch is ${current}. ${branches.length} local branches total.`;
+    }
+
+    case 'git_checkout': {
+      const branch = (data?.branch as string) || '';
+      const files = (data?.files as string[]) || [];
+      if (files.length > 0) {
+        return `Restored ${files.length} file${files.length !== 1 ? 's' : ''}.`;
+      }
+      return `Switched to branch ${branch}.`;
+    }
+
+    case 'git_merge': {
+      const merged = (data?.merged as string) || '';
+      const conflicts = data?.conflicts === true;
+      if (conflicts) {
+        return `Merged ${merged} but there are conflicts to resolve.`;
+      }
+      return `Merged ${merged} successfully.`;
+    }
+
+    case 'git_diff': {
+      const filesChanged = (data?.filesChanged as number) || 0;
+      const additions = (data?.totalAdditions as number) || 0;
+      const deletions = (data?.totalDeletions as number) || 0;
+      if (filesChanged === 0) {
+        return 'No changes detected.';
+      }
+      return `${filesChanged} files changed, ${additions} additions, ${deletions} deletions.`;
+    }
+
+    case 'git_log': {
+      const commits = (data?.commits as unknown[]) || [];
+      const total = (data?.total as number) || commits.length;
+      if (total === 0) {
+        return 'No commits found.';
+      }
+      return `Found ${total} commits.`;
+    }
+
+    case 'git_stash': {
+      if (Array.isArray(data)) {
+        return `You have ${data.length} stashed change${data.length !== 1 ? 's' : ''}.`;
+      }
+      const stashed = data?.stashed === true;
+      return stashed ? 'Changes stashed successfully.' : 'Stash operation completed.';
+    }
+
+    case 'git_reset': {
+      const mode = (data?.mode as string) || 'mixed';
+      return `Reset completed with ${mode} mode.`;
+    }
+
+    case 'git_rebase':
+    case 'git_cherry_pick':
+    case 'git_revert': {
+      const conflicts = data?.conflicts === true;
+      if (conflicts) {
+        return 'Operation has conflicts that need resolution.';
+      }
+      return 'Operation completed successfully.';
+    }
+
+    case 'git_tag': {
+      if (data?.created) {
+        return `Created tag ${data.created}.`;
+      }
+      if (data?.deleted) {
+        return `Deleted tag ${data.deleted}.`;
+      }
+      if (Array.isArray(data)) {
+        return `Found ${data.length} tags.`;
+      }
+      return 'Tag operation completed.';
+    }
+
+    case 'git_remote': {
+      if (Array.isArray(data)) {
+        return `Found ${data.length} remote${data.length !== 1 ? 's' : ''}.`;
+      }
+      return `Remote ${data?.action || 'operation'} completed.`;
+    }
+
+    case 'git_fetch': {
+      const remote = (data?.remote as string) || 'origin';
+      return `Fetched from ${remote}.`;
+    }
+
+    case 'git_clone': {
+      const directory = (data?.directory as string) || '';
+      return `Cloned repository to ${directory}.`;
+    }
+
+    case 'git_init':
+      return 'Initialized new git repository.';
+
     default:
       return typeof data === 'string' ? data : 'Operation completed successfully.';
   }
@@ -328,7 +490,7 @@ export function getContextualTools(userMessage: string): LLMToolDefinition[] {
 
   // Determine relevant categories based on the message
   const categories: Array<
-    'filesystem' | 'terminal' | 'browser' | 'screenshot' | 'clipboard' | 'search'
+    'filesystem' | 'terminal' | 'browser' | 'screenshot' | 'clipboard' | 'search' | 'git'
   > = [];
 
   if (
@@ -348,10 +510,27 @@ export function getContextualTools(userMessage: string): LLMToolDefinition[] {
     lowerMessage.includes('execute') ||
     lowerMessage.includes('command') ||
     lowerMessage.includes('npm') ||
-    lowerMessage.includes('git') ||
     lowerMessage.includes('terminal')
   ) {
     categories.push('terminal');
+  }
+
+  // Git operations - dedicated category for git commands
+  if (
+    lowerMessage.includes('git') ||
+    lowerMessage.includes('commit') ||
+    lowerMessage.includes('push') ||
+    lowerMessage.includes('pull') ||
+    lowerMessage.includes('branch') ||
+    lowerMessage.includes('checkout') ||
+    lowerMessage.includes('merge') ||
+    lowerMessage.includes('rebase') ||
+    lowerMessage.includes('stash') ||
+    lowerMessage.includes('diff') ||
+    lowerMessage.includes('status') ||
+    lowerMessage.includes('repository')
+  ) {
+    categories.push('git');
   }
 
   if (

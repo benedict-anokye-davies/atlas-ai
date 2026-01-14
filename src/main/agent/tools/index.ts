@@ -12,6 +12,7 @@ export * from './clipboard';
 // Note: websearch.ts has duplicate exports (webSearchTool, fetchUrlTool) with search.ts
 // search.ts uses fetch() which is cleaner, so we use that instead
 export * from './search';
+export * from './git';
 
 import { AgentTool } from '../../../shared/types/agent';
 import { getFilesystemTools } from './filesystem';
@@ -20,6 +21,7 @@ import { getBrowserTools } from './browser';
 import { getScreenshotTools } from './screenshot';
 import { getClipboardTools } from './clipboard';
 import { getSearchTools } from './search';
+import { getGitTools } from './git';
 
 /**
  * Get all available agent tools
@@ -32,6 +34,7 @@ export function getAllTools(): AgentTool[] {
     ...getScreenshotTools(),
     ...getClipboardTools(),
     ...getSearchTools(),
+    ...getGitTools(),
   ];
 }
 
@@ -45,6 +48,7 @@ export const toolCategories = {
   screenshot: getScreenshotTools(),
   clipboard: getClipboardTools(),
   search: getSearchTools(),
+  git: getGitTools(),
 } as const;
 
 /**

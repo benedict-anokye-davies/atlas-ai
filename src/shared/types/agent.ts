@@ -83,7 +83,8 @@ export type ToolCategory =
   | 'system'
   | 'memory'
   | 'search'
-  | 'utility';
+  | 'utility'
+  | 'git';
 
 /**
  * File system operation types
