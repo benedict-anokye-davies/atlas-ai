@@ -1,0 +1,116 @@
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║         NOVA AUTONOMOUS MULTI-CLAUDE SYSTEM                    ║
+║         COMPLETE SELF-IMPROVING AGENT BUILD                    ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════
+
+                    ULTRA-QUICK START
+
+═══════════════════════════════════════════════════════════════
+
+1. Double-click this file:
+
+   .claude-multi\START_ALL.bat
+
+   (It opens 5 windows automatically)
+
+2. In EACH of the 5 windows:
+   - Copy the prompt text shown
+   - Type: claude-code
+   - Paste the prompt
+   - Press Enter
+
+3. Go to sleep.
+
+4. Wake up to completed self-improving agent system.
+
+═══════════════════════════════════════════════════════════════
+
+                      WHAT GETS BUILT
+
+═══════════════════════════════════════════════════════════════
+
+✅ Phase 3.5: Self-Improving Agent Foundation
+   - Evaluation protocol
+   - Confidence tracking
+   - Failure pattern analysis
+
+✅ Phase 6.5: GEPA Learning Engine
+   - Fireworks GEPA integration
+   - Continuous learning loop
+   - Learning dashboard UI
+   - Complete test suite
+
+Total: 7 sessions, 25-35 files, 4000-6000 lines of code
+
+═══════════════════════════════════════════════════════════════
+
+                          DETAILS
+
+═══════════════════════════════════════════════════════════════
+
+MODE:      Fully autonomous (no permissions needed)
+TIME:      6-8 hours to complete
+COST:      £120-165 (you have £200+)
+SAFETY:    Auto-stops at £190
+
+The 5 Claudes will:
+- Skip all permission prompts
+- Install packages automatically
+- Create all files freely
+- Fix errors independently
+- Merge code automatically
+- Run tests and fix failures
+- Complete all 7 sessions
+
+NO MANUAL INTERVENTION REQUIRED.
+
+═══════════════════════════════════════════════════════════════
+
+                        VERIFICATION
+
+═══════════════════════════════════════════════════════════════
+
+When you wake up, run:
+
+  type .claude-multi\state.json | findstr status
+
+Should show: "status": "completed"
+
+Then run:
+
+  npm run test       (should pass ✅)
+  npm run typecheck  (should pass ✅)
+
+═══════════════════════════════════════════════════════════════
+
+                      DOCUMENTATION
+
+═══════════════════════════════════════════════════════════════
+
+Read these if you want details:
+
+  .claude-multi\AUTONOMOUS_MODE.md    (Full explanation)
+  .claude-multi\README.md             (Complete guide)
+  .claude-multi\QUICK_START.txt       (Quick reference)
+
+But you don't need to read anything. Just run START_ALL.bat
+
+═══════════════════════════════════════════════════════════════
+
+                      READY TO GO!
+
+═══════════════════════════════════════════════════════════════
+
+Command:
+
+  .claude-multi\START_ALL.bat
+
+Then paste prompts in each window and GO TO SLEEP.
+
+Good luck on your exam tomorrow! 🎓
+
+═══════════════════════════════════════════════════════════════
