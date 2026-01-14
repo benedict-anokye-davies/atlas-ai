@@ -1,0 +1,138 @@
+╔══════════════════════════════════════════════════════════════════╗
+║          NOVA MULTI-CLAUDE SYSTEM - QUICK START                  ║
+║                    (Read this first!)                            ║
+╚══════════════════════════════════════════════════════════════════╝
+
+📋 WHAT YOU NEED TO DO (5 minutes total):
+
+1. Open 5 terminal windows
+2. Run the start script in each
+3. Copy/paste the prompt into Claude Code for each
+4. Go to sleep
+5. Wake up to completed Phase 3.5
+
+╔══════════════════════════════════════════════════════════════════╗
+║                    EASIEST METHOD (Windows)                      ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Double-click this file:
+   .claude-multi\START_ALL.bat
+
+It opens 5 windows automatically. Then in each window:
+1. Copy the prompt text
+2. Type: claude-code
+3. Paste the prompt
+4. Press Enter
+
+Done! Go sleep.
+
+╔══════════════════════════════════════════════════════════════════╗
+║                     MANUAL METHOD (5 terminals)                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+TERMINAL 1 (Orchestrator):
+  cd C:\Users\Nxiss\OneDrive\Desktop\nova-desktop
+  .claude-multi\start-orchestrator.bat
+  → Copy prompt → claude-code → Paste → Enter
+
+TERMINAL 2 (Worker 1):
+  cd C:\Users\Nxiss\OneDrive\Desktop\nova-desktop
+  .claude-multi\start-worker.bat 1
+  → Copy prompt → claude-code → Paste → Enter
+
+TERMINAL 3 (Worker 2):
+  cd C:\Users\Nxiss\OneDrive\Desktop\nova-desktop
+  .claude-multi\start-worker.bat 2
+  → Copy prompt → claude-code → Paste → Enter
+
+TERMINAL 4 (Worker 3):
+  cd C:\Users\Nxiss\OneDrive\Desktop\nova-desktop
+  .claude-multi\start-worker.bat 3
+  → Copy prompt → claude-code → Paste → Enter
+
+TERMINAL 5 (Worker 4):
+  cd C:\Users\Nxiss\OneDrive\Desktop\nova-desktop
+  .claude-multi\start-worker.bat 4
+  → Copy prompt → claude-code → Paste → Enter
+
+╔══════════════════════════════════════════════════════════════════╗
+║                  WHAT HAPPENS WHILE YOU SLEEP                    ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Hour 0-1:  System initializes, creates task queue
+Hour 1-2:  Workers build evaluation protocol
+Hour 2-3:  Workers build confidence tracking
+Hour 3-4:  Workers build failure analyzer
+Hour 4:    Tests run, code merged, system completes
+
+Result: Phase 3.5 complete, ~£40-80 spent, 16 tasks done
+
+╔══════════════════════════════════════════════════════════════════╗
+║                      MONITORING (Optional)                       ║
+╚══════════════════════════════════════════════════════════════════╝
+
+In a 6th terminal:
+  type .claude-multi\state.json
+
+Refresh every few minutes to see progress.
+
+╔══════════════════════════════════════════════════════════════════╗
+║                      TROUBLESHOOTING                             ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Problem: Nothing happens after 5 minutes
+Fix: Check state.json, tell orchestrator to create tasks
+
+Problem: Worker stuck
+Fix: Tell orchestrator "Worker-N is stuck, reassign task"
+
+Problem: Costs too high
+Fix: System auto-stops at £180 (safety limit)
+
+Problem: Git conflicts
+Fix: Orchestrator handles automatically
+
+╔══════════════════════════════════════════════════════════════════╗
+║                    FILES TO READ FOR DETAILS                     ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Quick overview:     .claude-multi\START_HERE.md
+Full docs:          .claude-multi\README.md
+Visual guide:       .claude-multi\VISUAL_GUIDE.md
+Launch checklist:   .claude-multi\LAUNCH_CHECKLIST.md
+
+╔══════════════════════════════════════════════════════════════════╗
+║                         SUCCESS CHECK                            ║
+╚══════════════════════════════════════════════════════════════════╝
+
+When you wake up, run:
+  type .claude-multi\state.json | findstr status
+
+Should show: "status": "completed"
+
+Then run:
+  npm run test
+  npm run typecheck
+
+Both should pass!
+
+╔══════════════════════════════════════════════════════════════════╗
+║                      ESTIMATED COSTS                             ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Phase 3.5 completion:  £40-80
+Your budget:           £200
+Safety stop at:        £180
+
+You have plenty of headroom. System will stop if needed.
+
+╔══════════════════════════════════════════════════════════════════╗
+║                   GOOD LUCK ON YOUR EXAM! 🎓                     ║
+╚══════════════════════════════════════════════════════════════════╝
+
+The Claudes will work while you sleep. Focus on your exam.
+The code will be ready when you return.
+
+Now run START_ALL.bat or follow manual method above.
+
+See you in the morning! ⭐
