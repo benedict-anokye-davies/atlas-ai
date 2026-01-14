@@ -34,6 +34,8 @@ export interface AdaptiveParticlesResult {
   rating: 'excellent' | 'good' | 'fair' | 'poor';
   /** Manual override to set particle count */
   setParticleCount: (count: number) => void;
+  /** Reduce particle count by percentage (smooth transition) */
+  reduceByPercent: (percent: number) => void;
   /** Reset to initial count */
   reset: () => void;
 }
@@ -144,6 +146,24 @@ export function useAdaptiveParticles(
     [minParticles, maxParticles, adjustmentCooldown]
   );
 
+  // Reduce by percentage
+  const reduceByPercent = useCallback(
+    (percent: number) => {
+      const reduction = Math.max(0, Math.min(100, percent)) / 100;
+      setIsAdjusting(true);
+      setParticleCount((prev) => {
+        const newCount = Math.max(minParticles, Math.round(prev * (1 - reduction)));
+        cooldownRef.current = adjustmentCooldown * 2;
+        stableFramesRef.current = 0;
+        lastAdjustmentRef.current = 'decrease';
+        return newCount;
+      });
+      // Smooth transition visual feedback
+      setTimeout(() => setIsAdjusting(false), 300);
+    },
+    [minParticles, adjustmentCooldown]
+  );
+
   // Reset to initial
   const reset = useCallback(() => {
     setParticleCount(initialParticles);
@@ -157,8 +177,57 @@ export function useAdaptiveParticles(
     isAdjusting,
     rating,
     setParticleCount: handleSetParticleCount,
+    reduceByPercent,
     reset,
   };
 }
 
 export default useAdaptiveParticles;
+
+/**
+ * Calculate particle count after percentage reduction
+ */
+export function calculateReducedParticleCount(
+  currentCount: number,
+  reductionPercent: number,
+  minParticles = 2000
+): number {
+  const reduction = Math.max(0, Math.min(100, reductionPercent)) / 100;
+  return Math.max(minParticles, Math.round(currentCount * (1 - reduction)));
+}
+
+/**
+ * Calculate reduction percentage to reach target count
+ */
+export function calculateReductionPercent(
+  currentCount: number,
+  targetCount: number
+): number {
+  if (targetCount >= currentCount) return 0;
+  return Math.round(((currentCount - targetCount) / currentCount) * 100);
+}
+
+/**
+ * Standard reduction levels for staged degradation
+ */
+export const REDUCTION_LEVELS = {
+  /** Stage 1: Reduce by 25% */
+  STAGE_1: 25,
+  /** Stage 2: Reduce by 50% (from original) */
+  STAGE_2: 50,
+  /** Stage 3: Reduce by 75% (from original) */
+  STAGE_3: 75,
+  /** Minimum viable: Reduce to minimum particles */
+  MINIMUM: 90,
+};
+
+/**
+ * Apply reduction level to get new particle count
+ */
+export function applyReductionLevel(
+  originalCount: number,
+  level: keyof typeof REDUCTION_LEVELS,
+  minParticles = 2000
+): number {
+  return calculateReducedParticleCount(originalCount, REDUCTION_LEVELS[level], minParticles);
+}

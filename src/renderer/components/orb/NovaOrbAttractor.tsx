@@ -137,7 +137,7 @@ export function NovaOrbAttractor({
             background: 'transparent',
             cursor: interactive ? 'pointer' : 'default',
           }}
-          onCreated={({ gl }) => {
+          onCreated={() => {
             console.log('[NovaOrbAttractor] Canvas created');
           }}
         >

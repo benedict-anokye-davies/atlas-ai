@@ -10,7 +10,7 @@
  * - error: Arneodo (chaotic, agitated)
  */
 
-import { useRef, useMemo, useCallback, useEffect } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
@@ -107,8 +107,8 @@ export function NovaParticlesAttractors({
   pulse = 0,
   particleCount = 8000,
 }: NovaParticlesAttractorProps) {
-  const pointsRef = useRef<THREE.Points>(null);
-  const geometryRef = useRef<THREE.BufferGeometry>(null);
+  const pointsRef = useRef<THREE.Points | null>(null);
+  const geometryRef = useRef<THREE.BufferGeometry | null>(null);
 
   // Track current and target attractors
   const currentAttractorRef = useRef<keyof typeof ATTRACTOR_SETTINGS>('lorenz');
@@ -224,7 +224,7 @@ export function NovaParticlesAttractors({
       );
 
       // Update geometry
-      geometryRef.current.attributes.position.array = morphedPositions;
+      (geometryRef.current.attributes.position.array as Float32Array).set(morphedPositions);
       geometryRef.current.attributes.position.needsUpdate = true;
 
       // Update uniforms

@@ -14,6 +14,21 @@ import {
   type AttractorFunction,
   type AttractorSettings,
   type StateColors,
+  // Optimized functions
+  thomasOptimized,
+  getOptimizedAttractor,
+  // Simplified functions
+  lorenzSimplified,
+  circularSimplified,
+  getSimplifiedAttractor,
+  // Batch operations
+  batchUpdateLorenz,
+  batchUpdateAizawa,
+  batchUpdateAttractor,
+  // Utilities
+  hasComputeShaderSupport,
+  getAttractorByMode,
+  getAttractor,
 } from '../src/renderer/components/orb/attractors';
 
 describe('Strange Attractors', () => {
@@ -318,5 +333,133 @@ describe('Attractor Evolution', () => {
       expect(Math.abs(y)).toBeLessThan(10);
       expect(Math.abs(z)).toBeLessThan(10);
     }
+  });
+});
+
+describe('Optimized Attractors', () => {
+  describe('thomasOptimized', () => {
+    it('should produce similar results to standard thomas', () => {
+      const x = 1, y = 0.5, z = -0.5;
+      const standard = thomas(x, y, z);
+      const optimized = thomasOptimized(x, y, z);
+      // Should be close (LUT precision)
+      expect(optimized[0]).toBeCloseTo(standard[0], 2);
+      expect(optimized[1]).toBeCloseTo(standard[1], 2);
+      expect(optimized[2]).toBeCloseTo(standard[2], 2);
+    });
+  });
+
+  describe('getOptimizedAttractor', () => {
+    it('should return optimized thomas', () => {
+      expect(getOptimizedAttractor('thomas')).toBe(thomasOptimized);
+    });
+
+    it('should return standard for other attractors', () => {
+      expect(getOptimizedAttractor('lorenz')).toBe(lorenz);
+      expect(getOptimizedAttractor('aizawa')).toBe(aizawa);
+    });
+  });
+});
+
+describe('Simplified Attractors', () => {
+  describe('lorenzSimplified', () => {
+    it('should produce same x derivative as standard', () => {
+      const result = lorenzSimplified(1, 1, 1);
+      const standard = lorenz(1, 1, 1);
+      expect(result[0]).toBe(standard[0]);
+    });
+  });
+
+  describe('circularSimplified', () => {
+    it('should produce circular motion', () => {
+      const result = circularSimplified(1, 0, 0);
+      expect(result[1]).toBeGreaterThan(0);
+      expect(result[0]).toBeCloseTo(0, 10);
+    });
+  });
+
+  describe('getSimplifiedAttractor', () => {
+    it('should map lorenz to lorenzSimplified', () => {
+      expect(getSimplifiedAttractor('lorenz')).toBe(lorenzSimplified);
+    });
+
+    it('should map halvorsen to circularSimplified', () => {
+      expect(getSimplifiedAttractor('halvorsen')).toBe(circularSimplified);
+    });
+  });
+});
+
+describe('Batch Operations', () => {
+  describe('batchUpdateLorenz', () => {
+    it('should update all positions', () => {
+      const positions = new Float32Array([1, 0, 0, 0, 1, 0]);
+      const original = new Float32Array(positions);
+      batchUpdateLorenz(positions, 0.01, 1);
+      expect(positions[0]).not.toBe(original[0]);
+      expect(positions[3]).not.toBe(original[3]);
+    });
+  });
+
+  describe('batchUpdateAizawa', () => {
+    it('should update positions', () => {
+      const positions = new Float32Array([0.5, 0.5, 0.5]);
+      const original = positions[0];
+      batchUpdateAizawa(positions, 0.01, 1);
+      expect(positions[0]).not.toBe(original);
+    });
+  });
+
+  describe('batchUpdateAttractor', () => {
+    it('should dispatch correctly', () => {
+      const positions = new Float32Array([1, 1, 1]);
+      expect(() => batchUpdateAttractor(positions, 'lorenz', 0.01, 1)).not.toThrow();
+      expect(() => batchUpdateAttractor(positions, 'thomas', 0.01, 1)).not.toThrow();
+    });
+  });
+});
+
+describe('Utility Functions', () => {
+  describe('hasComputeShaderSupport', () => {
+    it('should return false', () => {
+      expect(hasComputeShaderSupport()).toBe(false);
+    });
+  });
+
+  describe('getAttractorByMode', () => {
+    it('should return standard for standard mode', () => {
+      expect(getAttractorByMode('lorenz', 'standard')).toBe(lorenz);
+    });
+
+    it('should return optimized for optimized mode', () => {
+      expect(getAttractorByMode('thomas', 'optimized')).toBe(thomasOptimized);
+    });
+
+    it('should return simplified for simplified mode', () => {
+      expect(getAttractorByMode('lorenz', 'simplified')).toBe(lorenzSimplified);
+    });
+  });
+
+  describe('getAttractor', () => {
+    it('should return correct attractor', () => {
+      expect(getAttractor('lorenz')).toBe(lorenz);
+      expect(getAttractor('aizawa')).toBe(aizawa);
+    });
+
+    it('should default to lorenz', () => {
+      expect(getAttractor('unknown')).toBe(lorenz);
+    });
+  });
+});
+
+describe('Performance', () => {
+  it('should handle batch updates efficiently', () => {
+    const positions = new Float32Array(10000 * 3);
+    for (let i = 0; i < positions.length; i++) {
+      positions[i] = Math.random() * 2 - 1;
+    }
+    const start = performance.now();
+    batchUpdateLorenz(positions, 0.01, 1);
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(100);
   });
 });
