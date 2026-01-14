@@ -13,6 +13,7 @@ const nativeModules = [
   'onnxruntime-node',
   'vosk-koffi',
   'koffi',
+  'playwright',
 ];
 
 export default defineConfig({
@@ -65,5 +66,18 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    watch: {
+      // Ignore files that cause rebuild loops
+      ignored: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/.git/**',
+        '**/logs/**',
+        '**/*.log',
+        '**/*.jsonl',
+        '**/memory/**',
+        '**/models/**',
+      ],
+    },
   },
 });

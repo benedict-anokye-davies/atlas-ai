@@ -1,7 +1,17 @@
 /**
  * Nova Desktop - LLM Manager
- * Manages LLM providers with automatic fallback
- * Primary: Fireworks AI, Fallback: OpenRouter
+ *
+ * Manages LLM providers with automatic fallback capability and shared conversation context.
+ * Primary provider: Fireworks AI (optimized for function calling)
+ * Fallback provider: OpenRouter (wide model selection)
+ *
+ * Features:
+ * - Automatic provider switching on errors via circuit breaker pattern
+ * - Shared conversation context across providers
+ * - Streaming and non-streaming response modes
+ * - Cost tracking for OpenRouter usage
+ *
+ * @module llm/manager
  */
 
 import { EventEmitter } from 'events';
@@ -15,12 +25,18 @@ import {
   LLMResponse,
   LLMStreamChunk,
   ConversationContext,
+  ChatOptions,
   createConversationContext,
   NOVA_SYSTEM_PROMPT,
   estimateTokenCount,
 } from '../../shared/types/llm';
 import { FireworksLLM, FireworksConfig } from './fireworks';
 import { OpenRouterLLM, OpenRouterConfig, CostTracker } from './openrouter';
+import {
+  ConversationMemory,
+  getConversationMemory,
+  shutdownConversationMemory,
+} from '../memory/conversation-memory';
 
 const logger = createModuleLogger('LLMManager');
 
@@ -42,6 +58,10 @@ export interface LLMManagerConfig {
   fallbackCooldown?: number;
   /** Share conversation context between providers */
   sharedContext?: boolean;
+  /** Enable conversation memory integration */
+  enableConversationMemory?: boolean;
+  /** Maximum conversation context turns to include */
+  maxContextTurns?: number;
 }
 
 /**
@@ -55,6 +75,8 @@ const DEFAULT_LLM_MANAGER_CONFIG: Required<LLMManagerConfig> = {
   errorThreshold: 3,
   fallbackCooldown: 60000, // 1 minute
   sharedContext: true,
+  enableConversationMemory: true,
+  maxContextTurns: 5,
 };
 
 /**
@@ -101,6 +123,10 @@ export class LLMManager extends EventEmitter implements LLMProvider {
   // Shared conversation context
   private sharedContext: ConversationContext | null = null;
 
+  // Conversation memory for context-aware responses
+  private conversationMemory: ConversationMemory | null = null;
+  private conversationMemoryInitialized = false;
+
   constructor(config?: Partial<LLMManagerConfig>) {
     super();
     this.config = { ...DEFAULT_LLM_MANAGER_CONFIG, ...config } as Required<LLMManagerConfig>;
@@ -124,14 +150,22 @@ export class LLMManager extends EventEmitter implements LLMProvider {
     // Initialize providers
     this.initializeProviders();
 
+    // Initialize conversation memory if enabled
+    if (this.config.enableConversationMemory) {
+      this.initializeConversationMemory();
+    }
+
     logger.info('LLMManager initialized', {
       preferOpenRouter: this.config.preferOpenRouter,
       autoFallback: this.config.autoFallback,
+      conversationMemoryEnabled: this.config.enableConversationMemory,
     });
   }
 
   /**
-   * Get current status
+   * Gets the current LLM status.
+   *
+   * @returns The current status: IDLE, GENERATING, ERROR, or CANCELLED
    */
   get status(): LLMStatus {
     return this._status;
@@ -148,10 +182,166 @@ export class LLMManager extends EventEmitter implements LLMProvider {
   }
 
   /**
-   * Get active provider type
+   * Sends a message and receives a complete response (non-streaming).
+   *
+   * Automatically falls back to OpenRouter if Fireworks fails.
+   *
+   * @param message - The user message to send
+   * @param context - Optional conversation context (uses shared context if not provided)
+   * @param options - Optional chat options including tools for function calling
+   * @returns The complete LLM response
+   * @throws Error if no provider is available
+   *
+   * @example
+   * ```typescript
+   * const response = await llmManager.chat('What is the weather like?');
+   * console.log(response.content);
+   * ```
    */
-  getActiveProviderType(): LLMProviderType | null {
-    return this.activeProviderType;
+  async chat(
+    message: string,
+    context?: ConversationContext,
+    options?: ChatOptions
+  ): Promise<LLMResponse> {
+    if (!this.activeProvider) {
+      throw new Error(
+        'No LLM provider is available. Configure at least one of: Fireworks AI or OpenRouter with a valid API key.'
+      );
+    }
+
+    // Use shared context if enabled and no context provided
+    let useContext =
+      context || (this.config.sharedContext ? (this.sharedContext ?? undefined) : undefined);
+
+    // Enhance context with conversation memory if available
+    if (this.config.enableConversationMemory && this.conversationMemoryInitialized) {
+      const enhancedSystemPrompt = this.buildEnhancedSystemPrompt();
+      if (!useContext) {
+        useContext = createConversationContext(enhancedSystemPrompt);
+      } else {
+        // Update the system message with enhanced prompt
+        useContext = {
+          ...useContext,
+          systemPrompt: enhancedSystemPrompt,
+        };
+      }
+    }
+
+    try {
+      const response = await this.activeProvider.chat(message, useContext, options);
+
+      // Record the conversation turn in memory
+      if (this.config.enableConversationMemory && response.content) {
+        this.recordConversationTurn(message, response.content);
+      }
+
+      return response;
+    } catch (error) {
+      // Try fallback on error
+      if (
+        this.config.autoFallback &&
+        this.activeProviderType === 'fireworks' &&
+        this.openrouterLLM
+      ) {
+        logger.info('Attempting fallback after chat error');
+        await this.switchToFallback((error as Error).message);
+        // Note: OpenRouter doesn't support tools yet, so we call without options
+        const response = await this.openrouterLLM.chat(message, useContext);
+
+        // Record the conversation turn in memory
+        if (this.config.enableConversationMemory && response.content) {
+          this.recordConversationTurn(message, response.content);
+        }
+
+        return response;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Sends a message and streams the response as chunks.
+   *
+   * Automatically falls back to OpenRouter if Fireworks fails.
+   *
+   * @param message - The user message to send
+   * @param context - Optional conversation context (uses shared context if not provided)
+   * @param options - Optional chat options including tools for function calling
+   * @yields LLMStreamChunk objects containing response deltas and accumulated text
+   * @throws Error if no provider is available
+   *
+   * @example
+   * ```typescript
+   * for await (const chunk of llmManager.chatStream('Tell me a story')) {
+   *   process.stdout.write(chunk.delta);
+   *   if (chunk.isFinal) console.log('Done!');
+   * }
+   * ```
+   */
+  async *chatStream(
+    message: string,
+    context?: ConversationContext,
+    options?: ChatOptions
+  ): AsyncGenerator<LLMStreamChunk> {
+    if (!this.activeProvider) {
+      throw new Error(
+        'No LLM provider is available. Configure at least one of: Fireworks AI or OpenRouter with a valid API key.'
+      );
+    }
+
+    // Use shared context if enabled and no context provided
+    let useContext =
+      context || (this.config.sharedContext ? (this.sharedContext ?? undefined) : undefined);
+
+    // Enhance context with conversation memory if available
+    if (this.config.enableConversationMemory && this.conversationMemoryInitialized) {
+      const enhancedSystemPrompt = this.buildEnhancedSystemPrompt();
+      if (!useContext) {
+        useContext = createConversationContext(enhancedSystemPrompt);
+      } else {
+        useContext = {
+          ...useContext,
+          systemPrompt: enhancedSystemPrompt,
+        };
+      }
+    }
+
+    // Track accumulated response for memory
+    let accumulatedResponse = '';
+
+    try {
+      for await (const chunk of this.activeProvider.chatStream(message, useContext, options)) {
+        accumulatedResponse = chunk.accumulated;
+        yield chunk;
+
+        // Record turn when stream completes
+        if (chunk.isFinal && this.config.enableConversationMemory && accumulatedResponse) {
+          this.recordConversationTurn(message, accumulatedResponse);
+        }
+      }
+    } catch (error) {
+      // Try fallback on error
+      if (
+        this.config.autoFallback &&
+        this.activeProviderType === 'fireworks' &&
+        this.openrouterLLM
+      ) {
+        logger.info('Attempting fallback after stream error');
+        await this.switchToFallback((error as Error).message);
+        // Note: OpenRouter doesn't support tools yet, so we call without options
+        for await (const chunk of this.openrouterLLM.chatStream(message, useContext)) {
+          accumulatedResponse = chunk.accumulated;
+          yield chunk;
+
+          // Record turn when stream completes
+          if (chunk.isFinal && this.config.enableConversationMemory && accumulatedResponse) {
+            this.recordConversationTurn(message, accumulatedResponse);
+          }
+        }
+      } else {
+        throw error;
+      }
+    }
   }
 
   /**
@@ -182,6 +372,68 @@ export class LLMManager extends EventEmitter implements LLMProvider {
 
     // Select initial provider
     this.selectProvider();
+  }
+
+  /**
+   * Initialize conversation memory for context-aware responses
+   */
+  private async initializeConversationMemory(): Promise<void> {
+    try {
+      this.conversationMemory = await getConversationMemory();
+      this.conversationMemoryInitialized = true;
+      logger.info('ConversationMemory initialized for LLM context');
+    } catch (error) {
+      logger.warn('Failed to initialize ConversationMemory', {
+        error: (error as Error).message,
+      });
+    }
+  }
+
+  /**
+   * Build enhanced system prompt with conversation context
+   */
+  private buildEnhancedSystemPrompt(): string {
+    if (!this.conversationMemory || !this.conversationMemoryInitialized) {
+      return NOVA_SYSTEM_PROMPT;
+    }
+
+    // Get conversation context from memory
+    const memoryContext = this.conversationMemory.getContext({
+      maxTurns: this.config.maxContextTurns,
+      includeTopics: true,
+      includePreferences: true,
+      includeMemories: true,
+      maxLength: 2000,
+    });
+
+    if (!memoryContext) {
+      return NOVA_SYSTEM_PROMPT;
+    }
+
+    // Build enhanced prompt with context
+    const enhancedPrompt = `${NOVA_SYSTEM_PROMPT}
+
+## Conversation Context
+${memoryContext}`;
+
+    return enhancedPrompt;
+  }
+
+  /**
+   * Record a conversation turn in memory
+   */
+  recordConversationTurn(userMessage: string, novaResponse: string): void {
+    if (this.conversationMemory && this.conversationMemoryInitialized) {
+      this.conversationMemory.addTurn(userMessage, novaResponse);
+      logger.debug('Conversation turn recorded in memory');
+    }
+  }
+
+  /**
+   * Get the conversation memory instance
+   */
+  getConversationMemory(): ConversationMemory | null {
+    return this.conversationMemory;
   }
 
   /**
@@ -337,90 +589,49 @@ export class LLMManager extends EventEmitter implements LLMProvider {
   }
 
   /**
-   * Send a message and get response (non-streaming)
+   * Gets the type of the currently active LLM provider.
+   *
+   * @returns 'fireworks', 'openrouter', or null if no provider is active
    */
-  async chat(message: string, context?: ConversationContext): Promise<LLMResponse> {
-    if (!this.activeProvider) {
-      throw new Error('No LLM provider available');
-    }
-
-    // Use shared context if enabled and no context provided
-    const useContext =
-      context || (this.config.sharedContext ? (this.sharedContext ?? undefined) : undefined);
-
-    try {
-      return await this.activeProvider.chat(message, useContext);
-    } catch (error) {
-      // Try fallback on error
-      if (
-        this.config.autoFallback &&
-        this.activeProviderType === 'fireworks' &&
-        this.openrouterLLM
-      ) {
-        logger.info('Attempting fallback after chat error');
-        await this.switchToFallback((error as Error).message);
-        return await this.openrouterLLM.chat(message, useContext);
-      }
-      throw error;
-    }
+  getActiveProviderType(): LLMProviderType | null {
+    return this.activeProviderType;
   }
 
   /**
-   * Send a message with streaming response
-   */
-  async *chatStream(
-    message: string,
-    context?: ConversationContext
-  ): AsyncGenerator<LLMStreamChunk> {
-    if (!this.activeProvider) {
-      throw new Error('No LLM provider available');
-    }
-
-    // Use shared context if enabled and no context provided
-    const useContext =
-      context || (this.config.sharedContext ? (this.sharedContext ?? undefined) : undefined);
-
-    try {
-      yield* this.activeProvider.chatStream(message, useContext);
-    } catch (error) {
-      // Try fallback on error
-      if (
-        this.config.autoFallback &&
-        this.activeProviderType === 'fireworks' &&
-        this.openrouterLLM
-      ) {
-        logger.info('Attempting fallback after stream error');
-        await this.switchToFallback((error as Error).message);
-        yield* this.openrouterLLM.chatStream(message, useContext);
-      } else {
-        throw error;
-      }
-    }
-  }
-
-  /**
-   * Cancel ongoing generation
+   * Cancels any ongoing LLM generation.
    */
   cancel(): void {
     this.activeProvider?.cancel();
   }
 
   /**
-   * Get current configuration
+   * Gets the configuration of the active provider.
+   *
+   * @returns The LLM configuration, or a default empty config if no provider is active
    */
   getConfig(): LLMConfig {
     return this.activeProvider?.getConfig() || { apiKey: '' };
   }
 
   /**
-   * Estimate tokens for text
+   * Estimates the token count for a given text.
+   *
+   * Uses the active provider's tokenizer if available, otherwise falls back to a heuristic.
+   *
+   * @param text - The text to estimate tokens for
+   * @returns Estimated token count
    */
   estimateTokens(text: string): number {
     return this.activeProvider?.estimateTokens(text) || estimateTokenCount(text);
   }
 
   /**
-   * Create a new conversation context
+   * Creates a new conversation context with the Nova system prompt.
+   *
+   * If shared context is enabled, the new context becomes the shared context.
+   *
+   * @param userName - Optional user name for personalization
+   * @returns A new ConversationContext
    */
   createContext(userName?: string): ConversationContext {
     const context = createConversationContext(NOVA_SYSTEM_PROMPT, userName);
@@ -431,14 +642,16 @@ export class LLMManager extends EventEmitter implements LLMProvider {
   }
 
   /**
-   * Get current conversation context
+   * Gets the current shared conversation context.
+   *
+   * @returns The shared context, or null if not initialized
    */
   getCurrentContext(): ConversationContext | null {
     return this.sharedContext;
   }
 
   /**
-   * Clear conversation context
+   * Clears all conversation context from the manager and providers.
    */
   clearContext(): void {
     this.sharedContext = null;
@@ -448,17 +661,32 @@ export class LLMManager extends EventEmitter implements LLMProvider {
     if (this.openrouterLLM) {
       this.openrouterLLM.clearContext();
     }
-    logger.info('Conversation context cleared');
+    // Clear conversation memory as well
+    if (this.conversationMemory) {
+      this.conversationMemory.clear();
+    }
+    logger.info('Conversation context and memory cleared');
   }
 
   /**
-   * Force switch to specific provider
+   * Manually switches to a specific LLM provider.
+   *
+   * @param type - The provider to switch to: 'fireworks' or 'openrouter'
+   * @throws Error if the requested provider is not available
+   *
+   * @example
+   * ```typescript
+   * // Switch to OpenRouter for specific model access
+   * llmManager.switchToProvider('openrouter');
+   * ```
    */
   switchToProvider(type: LLMProviderType): void {
     const provider = type === 'fireworks' ? this.fireworksLLM : this.openrouterLLM;
 
     if (!provider) {
-      throw new Error(`Provider ${type} not available`);
+      throw new Error(
+        `LLM provider "${type}" is not available. Check that the API key is configured.`
+      );
     }
 
     const previousType = this.activeProviderType;
@@ -471,21 +699,25 @@ export class LLMManager extends EventEmitter implements LLMProvider {
   }
 
   /**
-   * Get cost tracking (OpenRouter only)
+   * Gets cost tracking information from OpenRouter.
+   *
+   * @returns CostTracker object with usage stats, or null if OpenRouter is not configured
    */
   getCosts(): CostTracker | null {
     return this.openrouterLLM?.getCosts() || null;
   }
 
   /**
-   * Reset cost tracking
+   * Resets the OpenRouter cost tracking to zero.
    */
   resetCosts(): void {
     this.openrouterLLM?.resetCosts();
   }
 
   /**
-   * Check if fallback is active
+   * Checks if the manager is currently using the fallback provider.
+   *
+   * @returns True if using OpenRouter as fallback (not as preferred provider)
    */
   isUsingFallback(): boolean {
     return this.activeProviderType === 'openrouter' && !this.config.preferOpenRouter;
@@ -512,7 +744,16 @@ export class LLMManager extends EventEmitter implements LLMProvider {
 let llmManager: LLMManager | null = null;
 
 /**
- * Get or create LLM manager instance
+ * Gets or creates the singleton LLMManager instance.
+ *
+ * @param config - Optional configuration (only used on first call)
+ * @returns The LLMManager singleton instance
+ *
+ * @example
+ * ```typescript
+ * const llm = getLLMManager({ fireworks: { apiKey: 'key' } });
+ * const response = await llm.chat('Hello');
+ * ```
  */
 export function getLLMManager(config?: Partial<LLMManagerConfig>): LLMManager {
   if (!llmManager) {
@@ -522,13 +763,15 @@ export function getLLMManager(config?: Partial<LLMManagerConfig>): LLMManager {
 }
 
 /**
- * Shutdown LLM manager
+ * Shuts down the LLM manager and cancels any pending requests.
  */
 export function shutdownLLMManager(): void {
   if (llmManager) {
     llmManager.cancel();
     llmManager = null;
   }
+  // Also shutdown conversation memory
+  shutdownConversationMemory();
 }
 
 export default LLMManager;

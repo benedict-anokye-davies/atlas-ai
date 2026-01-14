@@ -5,21 +5,13 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { NovaState } from '../components/orb/NovaParticles';
-
-/**
- * Voice Pipeline Status from main process
- */
-interface VoicePipelineStatus {
-  state: string;
-  isListening: boolean;
-  isSpeaking: boolean;
-  audioLevel: number;
-  sttProvider: string | null;
-  llmProvider: string | null;
-  isTTSSpeaking: boolean;
-  currentTranscript: string;
-  currentResponse: string;
-}
+import type {
+  FullVoicePipelineStatus,
+  WakeWordFeedback,
+  WakeWordFeedbackType,
+  ListeningState,
+  StillListeningEvent,
+} from '../../shared/types/voice';
 
 /**
  * State returned by the hook
@@ -30,25 +22,33 @@ interface NovaStateResult {
   isReady: boolean;
   isListening: boolean;
   isSpeaking: boolean;
-  
+
   // Audio
   audioLevel: number;
-  
+
   // Transcription
   transcript: string;
   interimTranscript: string;
-  
+
   // Response
   response: string;
   isThinking: boolean;
-  
+
   // Providers
   sttProvider: string | null;
   llmProvider: string | null;
-  
+
+  // Wake word feedback
+  wakeFeedback: WakeWordFeedback | null;
+  lastWakeFeedbackType: WakeWordFeedbackType | null;
+
+  // VAD listening state
+  listeningState: ListeningState;
+  stillListening: StillListeningEvent | null;
+
   // Error
   error: string | null;
-  
+
   // Actions
   start: () => Promise<void>;
   stop: () => Promise<void>;
@@ -86,25 +86,40 @@ export function useNovaState(): NovaStateResult {
   const [isReady, setIsReady] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  
+
   // Audio
   const [audioLevel, setAudioLevel] = useState(0);
-  
+
+  // TTS Audio playback
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioQueueRef = useRef<string[]>([]);
+  const isPlayingRef = useRef(false);
+
   // Transcription
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
-  
+
   // Response
   const [response, setResponse] = useState('');
   const [isThinking, setIsThinking] = useState(false);
-  
+
   // Providers
   const [sttProvider, setSttProvider] = useState<string | null>(null);
   const [llmProvider, setLlmProvider] = useState<string | null>(null);
-  
+
+  // Wake word feedback
+  const [wakeFeedback, setWakeFeedback] = useState<WakeWordFeedback | null>(null);
+  const [lastWakeFeedbackType, setLastWakeFeedbackType] = useState<WakeWordFeedbackType | null>(
+    null
+  );
+
+  // VAD listening state
+  const [listeningState, setListeningState] = useState<ListeningState>('idle');
+  const [stillListening, setStillListening] = useState<StillListeningEvent | null>(null);
+
   // Error
   const [error, setError] = useState<string | null>(null);
-  
+
   // Cleanup refs
   const cleanupFunctionsRef = useRef<Array<() => void>>([]);
 
@@ -120,8 +135,14 @@ export function useNovaState(): NovaStateResult {
 
     // State change events
     cleanups.push(
-      on('nova:state-change', (newState: unknown) => {
-        const stateStr = String(newState);
+      on('nova:state-change', (data: unknown) => {
+        // IPC sends { state, previousState } object
+        let stateStr: string;
+        if (typeof data === 'object' && data !== null && 'state' in data) {
+          stateStr = String((data as { state: unknown }).state);
+        } else {
+          stateStr = String(data);
+        }
         setState(mapToNovaState(stateStr));
         setIsListening(stateStr === 'listening');
         setIsThinking(stateStr === 'processing' || stateStr === 'thinking');
@@ -130,21 +151,44 @@ export function useNovaState(): NovaStateResult {
 
     // Audio level
     cleanups.push(
-      on('nova:audio-level', (level: unknown) => {
-        setAudioLevel(typeof level === 'number' ? level : 0);
+      on('nova:audio-level', (data: unknown) => {
+        // IPC sends { level } object
+        let level: number;
+        if (typeof data === 'object' && data !== null && 'level' in data) {
+          level = (data as { level: number }).level;
+        } else if (typeof data === 'number') {
+          level = data;
+        } else {
+          level = 0;
+        }
+        setAudioLevel(level);
       })
     );
 
     // Transcription events
     cleanups.push(
-      on('nova:transcript-interim', (text: unknown) => {
-        setInterimTranscript(String(text || ''));
+      on('nova:transcript-interim', (data: unknown) => {
+        // IPC sends { text } object
+        let text: string;
+        if (typeof data === 'object' && data !== null && 'text' in data) {
+          text = String((data as { text: unknown }).text || '');
+        } else {
+          text = String(data || '');
+        }
+        setInterimTranscript(text);
       })
     );
 
     cleanups.push(
-      on('nova:transcript-final', (text: unknown) => {
-        setTranscript(String(text || ''));
+      on('nova:transcript-final', (data: unknown) => {
+        // IPC sends TranscriptionResult object with text property
+        let text: string;
+        if (typeof data === 'object' && data !== null && 'text' in data) {
+          text = String((data as { text: unknown }).text || '');
+        } else {
+          text = String(data || '');
+        }
+        setTranscript(text);
         setInterimTranscript('');
       })
     );
@@ -158,14 +202,30 @@ export function useNovaState(): NovaStateResult {
     );
 
     cleanups.push(
-      on('nova:response-chunk', (chunk: unknown) => {
-        setResponse((prev) => prev + String(chunk || ''));
+      on('nova:response-chunk', (data: unknown) => {
+        // IPC sends LLMStreamChunk object with content/text property
+        let text: string;
+        if (typeof data === 'object' && data !== null) {
+          const chunk = data as { content?: unknown; text?: unknown };
+          text = String(chunk.content || chunk.text || '');
+        } else {
+          text = String(data || '');
+        }
+        setResponse((prev) => prev + text);
       })
     );
 
     cleanups.push(
-      on('nova:response-complete', (fullResponse: unknown) => {
-        setResponse(String(fullResponse || ''));
+      on('nova:response-complete', (data: unknown) => {
+        // IPC sends LLMResponse object with content property
+        let text: string;
+        if (typeof data === 'object' && data !== null) {
+          const response = data as { content?: unknown; text?: unknown };
+          text = String(response.content || response.text || '');
+        } else {
+          text = String(data || '');
+        }
+        setResponse(text);
         setIsThinking(false);
       })
     );
@@ -182,6 +242,85 @@ export function useNovaState(): NovaStateResult {
       on('nova:speaking-end', () => {
         setIsSpeaking(false);
         setState('idle');
+      })
+    );
+
+    // TTS Audio playback - receive audio data and play it
+    const playNextInQueue = () => {
+      if (audioQueueRef.current.length === 0) {
+        isPlayingRef.current = false;
+        return;
+      }
+
+      isPlayingRef.current = true;
+      const audioData = audioQueueRef.current.shift()!;
+      console.log('[useNovaState] Playing audio, queue size:', audioQueueRef.current.length);
+
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+        audioRef.current.onended = playNextInQueue;
+        audioRef.current.onerror = (e) => {
+          console.error('[useNovaState] Audio playback error:', e);
+          playNextInQueue(); // Try next in queue
+        };
+      }
+
+      audioRef.current.src = audioData;
+      audioRef.current.play().catch((err) => {
+        console.error('[useNovaState] Failed to play audio:', err);
+        playNextInQueue();
+      });
+    };
+
+    cleanups.push(
+      on('nova:tts-audio', (data: unknown) => {
+        console.log('[useNovaState] Received nova:tts-audio');
+        // Receive base64 audio data URL from main process
+        if (typeof data === 'string' && data.startsWith('data:audio')) {
+          audioQueueRef.current.push(data);
+          if (!isPlayingRef.current) {
+            playNextInQueue();
+          }
+        }
+      })
+    );
+
+    cleanups.push(
+      on('nova:audio-chunk', (data: unknown) => {
+        console.log('[useNovaState] Received nova:audio-chunk', data);
+        // Receive audio chunk with base64 data
+        if (typeof data === 'object' && data !== null) {
+          const chunk = data as { audio?: string; data?: string };
+          const audioData = chunk.audio || chunk.data;
+          if (typeof audioData === 'string' && audioData.length > 0) {
+            // Convert to data URL if not already
+            const dataUrl = audioData.startsWith('data:')
+              ? audioData
+              : `data:audio/mpeg;base64,${audioData}`;
+            audioQueueRef.current.push(dataUrl);
+            if (!isPlayingRef.current) {
+              playNextInQueue();
+            }
+          }
+        }
+      })
+    );
+
+    // Also listen for complete synthesis result
+    cleanups.push(
+      on('nova:synthesis-complete', (data: unknown) => {
+        console.log('[useNovaState] Received nova:synthesis-complete');
+        if (typeof data === 'object' && data !== null) {
+          const result = data as { audioBase64?: string; format?: string };
+          if (result.audioBase64) {
+            const mimeType = result.format?.includes('mp3') ? 'audio/mpeg' : 'audio/wav';
+            const dataUrl = `data:${mimeType};base64,${result.audioBase64}`;
+            audioQueueRef.current.push(dataUrl);
+            if (!isPlayingRef.current) {
+              playNextInQueue();
+            }
+          }
+        }
       })
     );
 
@@ -230,6 +369,52 @@ export function useNovaState(): NovaStateResult {
       })
     );
 
+    // Wake word feedback (for confidence thresholding visualization)
+    cleanups.push(
+      on('nova:wake-feedback', (data: unknown) => {
+        if (typeof data === 'object' && data !== null) {
+          const feedback = data as WakeWordFeedback;
+          setWakeFeedback(feedback);
+          setLastWakeFeedbackType(feedback.type);
+
+          // Auto-clear feedback after a delay (except for 'listening' and 'ready')
+          if (feedback.type !== 'listening' && feedback.type !== 'ready') {
+            setTimeout(() => {
+              setWakeFeedback((current) =>
+                current?.timestamp === feedback.timestamp ? null : current
+              );
+            }, 3000);
+          }
+        }
+      })
+    );
+
+    // VAD listening state changes
+    cleanups.push(
+      on('nova:listening-state', (data: unknown) => {
+        if (typeof data === 'string') {
+          setListeningState(data as ListeningState);
+        }
+      })
+    );
+
+    // VAD still listening event (pause detected but expecting more speech)
+    cleanups.push(
+      on('nova:still-listening', (data: unknown) => {
+        if (typeof data === 'object' && data !== null) {
+          const event = data as StillListeningEvent;
+          setStillListening(event);
+
+          // Auto-clear after the extended timeout
+          setTimeout(() => {
+            setStillListening((current) =>
+              current?.timestamp === event.timestamp ? null : current
+            );
+          }, event.extendedTimeout);
+        }
+      })
+    );
+
     // Store cleanup functions
     cleanupFunctionsRef.current = cleanups;
 
@@ -248,7 +433,7 @@ export function useNovaState(): NovaStateResult {
       try {
         const result = await window.nova.nova.getStatus();
         if (result.success && result.data) {
-          const status = result.data as VoicePipelineStatus;
+          const status = result.data as FullVoicePipelineStatus;
           setState(mapToNovaState(status.state));
           setIsListening(status.isListening);
           setIsSpeaking(status.isSpeaking);
@@ -330,6 +515,10 @@ export function useNovaState(): NovaStateResult {
     isThinking,
     sttProvider,
     llmProvider,
+    wakeFeedback,
+    lastWakeFeedbackType,
+    listeningState,
+    stillListening,
     error,
     start,
     stop,

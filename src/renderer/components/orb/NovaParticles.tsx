@@ -1,22 +1,29 @@
 /**
- * Nova Desktop - Strange Attractor Particle System
- * The visual core of Nova - a flowing particle cloud that responds to AI state
+ * Nova Desktop - AI Core Particle System
+ * Production-quality 2-layer particle visualization with bloom effects
+ *
+ * Layers:
+ * 1. Inner Nucleus - Dense, bright white/cyan particles
+ * 2. Outer Shell - Sparse, golden/amber particles
  */
 
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo, useCallback, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { aizawa, STATE_COLORS, ATTRACTOR_SETTINGS } from './attractors';
-import { particleVertexShader, particleFragmentShader } from './shaders';
+import {
+  generateSpherePoints,
+  generateParticleSizes,
+  generateParticleAlphas,
+  generateParticleColors,
+  DEFAULT_LAYERS,
+  STATE_COLORS,
+  STATE_PARAMS,
+  type LayerConfig,
+} from './geometry';
+import { particleVertexShader, particleFragmentShader, createShaderUniforms } from './shaders';
 
+// Type definitions
 export type NovaState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
-
-interface ParticleData {
-  x: number;
-  y: number;
-  z: number;
-  baseSize: number;
-}
 
 interface NovaParticlesProps {
   state?: NovaState;
@@ -24,260 +31,238 @@ interface NovaParticlesProps {
   particleCount?: number;
 }
 
+interface ParticleLayerData {
+  positions: Float32Array;
+  colors: Float32Array;
+  sizes: Float32Array;
+  alphas: Float32Array;
+  velocities: Float32Array;
+  config: LayerConfig;
+}
+
+// State to numeric value for shader
+const STATE_MAP: Record<NovaState, number> = {
+  idle: 0,
+  listening: 1,
+  thinking: 2,
+  speaking: 3,
+  error: 4,
+};
+
 /**
- * Nova Particles - The flowing strange attractor visualization
+ * Single particle layer component
+ */
+function ParticleLayer({
+  data,
+  state,
+  audioLevel,
+  groupRef,
+}: {
+  data: ParticleLayerData;
+  state: NovaState;
+  audioLevel: number;
+  groupRef: React.RefObject<THREE.Group>;
+}) {
+  const pointsRef = useRef<THREE.Points>(null);
+
+  // Create shader uniforms
+  const uniforms = useMemo(() => {
+    console.log(`[ParticleLayer:${data.config.name}] Creating uniforms`);
+    return createShaderUniforms();
+  }, [data.config.name]);
+
+  // Create shader material
+  const shaderMaterial = useMemo(() => {
+    console.log(`[ParticleLayer:${data.config.name}] Creating ShaderMaterial`);
+    try {
+      const mat = new THREE.ShaderMaterial({
+        uniforms,
+        vertexShader: particleVertexShader,
+        fragmentShader: particleFragmentShader,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      console.log(`[ParticleLayer:${data.config.name}] ShaderMaterial created successfully`);
+      return mat;
+    } catch (err) {
+      console.error(`[ParticleLayer:${data.config.name}] ShaderMaterial creation failed:`, err);
+      throw err;
+    }
+  }, [uniforms, data.config.name]);
+
+  // Animation loop
+  useFrame((_, delta) => {
+    if (!pointsRef.current) return;
+
+    const stateParams = STATE_PARAMS[state];
+    const stateColor = STATE_COLORS[state];
+
+    // Update uniforms directly on the material
+    shaderMaterial.uniforms.uTime.value += delta;
+    shaderMaterial.uniforms.uState.value = STATE_MAP[state];
+    shaderMaterial.uniforms.uAudioLevel.value = audioLevel;
+    shaderMaterial.uniforms.uSpeedMultiplier.value = stateParams.speedMultiplier;
+    shaderMaterial.uniforms.uTurbulence.value = stateParams.turbulence;
+    shaderMaterial.uniforms.uGlowIntensity.value = stateParams.glowIntensity;
+    shaderMaterial.uniforms.uStateColor.value.set(stateColor.r, stateColor.g, stateColor.b);
+    shaderMaterial.uniforms.uColorMix.value = state === 'idle' ? 0 : 0.3;
+
+    // Rotate the layer group
+    if (groupRef.current) {
+      const rotSpeed = data.config.rotationSpeed * stateParams.speedMultiplier;
+      groupRef.current.rotation.y += delta * rotSpeed;
+    }
+  });
+
+  // Create buffer geometry with attributes using useMemo for performance
+  const geometry = useMemo(() => {
+    console.log(
+      `[ParticleLayer:${data.config.name}] Creating BufferGeometry with ${data.positions.length / 3} particles`
+    );
+    try {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
+      geo.setAttribute('customColor', new THREE.BufferAttribute(data.colors, 3));
+      geo.setAttribute('size', new THREE.BufferAttribute(data.sizes, 1));
+      geo.setAttribute('alpha', new THREE.BufferAttribute(data.alphas, 1));
+      geo.setAttribute('velocity', new THREE.BufferAttribute(data.velocities, 3));
+      console.log(`[ParticleLayer:${data.config.name}] BufferGeometry created successfully`);
+      return geo;
+    } catch (err) {
+      console.error(`[ParticleLayer:${data.config.name}] BufferGeometry creation failed:`, err);
+      throw err;
+    }
+  }, [data]);
+
+  // Log when component mounts
+  useEffect(() => {
+    console.log(
+      `[ParticleLayer:${data.config.name}] Component mounted, pointsRef:`,
+      pointsRef.current
+    );
+    return () => {
+      console.log(`[ParticleLayer:${data.config.name}] Component unmounting`);
+    };
+  }, [data.config.name]);
+
+  // eslint-disable-next-line react/no-unknown-property
+  return <points ref={pointsRef} geometry={geometry} material={shaderMaterial} />;
+}
+
+/**
+ * Generate layer data based on configuration
+ */
+function generateLayerData(config: LayerConfig): ParticleLayerData {
+  const {
+    particleCount,
+    radius,
+    variance,
+    baseColor,
+    colorVariance,
+    minSize,
+    maxSize,
+    minAlpha,
+    maxAlpha,
+  } = config;
+
+  // Generate sphere positions for all layers
+  const positions = generateSpherePoints(particleCount, radius, variance);
+
+  const colors = generateParticleColors(particleCount, baseColor, colorVariance);
+  const sizes = generateParticleSizes(particleCount, minSize, maxSize);
+  const alphas = generateParticleAlphas(particleCount, minAlpha, maxAlpha);
+
+  // Generate random velocities for organic movement
+  const velocities = new Float32Array(particleCount * 3);
+  for (let i = 0; i < particleCount; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.random() * Math.PI;
+    const speed = 0.05 + Math.random() * 0.1;
+    velocities[i * 3] = Math.sin(theta) * Math.cos(phi) * speed;
+    velocities[i * 3 + 1] = Math.sin(theta) * Math.sin(phi) * speed;
+    velocities[i * 3 + 2] = Math.cos(theta) * speed;
+  }
+
+  return { positions, colors, sizes, alphas, velocities, config };
+}
+
+/**
+ * Nova Particles - The 2-layer AI Core visualization
  */
 export function NovaParticles({
   state = 'idle',
   audioLevel = 0,
-  particleCount = 35000,
+  particleCount = 30000,
 }: NovaParticlesProps) {
-  const pointsRef = useRef<THREE.Points>(null);
-  const materialRef = useRef<THREE.ShaderMaterial>(null);
-  const particleDataRef = useRef<ParticleData[]>([]);
+  // Refs for each layer group (for rotation)
+  const nucleusGroupRef = useRef<THREE.Group>(null);
+  const shellGroupRef = useRef<THREE.Group>(null);
 
-  // Animation state refs
-  const targetColorsRef = useRef<THREE.Color[]>([]);
-  const currentStateRef = useRef<NovaState>(state);
-  const transitionProgressRef = useRef(0);
+  console.log('[NovaParticles] Rendering with particleCount:', particleCount);
 
-  // Settings for Aizawa attractor
-  const settings = ATTRACTOR_SETTINGS.aizawa;
+  // Scale particle counts based on prop (ratio from DEFAULT_LAYERS - only nucleus and shell)
+  const getScaledLayers = useCallback((): LayerConfig[] => {
+    // Only use nucleus and shell layers
+    const sphereLayers = DEFAULT_LAYERS.filter((l) => l.name === 'nucleus' || l.name === 'shell');
+    const totalDefault = sphereLayers.reduce((sum, l) => sum + l.particleCount, 0);
+    const scale = particleCount / totalDefault;
 
-  // Initialize particle positions along the attractor
-  const { positions, colors, sizes, alphas } = useMemo(() => {
-    const positions = new Float32Array(particleCount * 3);
-    const colors = new Float32Array(particleCount * 3);
-    const sizes = new Float32Array(particleCount);
-    const alphas = new Float32Array(particleCount);
-
-    const stateColor = STATE_COLORS[state];
-    particleDataRef.current = [];
-    targetColorsRef.current = [];
-
-    for (let i = 0; i < particleCount; i++) {
-      // Start with random positions
-      let x = (Math.random() - 0.5) * 2;
-      let y = (Math.random() - 0.5) * 2;
-      let z = (Math.random() - 0.5) * 2;
-
-      // Iterate to get particles onto the attractor path
-      const steps = Math.floor(Math.random() * 500) + 100;
-      for (let j = 0; j < steps; j++) {
-        const [dx, dy, dz] = aizawa(x, y, z);
-        x += dx * settings.dt;
-        y += dy * settings.dt;
-        z += dz * settings.dt;
-      }
-
-      // Store particle data
-      particleDataRef.current.push({
-        x,
-        y,
-        z,
-        baseSize: 1.5 + Math.random() * 2.0,
-      });
-
-      // Set initial position
-      positions[i * 3] = (x + settings.offset[0]) * settings.scale;
-      positions[i * 3 + 1] = (y + settings.offset[1]) * settings.scale;
-      positions[i * 3 + 2] = (z + settings.offset[2]) * settings.scale;
-
-      // Generate color with variation
-      const hue = (stateColor.hue + (Math.random() - 0.5) * stateColor.hueRange) % 1;
-      const sat = stateColor.saturation + (Math.random() - 0.5) * 0.2;
-      const light = stateColor.lightness + (Math.random() - 0.5) * 0.2;
-
-      const color = new THREE.Color().setHSL(hue, sat, light);
-      colors[i * 3] = color.r;
-      colors[i * 3 + 1] = color.g;
-      colors[i * 3 + 2] = color.b;
-
-      targetColorsRef.current.push(color.clone());
-
-      // Size and alpha
-      sizes[i] = particleDataRef.current[i].baseSize;
-      alphas[i] = 0.6 + Math.random() * 0.4;
-    }
-
-    return { positions, colors, sizes, alphas };
-    // We intentionally only initialize once with particleCount
-    // State changes are handled in useEffect, not by recreating particles
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return sphereLayers.map((layer) => ({
+      ...layer,
+      particleCount: Math.max(1000, Math.floor(layer.particleCount * scale)),
+    }));
   }, [particleCount]);
 
-  // Handle state changes
-  useEffect(() => {
-    if (state !== currentStateRef.current) {
-      currentStateRef.current = state;
-      transitionProgressRef.current = 0;
-
-      // Generate new target colors for transition
-      const stateColor = STATE_COLORS[state];
-      for (let i = 0; i < particleCount; i++) {
-        const hue = (stateColor.hue + (Math.random() - 0.5) * stateColor.hueRange) % 1;
-        const sat = stateColor.saturation + (Math.random() - 0.5) * 0.2;
-        const light = stateColor.lightness + (Math.random() - 0.5) * 0.2;
-        targetColorsRef.current[i].setHSL(hue, sat, light);
-      }
-    }
-  }, [state, particleCount]);
-
-  // Animation loop
-  useFrame((_, delta) => {
-    if (!pointsRef.current || !materialRef.current) return;
-
-    const positions = pointsRef.current.geometry.attributes.position.array as Float32Array;
-    const colors = pointsRef.current.geometry.attributes.customColor.array as Float32Array;
-    const sizes = pointsRef.current.geometry.attributes.size.array as Float32Array;
-    const particles = particleDataRef.current;
-
-    // State-based animation parameters
-    let speed = 1.0;
-    let turbulence = 0;
-    let sizeMultiplier = 1.0;
-    let pulseSpeed = 0;
-
-    switch (state) {
-      case 'idle':
-        speed = 0.6;
-        turbulence = 0;
-        break;
-      case 'listening':
-        speed = 1.0 + audioLevel * 0.5;
-        turbulence = audioLevel * 0.3;
-        sizeMultiplier = 1.0 + audioLevel * 0.3;
-        break;
-      case 'thinking':
-        speed = 2.5;
-        turbulence = 0.5;
-        pulseSpeed = 8;
-        break;
-      case 'speaking':
-        speed = 1.2;
-        turbulence = 0.1;
-        pulseSpeed = 4 + audioLevel * 4;
-        sizeMultiplier = 1.0 + audioLevel * 0.5;
-        break;
-      case 'error':
-        speed = 0.3;
-        turbulence = 0.8;
-        break;
-    }
-
-    // Update shader uniforms
-    materialRef.current.uniforms.uTime.value += delta;
-    materialRef.current.uniforms.uTurbulence.value +=
-      (turbulence - materialRef.current.uniforms.uTurbulence.value) * 0.1;
-    materialRef.current.uniforms.uGlow.value =
-      state === 'thinking' ? 1.5 : state === 'speaking' ? 1.2 : 0.8;
-
-    // Color transition
-    if (transitionProgressRef.current < 1) {
-      transitionProgressRef.current += delta * 2; // 0.5 second transition
-      transitionProgressRef.current = Math.min(transitionProgressRef.current, 1);
-    }
-
-    const time = materialRef.current.uniforms.uTime.value;
-
-    // Update each particle
-    for (let i = 0; i < particles.length; i++) {
-      const p = particles[i];
-
-      // Evolve particle along attractor
-      const [dx, dy, dz] = aizawa(p.x, p.y, p.z);
-      p.x += dx * settings.dt * speed;
-      p.y += dy * settings.dt * speed;
-      p.z += dz * settings.dt * speed;
-
-      // Check for divergence and reset if needed
-      const dist = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
-      if (dist > 50 || isNaN(dist)) {
-        p.x = (Math.random() - 0.5) * 2;
-        p.y = (Math.random() - 0.5) * 2;
-        p.z = (Math.random() - 0.5) * 2;
-      }
-
-      // Update position
-      positions[i * 3] = (p.x + settings.offset[0]) * settings.scale;
-      positions[i * 3 + 1] = (p.y + settings.offset[1]) * settings.scale;
-      positions[i * 3 + 2] = (p.z + settings.offset[2]) * settings.scale;
-
-      // Interpolate colors during transition
-      if (transitionProgressRef.current < 1) {
-        const targetColor = targetColorsRef.current[i];
-        const currentR = colors[i * 3];
-        const currentG = colors[i * 3 + 1];
-        const currentB = colors[i * 3 + 2];
-
-        const ease = transitionProgressRef.current;
-        colors[i * 3] = currentR + (targetColor.r - currentR) * ease * 0.1;
-        colors[i * 3 + 1] = currentG + (targetColor.g - currentG) * ease * 0.1;
-        colors[i * 3 + 2] = currentB + (targetColor.b - currentB) * ease * 0.1;
-      }
-
-      // Pulse size for speaking/thinking states
-      if (pulseSpeed > 0) {
-        const pulse = Math.sin(time * pulseSpeed + i * 0.01) * 0.3 + 1.0;
-        sizes[i] = p.baseSize * sizeMultiplier * pulse;
-      } else {
-        sizes[i] = p.baseSize * sizeMultiplier;
-      }
-    }
-
-    // Mark attributes for update
-    pointsRef.current.geometry.attributes.position.needsUpdate = true;
-    pointsRef.current.geometry.attributes.customColor.needsUpdate = true;
-    pointsRef.current.geometry.attributes.size.needsUpdate = true;
-  });
-
-  // Create shader material
-  const shaderMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uScale: { value: 1.0 },
-        uTurbulence: { value: 0 },
-        uGlow: { value: 0.8 },
-      },
-      vertexShader: particleVertexShader,
-      fragmentShader: particleFragmentShader,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+  // Generate layer data - memoized for performance
+  const layers = useMemo(() => {
+    console.log('[NovaParticles] Generating layer data...');
+    const scaledLayers = getScaledLayers();
+    const result = scaledLayers.map((config) => {
+      console.log(
+        `[NovaParticles] Generating layer: ${config.name} with ${config.particleCount} particles`
+      );
+      return generateLayerData(config);
     });
+    console.log(
+      '[NovaParticles] All layers generated:',
+      result.map((l) => l.config.name)
+    );
+    return result;
+  }, [getScaledLayers]);
+
+  // Find layers by name
+  const nucleusData = layers.find((l) => l.config.name === 'nucleus')!;
+  const shellData = layers.find((l) => l.config.name === 'shell')!;
+
+  // Log mount
+  useEffect(() => {
+    console.log('[NovaParticles] Component mounted');
+    return () => console.log('[NovaParticles] Component unmounting');
   }, []);
 
   return (
-    <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={particleCount}
-          array={positions}
-          itemSize={3}
+    <>
+      {/* Inner Nucleus - Dense white/cyan core */}
+      <group ref={nucleusGroupRef}>
+        <ParticleLayer
+          data={nucleusData}
+          state={state}
+          audioLevel={audioLevel}
+          groupRef={nucleusGroupRef}
         />
-        <bufferAttribute
-          attach="attributes-customColor"
-          count={particleCount}
-          array={colors}
-          itemSize={3}
+      </group>
+
+      {/* Outer Shell - Sparse golden particles */}
+      <group ref={shellGroupRef}>
+        <ParticleLayer
+          data={shellData}
+          state={state}
+          audioLevel={audioLevel}
+          groupRef={shellGroupRef}
         />
-        <bufferAttribute
-          attach="attributes-size"
-          count={particleCount}
-          array={sizes}
-          itemSize={1}
-        />
-        <bufferAttribute
-          attach="attributes-alpha"
-          count={particleCount}
-          array={alphas}
-          itemSize={1}
-        />
-      </bufferGeometry>
-      <primitive object={shaderMaterial} ref={materialRef} attach="material" />
-    </points>
+      </group>
+    </>
   );
 }
 

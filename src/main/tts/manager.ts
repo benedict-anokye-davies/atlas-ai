@@ -5,6 +5,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { BrowserWindow } from 'electron';
 import { createModuleLogger } from '../utils/logger';
 import { CircuitBreaker, CircuitState } from '../utils/errors';
 import {
@@ -66,6 +67,8 @@ export interface TTSManagerEvents extends TTSEvents {
   'fallback-activated': (provider: TTSProviderType, reason: string) => void;
   /** Primary restored */
   'primary-restored': () => void;
+  /** Audio data ready for renderer (base64 data URL) */
+  'audio-data': (dataUrl: string, format: string) => void;
 }
 
 /**
@@ -395,6 +398,130 @@ export class TTSManager extends EventEmitter implements TTSProvider {
       } else {
         throw error;
       }
+    }
+  }
+
+  /**
+   * Speak text and stream audio to renderer for visualization
+   * Synthesizes TTS and sends audio data as base64 to renderer via IPC
+   */
+  async speakWithAudioStream(text: string, priority = 0): Promise<void> {
+    if (!this.activeProvider) {
+      throw new Error('No TTS provider available');
+    }
+
+    try {
+      // Synthesize audio
+      const result = await this.synthesize(text);
+
+      // Send audio to renderer for visualization
+      this.sendAudioToRenderer(result.audio, result.format);
+
+      // Also add to speech queue for actual playback
+      await this.activeProvider.speak(text, priority);
+    } catch (error) {
+      // Try fallback on error
+      if (this.config.autoFallback && this.activeProviderType === 'elevenlabs' && this.offlineTTS) {
+        logger.info('Attempting fallback after speakWithAudioStream error');
+        this.switchToFallback((error as Error).message);
+
+        const result = await this.offlineTTS.synthesize(text);
+        this.sendAudioToRenderer(result.audio, result.format);
+        await this.offlineTTS.speak(text, priority);
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Send audio data to renderer process for visualization
+   * Converts audio buffer to base64 data URL and sends via IPC
+   */
+  sendAudioToRenderer(audioData: Buffer, format: string): void {
+    const mainWindow = BrowserWindow.getAllWindows()[0];
+    if (!mainWindow) {
+      logger.warn('No main window available to send audio data');
+      return;
+    }
+
+    // Determine MIME type based on format
+    let mimeType = 'audio/mpeg'; // default for mp3
+    if (format.startsWith('pcm')) {
+      mimeType = 'audio/wav'; // PCM needs WAV header, but we'll use raw for now
+    } else if (format.includes('mp3')) {
+      mimeType = 'audio/mpeg';
+    }
+
+    // Convert to base64 data URL
+    const base64 = audioData.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    logger.debug('Sending audio to renderer', {
+      format,
+      mimeType,
+      audioSize: audioData.length,
+      dataUrlLength: dataUrl.length,
+    });
+
+    // Send to renderer via IPC
+    mainWindow.webContents.send('nova:tts-audio', dataUrl);
+
+    // Also emit event for internal use
+    this.emit('audio-data', dataUrl, format);
+  }
+
+  /**
+   * Stream audio chunks to renderer in real-time
+   * Useful for streaming synthesis where we want live audio reactivity
+   */
+  async speakWithStreamingAudio(text: string): Promise<void> {
+    if (!this.activeProvider) {
+      throw new Error('No TTS provider available');
+    }
+
+    const mainWindow = BrowserWindow.getAllWindows()[0];
+    if (!mainWindow) {
+      logger.warn('No main window available for streaming audio');
+      return this.speak(text);
+    }
+
+    try {
+      this.setStatus(TTSStatus.SYNTHESIZING);
+
+      // Collect chunks and send periodically
+      const chunks: Buffer[] = [];
+      let lastSendTime = Date.now();
+      const SEND_INTERVAL_MS = 100; // Send audio data every 100ms for smooth visualization
+
+      for await (const chunk of this.synthesizeStream(text)) {
+        if (chunk.data.length > 0) {
+          chunks.push(chunk.data);
+
+          // Send accumulated chunks periodically
+          const now = Date.now();
+          if (now - lastSendTime >= SEND_INTERVAL_MS) {
+            const audioBuffer = Buffer.concat(chunks);
+            this.sendAudioToRenderer(audioBuffer, chunk.format);
+            lastSendTime = now;
+          }
+        }
+
+        if (chunk.isFinal) {
+          // Send any remaining audio
+          if (chunks.length > 0) {
+            const audioBuffer = Buffer.concat(chunks);
+            this.sendAudioToRenderer(audioBuffer, chunk.format);
+          }
+          break;
+        }
+      }
+
+      this.setStatus(TTSStatus.IDLE);
+    } catch (error) {
+      this.setStatus(TTSStatus.ERROR);
+      logger.error('Streaming audio failed', { error: (error as Error).message });
+      throw error;
     }
   }
 

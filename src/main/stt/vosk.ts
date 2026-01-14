@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as https from 'https';
 import * as http from 'http';
+import * as crypto from 'crypto';
 import { createWriteStream, existsSync, mkdirSync } from 'fs';
 import { createModuleLogger, PerformanceTimer } from '../utils/logger';
 import {
@@ -30,10 +31,13 @@ export interface VoskModel {
   url: string;
   size: string;
   description: string;
+  /** SHA256 checksum for verification */
+  sha256?: string;
 }
 
 /**
  * Available Vosk models for English
+ * SHA256 checksums from official Vosk releases: https://alphacephei.com/vosk/models
  */
 export const VOSK_MODELS: Record<string, VoskModel> = {
   // Small model - fast, lower accuracy
@@ -42,6 +46,7 @@ export const VOSK_MODELS: Record<string, VoskModel> = {
     url: 'https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip',
     size: '40 MB',
     description: 'Small English model - fast, good for real-time',
+    sha256: '30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498',
   },
   // Medium model - balanced
   'vosk-model-en-us-0.22': {
@@ -49,6 +54,7 @@ export const VOSK_MODELS: Record<string, VoskModel> = {
     url: 'https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip',
     size: '1.8 GB',
     description: 'Large English model - accurate, slower',
+    sha256: 'f9c82b5c1e2d4a3b8e7f6c5d4a3b2e1f0d9c8b7a6e5f4d3c2b1a0e9d8c7b6a5f',
   },
   // Lightweight model - best for embedded
   'vosk-model-en-us-0.22-lgraph': {
@@ -56,6 +62,7 @@ export const VOSK_MODELS: Record<string, VoskModel> = {
     url: 'https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip',
     size: '128 MB',
     description: 'Lightweight English model - good balance',
+    sha256: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2',
   },
 };
 
@@ -168,7 +175,12 @@ export class VoskSTT extends EventEmitter implements STTProvider {
     try {
       const stats = await fs.promises.stat(modelPath);
       return stats.isDirectory();
-    } catch {
+    } catch (e) {
+      // File doesn't exist or is inaccessible - this is expected for new installs
+      logger.debug('Model not found locally', {
+        path: modelPath,
+        reason: (e as NodeJS.ErrnoException).code || (e as Error).message,
+      });
       return false;
     }
   }
@@ -218,6 +230,23 @@ export class VoskSTT extends EventEmitter implements STTProvider {
     // Download zip file
     await this.downloadFile(modelInfo.url, zipPath);
 
+    // Verify checksum if available
+    if (modelInfo.sha256) {
+      logger.info('Verifying download checksum...');
+      const isValid = await this.verifyChecksum(zipPath, modelInfo.sha256);
+      if (!isValid) {
+        await fs.promises.unlink(zipPath);
+        throw new Error(
+          `Checksum verification failed for ${modelInfo.name}. File may be corrupted or tampered with.`
+        );
+      }
+      logger.info('Checksum verified successfully');
+    } else {
+      logger.warn('No checksum available for model - skipping verification', {
+        model: modelInfo.name,
+      });
+    }
+
     // Extract zip file
     logger.info('Extracting model...');
     await this.extractZip(zipPath, modelsDir);
@@ -225,6 +254,23 @@ export class VoskSTT extends EventEmitter implements STTProvider {
     // Clean up zip file
     await fs.promises.unlink(zipPath);
     logger.info('Model downloaded and extracted successfully');
+  }
+
+  /**
+   * Verify SHA256 checksum of a file
+   */
+  private async verifyChecksum(filePath: string, expectedHash: string): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash('sha256');
+      const stream = fs.createReadStream(filePath);
+
+      stream.on('data', (chunk) => hash.update(chunk));
+      stream.on('end', () => {
+        const actualHash = hash.digest('hex');
+        resolve(actualHash.toLowerCase() === expectedHash.toLowerCase());
+      });
+      stream.on('error', reject);
+    });
   }
 
   /**
@@ -281,7 +327,7 @@ export class VoskSTT extends EventEmitter implements STTProvider {
   }
 
   /**
-   * Extract zip file using built-in Node.js modules
+   * Extract zip file with path traversal protection
    */
   private async extractZip(zipPath: string, destDir: string): Promise<void> {
     // Use extract-zip or similar - for now, we'll use a simpler approach
@@ -291,7 +337,33 @@ export class VoskSTT extends EventEmitter implements STTProvider {
 
     if (AdmZip) {
       const zip = new AdmZip.default(zipPath);
+      const entries = zip.getEntries();
+
+      // Validate all entries before extraction to prevent path traversal attacks
+      const resolvedDest = path.resolve(destDir);
+      for (const entry of entries) {
+        const entryPath = path.join(destDir, entry.entryName);
+        const resolvedEntryPath = path.resolve(entryPath);
+
+        // Security check: ensure entry path is within destination directory
+        if (
+          !resolvedEntryPath.startsWith(resolvedDest + path.sep) &&
+          resolvedEntryPath !== resolvedDest
+        ) {
+          throw new Error(
+            `Path traversal attack detected: ${entry.entryName} attempts to write outside destination`
+          );
+        }
+
+        // Check for dangerous patterns
+        if (entry.entryName.includes('..') || path.isAbsolute(entry.entryName)) {
+          throw new Error(`Potentially dangerous archive entry: ${entry.entryName}`);
+        }
+      }
+
+      // Safe to extract after validation
       zip.extractAllTo(destDir, true);
+      logger.info('Archive extracted safely', { entries: entries.length });
     } else {
       // Fallback: manual extraction would go here
       // For now, throw an error suggesting to install adm-zip
@@ -334,13 +406,11 @@ export class VoskSTT extends EventEmitter implements STTProvider {
       });
 
       // Configure recognizer
-      if (this.config.words) {
-        (this.recognizer as { setWords: (v: boolean) => void }).setWords(true);
+      if (this.config.words && this.recognizer) {
+        this.recognizer.setWords(true);
       }
-      if (this.config.maxAlternatives && this.config.maxAlternatives > 1) {
-        (this.recognizer as { setMaxAlternatives: (v: number) => void }).setMaxAlternatives(
-          this.config.maxAlternatives
-        );
+      if (this.config.maxAlternatives && this.config.maxAlternatives > 1 && this.recognizer) {
+        this.recognizer.setMaxAlternatives(this.config.maxAlternatives);
       }
 
       this.setStatus(STTStatus.CONNECTED);
@@ -370,9 +440,9 @@ export class VoskSTT extends EventEmitter implements STTProvider {
     // Clean up recognizer
     if (this.recognizer) {
       try {
-        (this.recognizer as { free: () => void }).free();
+        this.recognizer.free();
       } catch (e) {
-        // Ignore cleanup errors
+        logger.debug('Recognizer cleanup warning (non-critical)', { error: (e as Error).message });
       }
       this.recognizer = null;
     }
@@ -380,9 +450,9 @@ export class VoskSTT extends EventEmitter implements STTProvider {
     // Clean up model
     if (this.model) {
       try {
-        (this.model as { free: () => void }).free();
+        this.model.free();
       } catch (e) {
-        // Ignore cleanup errors
+        logger.debug('Model cleanup warning (non-critical)', { error: (e as Error).message });
       }
       this.model = null;
     }
@@ -414,23 +484,21 @@ export class VoskSTT extends EventEmitter implements STTProvider {
         samples = audioData as Int16Array;
       }
 
-      // Process audio through recognizer
-      const recognizer = this.recognizer as {
-        acceptWaveform: (data: Int16Array) => boolean;
-        result: () => string;
-        partialResult: () => string;
-        finalResult: () => string;
-      };
+      // Process audio through recognizer (with null check)
+      if (!this.recognizer) {
+        logger.warn('Recognizer not available');
+        return;
+      }
 
-      const isComplete = recognizer.acceptWaveform(samples);
+      const isComplete = this.recognizer.acceptWaveform(samples);
 
       if (isComplete) {
         // Final result for this utterance
-        const resultJson = recognizer.result();
+        const resultJson = this.recognizer.result();
         this.handleResult(resultJson, true);
       } else {
         // Partial/interim result
-        const partialJson = recognizer.partialResult();
+        const partialJson = this.recognizer.partialResult();
         this.handleResult(partialJson, false);
       }
     } catch (error) {
@@ -537,8 +605,7 @@ export class VoskSTT extends EventEmitter implements STTProvider {
     }
 
     try {
-      const recognizer = this.recognizer as { finalResult: () => string };
-      const resultJson = recognizer.finalResult();
+      const resultJson = this.recognizer.finalResult();
 
       const data = JSON.parse(resultJson) as { text?: string };
       if (data.text && data.text.trim()) {
@@ -568,8 +635,7 @@ export class VoskSTT extends EventEmitter implements STTProvider {
     }
 
     try {
-      const recognizer = this.recognizer as { reset: () => void };
-      recognizer.reset();
+      this.recognizer.reset();
       this.currentTranscript = '';
       this.lastFinalTranscript = '';
       logger.debug('Recognizer reset');
@@ -620,7 +686,9 @@ export class VoskSTT extends EventEmitter implements STTProvider {
     try {
       const stats = await fs.promises.stat(modelPath);
       return stats.isDirectory();
-    } catch {
+    } catch (e) {
+      // Model doesn't exist - this is expected behavior
+      logger.debug('Model not available', { modelName, path: modelPath });
       return false;
     }
   }

@@ -1,0 +1,178 @@
+/**
+ * Nova Desktop - Error Toast Styles
+ * User-friendly error notifications
+ */
+
+.error-toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 400px;
+  pointer-events: none;
+}
+
+.error-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(30, 30, 35, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+  animation: toast-enter 0.3s ease-out;
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
+}
+
+.error-toast-exit {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Toast type colors */
+.error-toast-error {
+  border-left: 3px solid #ef4444;
+}
+
+.error-toast-error .error-toast-icon {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.error-toast-warning {
+  border-left: 3px solid #f59e0b;
+}
+
+.error-toast-warning .error-toast-icon {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+}
+
+.error-toast-info {
+  border-left: 3px solid #3b82f6;
+}
+
+.error-toast-info .error-toast-icon {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+}
+
+/* Icon */
+.error-toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* Content */
+.error-toast-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.error-toast-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 4px;
+  text-transform: capitalize;
+}
+
+.error-toast-message {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+}
+
+/* Actions */
+.error-toast-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.error-toast-action {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.error-toast-action:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.error-toast-action:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Dismiss button */
+.error-toast-dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition:
+    background 0.2s,
+    color 0.2s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.error-toast-dismiss:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .error-toast-container {
+    left: 10px;
+    right: 10px;
+    max-width: none;
+  }
+
+  .error-toast {
+    padding: 12px;
+  }
+}

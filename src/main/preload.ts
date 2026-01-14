@@ -4,6 +4,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
+import type { FullVoicePipelineStatus } from '../shared/types/voice';
 
 /**
  * IPC Result type
@@ -12,21 +13,6 @@ interface IPCResult<T = unknown> {
   success: boolean;
   error?: string;
   data?: T;
-}
-
-/**
- * Voice Pipeline Status
- */
-interface VoicePipelineStatus {
-  state: string;
-  isListening: boolean;
-  isSpeaking: boolean;
-  audioLevel: number;
-  sttProvider: string | null;
-  llmProvider: string | null;
-  isTTSSpeaking: boolean;
-  currentTranscript: string;
-  currentResponse: string;
 }
 
 /**
@@ -91,7 +77,8 @@ const novaAPI = {
     shutdown: (): Promise<IPCResult> => ipcRenderer.invoke('nova:shutdown'),
 
     // Status
-    getStatus: (): Promise<IPCResult<VoicePipelineStatus>> => ipcRenderer.invoke('nova:get-status'),
+    getStatus: (): Promise<IPCResult<FullVoicePipelineStatus>> =>
+      ipcRenderer.invoke('nova:get-status'),
 
     // Interaction
     triggerWake: (): Promise<IPCResult> => ipcRenderer.invoke('nova:trigger-wake'),
@@ -107,6 +94,25 @@ const novaAPI = {
       ipcRenderer.invoke('nova:update-config', config),
     getConfig: (): Promise<IPCResult<VoicePipelineConfig | null>> =>
       ipcRenderer.invoke('nova:get-config'),
+
+    // Memory management
+    getConversationHistory: (limit?: number): Promise<IPCResult> =>
+      ipcRenderer.invoke('nova:get-conversation-history', limit),
+    clearMemory: (): Promise<IPCResult> => ipcRenderer.invoke('nova:clear-memory'),
+    getMemoryStats: (): Promise<IPCResult> => ipcRenderer.invoke('nova:get-memory-stats'),
+    searchMemory: (query: {
+      type?: string;
+      tags?: string[];
+      minImportance?: number;
+      text?: string;
+      limit?: number;
+    }): Promise<IPCResult> => ipcRenderer.invoke('nova:search-memory', query),
+    getAllSessions: (): Promise<IPCResult> => ipcRenderer.invoke('nova:get-all-sessions'),
+
+    // Budget & Cost tracking
+    getBudgetStats: (): Promise<IPCResult> => ipcRenderer.invoke('nova:get-budget-stats'),
+    setDailyBudget: (budget: number): Promise<IPCResult> =>
+      ipcRenderer.invoke('nova:set-daily-budget', budget),
   },
 
   // Audio Pipeline control (wake word + VAD only - legacy)
@@ -164,11 +170,15 @@ const novaAPI = {
       // Legacy pipeline events
       'nova:pipeline-state',
       'nova:wake-word',
+      'nova:wake-feedback', // Wake word feedback for UI visualization
       'nova:speech-start',
       'nova:speech-segment',
       'nova:barge-in',
       'nova:listening-timeout',
       'nova:processing-timeout',
+      // VAD adaptive events
+      'nova:still-listening', // VAD detected pause but expects more
+      'nova:listening-state', // Current listening state
       // Voice pipeline events (STT + LLM + TTS)
       'nova:state-change',
       'nova:transcript-interim',
@@ -183,8 +193,16 @@ const novaAPI = {
       'nova:started',
       'nova:stopped',
       'nova:provider-change',
+      // TTS audio for visualization
+      'nova:tts-audio',
+      // Budget events
+      'nova:budget-update',
+      'nova:budget-warning',
+      'nova:budget-exceeded',
       // Tray events
       'nova:open-settings',
+      // Error notifications
+      'nova:error-notification',
     ];
     if (validChannels.includes(channel)) {
       const subscription = (_event: Electron.IpcRendererEvent, ...args: unknown[]) =>
@@ -244,6 +262,18 @@ const novaAPI = {
       'nova:get-metrics',
       'nova:update-config',
       'nova:get-config',
+      // Memory channels
+      'nova:get-conversation-history',
+      'nova:clear-memory',
+      'nova:get-memory-stats',
+      'nova:search-memory',
+      'nova:get-all-sessions',
+      // Budget channels
+      'nova:get-budget-stats',
+      'nova:set-daily-budget',
+      // Error action channels
+      'nova:retry-last',
+      'nova:set-offline-mode',
     ];
     if (validChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);

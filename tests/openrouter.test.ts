@@ -147,9 +147,7 @@ describe('OpenRouterLLM', () => {
       llm.on('status', (status) => statusChanges.push(status));
 
       mockChatCompletions.create.mockResolvedValue({
-        choices: [
-          { message: { content: 'Hi' }, finish_reason: 'stop' },
-        ],
+        choices: [{ message: { content: 'Hi' }, finish_reason: 'stop' }],
         model: 'test',
       });
 
@@ -165,9 +163,7 @@ describe('OpenRouterLLM', () => {
       llm.on('response', responseSpy);
 
       mockChatCompletions.create.mockResolvedValue({
-        choices: [
-          { message: { content: 'Response' }, finish_reason: 'stop' },
-        ],
+        choices: [{ message: { content: 'Response' }, finish_reason: 'stop' }],
         model: 'test',
       });
 
@@ -184,9 +180,7 @@ describe('OpenRouterLLM', () => {
       const context = createConversationContext(NOVA_SYSTEM_PROMPT, 'TestUser');
 
       mockChatCompletions.create.mockResolvedValue({
-        choices: [
-          { message: { content: 'Hi TestUser!' }, finish_reason: 'stop' },
-        ],
+        choices: [{ message: { content: 'Hi TestUser!' }, finish_reason: 'stop' }],
         model: 'test',
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       });
@@ -532,7 +526,7 @@ describe('LLMManager', () => {
 
     it('should throw if no provider available', async () => {
       manager = new LLMManager({});
-      await expect(manager.chat('Hello')).rejects.toThrow('No LLM provider available');
+      await expect(manager.chat('Hello')).rejects.toThrow('No LLM provider is available');
     });
 
     it('should use shared context across requests', async () => {
@@ -601,7 +595,7 @@ describe('LLMManager', () => {
         openrouter: { apiKey: 'openrouter-key' },
       });
 
-      expect(() => manager.switchToProvider('fireworks')).toThrow('Provider fireworks not available');
+      expect(() => manager.switchToProvider('fireworks')).toThrow('is not available');
     });
 
     it('should emit provider-switch event', () => {

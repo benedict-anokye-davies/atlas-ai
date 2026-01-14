@@ -74,7 +74,9 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
     this.config = { ...DEFAULT_DEEPGRAM_CONFIG, ...config } as DeepgramConfig;
 
     if (!this.config.apiKey) {
-      throw new Error('Deepgram API key is required');
+      throw new Error(
+        'Deepgram API key is required. Set DEEPGRAM_API_KEY in your environment or pass it in the configuration.'
+      );
     }
 
     logger.info('DeepgramSTT initialized', { model: this.config.model });
@@ -272,7 +274,11 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
       setTimeout(() => {
         if (!resolved) {
           resolved = true;
-          reject(new Error('Connection timeout'));
+          reject(
+            new Error(
+              'Connection to Deepgram timed out after 10 seconds. Check your network connection and API key.'
+            )
+          );
         }
       }, 10000);
     });

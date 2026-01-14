@@ -4,11 +4,18 @@
  *
  * This implementation uses @ricky0123/vad-node's FrameProcessor for real-time
  * voice activity detection.
+ *
+ * Enhanced Features:
+ * - Adaptive silence timeout based on conversation flow
+ * - Sentence ending detection for natural turn-taking
+ * - "Still listening" state for incomplete thoughts
+ * - Configurable pause patterns
  */
 
 import { EventEmitter } from 'events';
 import { FrameProcessor, FrameProcessorOptions, Message } from '@ricky0123/vad-node';
 import * as ort from 'onnxruntime-node';
+import { BrowserWindow } from 'electron';
 import { createModuleLogger } from '../utils/logger';
 import { getConfig } from '../config';
 import {
@@ -50,10 +57,62 @@ export interface VADManagerEvents {
   'speech-end': (event: VADEvent) => void;
   'speech-segment': (segment: SpeechSegment) => void;
   'vad-probability': (probability: number) => void;
+  'still-listening': (event: StillListeningEvent) => void;
+  'listening-state': (state: ListeningState) => void;
   error: (error: Error) => void;
   started: () => void;
   stopped: () => void;
 }
+
+/**
+ * Still listening event - emitted when VAD detects a pause but expects more speech
+ */
+export interface StillListeningEvent {
+  timestamp: number;
+  pauseDuration: number;
+  reason: 'incomplete_sentence' | 'short_pause' | 'thinking_pause';
+  extendedTimeout: number;
+}
+
+/**
+ * Listening state for UI feedback
+ */
+export type ListeningState =
+  | 'idle' // Not listening
+  | 'listening' // Actively listening for speech
+  | 'hearing' // Speech detected, capturing
+  | 'still_listening' // Pause detected, waiting for more
+  | 'processing'; // Speech complete, processing
+
+/**
+ * Adaptive silence configuration
+ */
+export interface AdaptiveSilenceConfig {
+  /** Base silence duration (ms) before ending speech */
+  baseSilenceMs: number;
+  /** Extended silence for incomplete sentences (ms) */
+  incompleteSilenceMs: number;
+  /** Short pause threshold - pauses shorter trigger "still listening" */
+  shortPauseMs: number;
+  /** Maximum silence before forced end (ms) */
+  maxSilenceMs: number;
+  /** Enable sentence ending detection */
+  detectSentenceEndings: boolean;
+  /** Enable adaptive timeout based on transcript */
+  adaptiveTimeout: boolean;
+}
+
+/**
+ * Default adaptive silence configuration
+ */
+const DEFAULT_ADAPTIVE_CONFIG: AdaptiveSilenceConfig = {
+  baseSilenceMs: 1500,
+  incompleteSilenceMs: 2500,
+  shortPauseMs: 500,
+  maxSilenceMs: 5000,
+  detectSentenceEndings: true,
+  adaptiveTimeout: true,
+};
 
 /**
  * Silero VAD Model wrapper
@@ -109,6 +168,7 @@ class SileroModel {
 /**
  * VADManager class
  * Detects speech segments in audio streams using Silero VAD
+ * Enhanced with adaptive silence timeout and sentence detection
  */
 export class VADManager extends EventEmitter {
   private model: SileroModel | null = null;
@@ -121,7 +181,15 @@ export class VADManager extends EventEmitter {
   private speechStartTime: number = 0;
   private currentProbability: number = 0;
 
-  constructor(config?: Partial<VADConfig>) {
+  // Adaptive silence state
+  private adaptiveConfig: AdaptiveSilenceConfig;
+  private currentTranscript: string = '';
+  private lastSpeechTime: number = 0;
+  private currentListeningState: ListeningState = 'idle';
+  private silenceCheckInterval: NodeJS.Timeout | null = null;
+  private stillListeningEmitted: boolean = false;
+
+  constructor(config?: Partial<VADConfig> & { adaptive?: Partial<AdaptiveSilenceConfig> }) {
     super();
     const novaConfig = getConfig();
 
@@ -132,10 +200,16 @@ export class VADManager extends EventEmitter {
       ...config,
     };
 
+    this.adaptiveConfig = {
+      ...DEFAULT_ADAPTIVE_CONFIG,
+      ...config?.adaptive,
+    };
+
     logger.info('VADManager initialized', {
       threshold: this.config.threshold,
       silenceDuration: this.config.silenceDuration,
       minSpeechDuration: this.config.minSpeechDuration,
+      adaptiveTimeout: this.adaptiveConfig.adaptiveTimeout,
     });
   }
 
@@ -244,6 +318,15 @@ export class VADManager extends EventEmitter {
       this.isRunning = true;
       this.isSpeaking = false;
       this.speechStartTime = 0;
+      this.currentTranscript = '';
+      this.lastSpeechTime = 0;
+      this.stillListeningEmitted = false;
+
+      // Start silence monitoring interval
+      this.startSilenceMonitoring();
+
+      // Update listening state
+      this.setListeningState('listening');
 
       logger.info('VAD started');
       this.emit('started');
@@ -266,6 +349,9 @@ export class VADManager extends EventEmitter {
 
     this.isRunning = false;
 
+    // Stop silence monitoring
+    this.stopSilenceMonitoring();
+
     // End any in-progress segment
     if (this.frameProcessor) {
       const result = this.frameProcessor.endSegment();
@@ -276,6 +362,12 @@ export class VADManager extends EventEmitter {
 
     this.isSpeaking = false;
     this.speechStartTime = 0;
+    this.currentTranscript = '';
+    this.lastSpeechTime = 0;
+    this.stillListeningEmitted = false;
+
+    // Update listening state
+    this.setListeningState('idle');
 
     logger.info('VAD stopped');
     this.emit('stopped');
@@ -321,6 +413,9 @@ export class VADManager extends EventEmitter {
       case Message.SpeechStart:
         this.isSpeaking = true;
         this.speechStartTime = now;
+        this.lastSpeechTime = now;
+        this.stillListeningEmitted = false;
+        this.setListeningState('hearing');
         logger.debug('Speech started', { timestamp: now });
         this.emit('speech-start', {
           type: 'speech-start',
@@ -346,6 +441,7 @@ export class VADManager extends EventEmitter {
           });
 
           this.emit('speech-segment', segment);
+          this.setListeningState('processing');
         }
 
         this.emit('speech-end', {
@@ -362,8 +458,308 @@ export class VADManager extends EventEmitter {
         logger.debug('VAD misfire - speech too short');
         this.isSpeaking = false;
         this.speechStartTime = 0;
+        this.setListeningState('listening');
         break;
     }
+  }
+
+  /**
+   * Start silence monitoring interval
+   */
+  private startSilenceMonitoring(): void {
+    if (this.silenceCheckInterval) {
+      clearInterval(this.silenceCheckInterval);
+    }
+
+    // Check for extended silence every 200ms
+    this.silenceCheckInterval = setInterval(() => {
+      this.checkForExtendedSilence();
+    }, 200);
+  }
+
+  /**
+   * Stop silence monitoring interval
+   */
+  private stopSilenceMonitoring(): void {
+    if (this.silenceCheckInterval) {
+      clearInterval(this.silenceCheckInterval);
+      this.silenceCheckInterval = null;
+    }
+  }
+
+  /**
+   * Check for extended silence and emit "still listening" events
+   */
+  private checkForExtendedSilence(): void {
+    if (!this.isRunning || this.isSpeaking || this.lastSpeechTime === 0) {
+      return;
+    }
+
+    const now = Date.now();
+    const silenceDuration = now - this.lastSpeechTime;
+
+    // Check if we should emit "still listening"
+    if (
+      silenceDuration >= this.adaptiveConfig.shortPauseMs &&
+      silenceDuration < this.getEffectiveSilenceTimeout() &&
+      !this.stillListeningEmitted
+    ) {
+      const reason = this.detectPauseReason();
+      const extendedTimeout = this.getEffectiveSilenceTimeout();
+
+      this.stillListeningEmitted = true;
+      this.setListeningState('still_listening');
+
+      const event: StillListeningEvent = {
+        timestamp: now,
+        pauseDuration: silenceDuration,
+        reason,
+        extendedTimeout,
+      };
+
+      logger.debug('Still listening', {
+        pauseDuration: silenceDuration,
+        reason,
+        extendedTimeout,
+      });
+
+      this.emit('still-listening', event);
+      this.sendStillListeningToRenderer(event);
+    }
+  }
+
+  /**
+   * Detect the reason for the current pause
+   */
+  private detectPauseReason(): 'incomplete_sentence' | 'short_pause' | 'thinking_pause' {
+    if (!this.adaptiveConfig.detectSentenceEndings) {
+      return 'short_pause';
+    }
+
+    const transcript = this.currentTranscript.trim().toLowerCase();
+
+    // Check for incomplete sentence patterns
+    if (this.isIncompleteSentence(transcript)) {
+      return 'incomplete_sentence';
+    }
+
+    // Check for thinking patterns
+    if (this.isThinkingPause(transcript)) {
+      return 'thinking_pause';
+    }
+
+    return 'short_pause';
+  }
+
+  /**
+   * Check if the current transcript appears to be an incomplete sentence
+   */
+  private isIncompleteSentence(transcript: string): boolean {
+    if (!transcript) return false;
+
+    // Ends with continuation words
+    const continuationEndings = [
+      'and',
+      'but',
+      'or',
+      'so',
+      'because',
+      'although',
+      'however',
+      'therefore',
+      'then',
+      'if',
+      'when',
+      'while',
+      'unless',
+      'until',
+      'after',
+      'before',
+      'that',
+      'which',
+      'who',
+      'whom',
+      'whose',
+      'where',
+      'like',
+      'such as',
+      'for example',
+      'including',
+      'especially',
+      'particularly',
+      'the',
+      'a',
+      'an',
+      'my',
+      'your',
+      'their',
+      'its',
+      'to',
+      'for',
+      'with',
+      'of',
+      'in',
+      'on',
+      'at',
+      'by',
+    ];
+
+    const lastWord = transcript.split(/\s+/).pop() || '';
+
+    if (continuationEndings.includes(lastWord)) {
+      return true;
+    }
+
+    // Ends with comma (incomplete list or clause)
+    if (transcript.endsWith(',')) {
+      return true;
+    }
+
+    // Ends with ellipsis or dash (trailing off)
+    if (transcript.endsWith('...') || transcript.endsWith('-') || transcript.endsWith('—')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Check if the pause appears to be a thinking pause
+   */
+  private isThinkingPause(transcript: string): boolean {
+    if (!transcript) return false;
+
+    // Thinking indicators
+    const thinkingPatterns = [
+      /\bum+\b$/i,
+      /\buh+\b$/i,
+      /\bhmm+\b$/i,
+      /\blet me (think|see)\b/i,
+      /\bi (think|guess|mean)\b$/i,
+      /\bwell\b$/i,
+      /\bso\b$/i,
+      /\bactually\b$/i,
+    ];
+
+    return thinkingPatterns.some((pattern) => pattern.test(transcript));
+  }
+
+  /**
+   * Get the effective silence timeout based on adaptive settings
+   */
+  private getEffectiveSilenceTimeout(): number {
+    if (!this.adaptiveConfig.adaptiveTimeout) {
+      return this.adaptiveConfig.baseSilenceMs;
+    }
+
+    const transcript = this.currentTranscript.trim().toLowerCase();
+
+    // Check for complete sentence (ends with terminal punctuation)
+    if (this.isCompleteSentence(transcript)) {
+      return this.adaptiveConfig.baseSilenceMs;
+    }
+
+    // Check for incomplete sentence
+    if (this.isIncompleteSentence(transcript)) {
+      return this.adaptiveConfig.incompleteSilenceMs;
+    }
+
+    // Check for thinking pause
+    if (this.isThinkingPause(transcript)) {
+      return this.adaptiveConfig.incompleteSilenceMs;
+    }
+
+    return this.adaptiveConfig.baseSilenceMs;
+  }
+
+  /**
+   * Check if the transcript appears to be a complete sentence
+   */
+  private isCompleteSentence(transcript: string): boolean {
+    if (!transcript) return false;
+
+    // Ends with terminal punctuation
+    return /[.!?]$/.test(transcript);
+  }
+
+  /**
+   * Set and broadcast the current listening state
+   */
+  private setListeningState(state: ListeningState): void {
+    if (this.currentListeningState === state) return;
+
+    this.currentListeningState = state;
+    this.emit('listening-state', state);
+
+    // Send to renderer via IPC
+    this.sendListeningStateToRenderer(state);
+
+    logger.debug('Listening state changed', { state });
+  }
+
+  /**
+   * Send still listening event to renderer
+   */
+  private sendStillListeningToRenderer(event: StillListeningEvent): void {
+    try {
+      const mainWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('nova:still-listening', event);
+      }
+    } catch (error) {
+      logger.debug('Could not send still-listening to renderer', { error });
+    }
+  }
+
+  /**
+   * Send listening state to renderer
+   */
+  private sendListeningStateToRenderer(state: ListeningState): void {
+    try {
+      const mainWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('nova:listening-state', state);
+      }
+    } catch (error) {
+      logger.debug('Could not send listening-state to renderer', { error });
+    }
+  }
+
+  /**
+   * Update the current transcript (called by STT integration)
+   * This allows VAD to make adaptive decisions based on what's being said
+   */
+  setCurrentTranscript(transcript: string): void {
+    this.currentTranscript = transcript;
+    this.lastSpeechTime = Date.now();
+    this.stillListeningEmitted = false;
+
+    // If we were in "still listening" state, go back to "hearing"
+    if (this.currentListeningState === 'still_listening') {
+      this.setListeningState('hearing');
+    }
+  }
+
+  /**
+   * Update adaptive silence configuration
+   */
+  updateAdaptiveConfig(config: Partial<AdaptiveSilenceConfig>): void {
+    this.adaptiveConfig = { ...this.adaptiveConfig, ...config };
+    logger.info('Adaptive config updated', config);
+  }
+
+  /**
+   * Get current adaptive silence configuration
+   */
+  getAdaptiveConfig(): AdaptiveSilenceConfig {
+    return { ...this.adaptiveConfig };
+  }
+
+  /**
+   * Get current listening state
+   */
+  getListeningState(): ListeningState {
+    return this.currentListeningState;
   }
 
   /**
@@ -377,12 +773,13 @@ export class VADManager extends EventEmitter {
   /**
    * Get current VAD status
    */
-  getStatus(): VADStatus {
+  getStatus(): VADStatus & { listeningState: ListeningState } {
     return {
       isRunning: this.isRunning,
       isSpeaking: this.isSpeaking,
       probability: this.currentProbability,
       speechDuration: this.isSpeaking ? Date.now() - this.speechStartTime : 0,
+      listeningState: this.currentListeningState,
     };
   }
 
@@ -414,6 +811,10 @@ export class VADManager extends EventEmitter {
     this.isSpeaking = false;
     this.speechStartTime = 0;
     this.currentProbability = 0;
+    this.currentTranscript = '';
+    this.lastSpeechTime = 0;
+    this.stillListeningEmitted = false;
+    this.setListeningState('listening');
     logger.debug('VAD state reset');
   }
 }

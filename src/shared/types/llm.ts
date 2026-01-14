@@ -8,7 +8,19 @@ import { EventEmitter } from 'events';
 /**
  * Chat message role
  */
-export type MessageRole = 'system' | 'user' | 'assistant';
+export type MessageRole = 'system' | 'user' | 'assistant' | 'tool';
+
+/**
+ * Tool call in assistant message
+ */
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
 
 /**
  * Chat message in conversation
@@ -18,6 +30,10 @@ export interface ChatMessage {
   content: string;
   timestamp?: number;
   tokens?: number;
+  /** Tool calls for assistant messages */
+  tool_calls?: ToolCall[];
+  /** Tool call ID for tool role messages */
+  tool_call_id?: string;
 }
 
 /**
@@ -29,7 +45,7 @@ export interface LLMResponse {
   /** Model used for generation */
   model: string;
   /** Finish reason */
-  finishReason: 'stop' | 'length' | 'content_filter' | 'error' | null;
+  finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | 'error' | null;
   /** Token usage */
   usage?: {
     promptTokens: number;
@@ -40,6 +56,8 @@ export interface LLMResponse {
   latency?: number;
   /** Raw response from provider */
   raw?: unknown;
+  /** Tool calls requested by the model */
+  toolCalls?: ToolCall[];
 }
 
 /**
@@ -53,7 +71,9 @@ export interface LLMStreamChunk {
   /** Whether this is the final chunk */
   isFinal: boolean;
   /** Finish reason (only on final chunk) */
-  finishReason?: 'stop' | 'length' | 'content_filter' | 'error' | null;
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | 'error' | null;
+  /** Tool calls being accumulated during streaming */
+  toolCalls?: ToolCall[];
 }
 
 /**
@@ -82,6 +102,32 @@ export interface LLMConfig {
   timeout?: number;
   /** Enable streaming */
   stream?: boolean;
+}
+
+/**
+ * Tool definition for function calling (OpenAI format)
+ */
+export interface LLMToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: 'object';
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
+  };
+}
+
+/**
+ * Options for chat requests with tools
+ */
+export interface ChatOptions {
+  /** Tools available for the model to call */
+  tools?: LLMToolDefinition[];
+  /** Control tool calling behavior: 'auto' | 'none' | specific function */
+  tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
 }
 
 /**
@@ -139,18 +185,22 @@ export interface LLMProvider extends EventEmitter {
   readonly name: string;
   /** Current status */
   readonly status: LLMStatus;
-  
+
   /** Send a message and get response */
-  chat(message: string, context?: ConversationContext): Promise<LLMResponse>;
+  chat(message: string, context?: ConversationContext, options?: ChatOptions): Promise<LLMResponse>;
   /** Send a message with streaming response */
-  chatStream(message: string, context?: ConversationContext): AsyncGenerator<LLMStreamChunk>;
+  chatStream(
+    message: string,
+    context?: ConversationContext,
+    options?: ChatOptions
+  ): AsyncGenerator<LLMStreamChunk>;
   /** Cancel ongoing generation */
   cancel(): void;
   /** Get provider configuration */
   getConfig(): LLMConfig;
   /** Estimate tokens for a message */
   estimateTokens(text: string): number;
-  
+
   // Event emitter methods with proper typing
   on<K extends keyof LLMEvents>(event: K, listener: LLMEvents[K]): this;
   off<K extends keyof LLMEvents>(event: K, listener: LLMEvents[K]): this;

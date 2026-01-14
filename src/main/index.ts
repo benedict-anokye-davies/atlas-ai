@@ -51,7 +51,9 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false, // Required for some native modules
+      sandbox: true, // Enable sandbox for security - native modules handled via IPC
+      webSecurity: true,
+      allowRunningInsecureContent: false,
     },
     frame: true,
     show: false, // Don't show until ready
@@ -237,15 +239,43 @@ app.on('window-all-closed', () => {
   }
 });
 
-// Handle app before quit
-app.on('before-quit', async () => {
-  mainLogger.info('App quitting, cleaning up...');
-  await shutdownTray();
-  await cleanupIPC();
-  await shutdownVoicePipeline();
-  await shutdownAudioPipeline();
-  await shutdownWakeWordDetector();
-  await shutdownLogger();
+// Track if cleanup is in progress to prevent double cleanup
+let isCleaningUp = false;
+
+// Handle app before quit - use will-quit with proper async handling
+app.on('will-quit', (event) => {
+  // Prevent default quit to allow async cleanup
+  if (!isCleaningUp) {
+    event.preventDefault();
+    isCleaningUp = true;
+
+    mainLogger.info('App quitting, cleaning up...');
+
+    // Perform async cleanup then exit
+    Promise.all([
+      shutdownTray().catch((e) =>
+        mainLogger.error('Tray shutdown error', { error: (e as Error).message })
+      ),
+      cleanupIPC().catch((e) =>
+        mainLogger.error('IPC cleanup error', { error: (e as Error).message })
+      ),
+      shutdownVoicePipeline().catch((e) =>
+        mainLogger.error('Voice pipeline shutdown error', { error: (e as Error).message })
+      ),
+      shutdownAudioPipeline().catch((e) =>
+        mainLogger.error('Audio pipeline shutdown error', { error: (e as Error).message })
+      ),
+      shutdownWakeWordDetector().catch((e) =>
+        mainLogger.error('Wake word shutdown error', { error: (e as Error).message })
+      ),
+    ])
+      .then(() => shutdownLogger())
+      .catch((e) => console.error('Logger shutdown error:', e))
+      .finally(() => {
+        mainLogger.info('Cleanup complete, exiting');
+        app.exit(0);
+      });
+  }
 });
 
 /**
@@ -279,9 +309,14 @@ async function initializeVoicePipeline(): Promise<void> {
       });
     });
 
+    // Throttle audio level updates to prevent flooding (~30fps)
+    let lastWakeWordAudioLevelTime = 0;
     wakeWordDetector.on('audio-level', (level: number) => {
-      // Throttle audio level updates to prevent flooding
-      mainWindow?.webContents.send('nova:audio-level', level);
+      const now = Date.now();
+      if (now - lastWakeWordAudioLevelTime > 33) {
+        lastWakeWordAudioLevelTime = now;
+        mainWindow?.webContents.send('nova:audio-level', level);
+      }
     });
 
     wakeWordDetector.on('error', (error: Error) => {

@@ -9,6 +9,8 @@
  * - Streaming TTS playback
  * - Barge-in support
  * - Conversation context management
+ *
+ * SECURITY: Integrates InputValidator for prompt injection defense
  */
 
 import { EventEmitter } from 'events';
@@ -16,8 +18,9 @@ import { createModuleLogger, PerformanceTimer } from '../utils/logger';
 import { AudioPipeline, getAudioPipeline, shutdownAudioPipeline, PipelineConfig } from './pipeline';
 import { STTManager, STTManagerConfig, STTProviderType } from '../stt/manager';
 import { LLMManager, LLMManagerConfig, LLMProviderType } from '../llm/manager';
-import { ElevenLabsTTS } from '../tts/elevenlabs';
+import { TTSManager, getTTSManager } from '../tts/manager';
 import { getConfig } from '../config';
+import { MemoryManager, getMemoryManager } from '../memory';
 import {
   VoicePipelineState,
   VoicePipelineStatus,
@@ -31,8 +34,21 @@ import {
   ConversationContext,
   createConversationContext,
   NOVA_SYSTEM_PROMPT,
+  ToolCall,
+  ChatMessage,
 } from '../../shared/types/llm';
 import { TTSAudioChunk, TTSSynthesisResult } from '../../shared/types/tts';
+import { Agent, initializeAgent, ActionResult } from '../agent';
+import {
+  getVoiceToolDefinitions,
+  parseToolCalls,
+  formatToolResult,
+  summarizeToolResultForVoice,
+  ParsedToolCall,
+  ToolExecutionResult,
+} from '../agent/llm-tools';
+import { getInputValidator, InputValidator } from '../security/input-validator';
+import { getAuditLogger, AuditLogger } from '../security/audit-logger';
 
 const logger = createModuleLogger('VoicePipeline');
 const perfTimer = new PerformanceTimer('VoicePipeline');
@@ -57,6 +73,14 @@ export interface VoicePipelineConfig {
   enableHistory?: boolean;
   /** Maximum conversation turns to keep */
   maxHistoryTurns?: number;
+  /** Enable agent tools for voice commands */
+  enableTools?: boolean;
+  /** Maximum tool execution iterations per interaction */
+  maxToolIterations?: number;
+  /** Enable input validation and prompt injection defense */
+  enableInputValidation?: boolean;
+  /** Block input on detected threats (vs just log) */
+  blockOnThreat?: boolean;
 }
 
 /**
@@ -71,6 +95,10 @@ const DEFAULT_VOICE_PIPELINE_CONFIG: Required<VoicePipelineConfig> = {
   userName: 'User',
   enableHistory: true,
   maxHistoryTurns: 10,
+  enableTools: true,
+  maxToolIterations: 5,
+  enableInputValidation: true,
+  blockOnThreat: true,
 };
 
 /**
@@ -115,6 +143,16 @@ export interface VoicePipelineEvents {
   stopped: () => void;
   /** Provider changed */
   'provider-change': (type: 'stt' | 'llm', provider: string) => void;
+  /** Tool execution started */
+  'tool-start': (toolName: string, params: Record<string, unknown>) => void;
+  /** Tool execution completed */
+  'tool-complete': (toolName: string, result: ActionResult) => void;
+  /** Tool execution failed */
+  'tool-error': (toolName: string, error: Error) => void;
+  /** Security threat detected in input */
+  'security-threat': (threats: Array<{ type: string; description: string }>) => void;
+  /** Input blocked due to security threat */
+  'input-blocked': (reason: string, originalInput: string) => void;
 }
 
 /**
@@ -150,12 +188,17 @@ export class VoicePipeline extends EventEmitter {
   private audioPipeline: AudioPipeline | null = null;
   private sttManager: STTManager | null = null;
   private llmManager: LLMManager | null = null;
-  private tts: ElevenLabsTTS | null = null;
+  private tts: TTSManager | null = null;
+  private memoryManager: MemoryManager | null = null;
+  private agent: Agent | null = null;
+  private inputValidator: InputValidator | null = null;
+  private auditLogger: AuditLogger | null = null;
 
   // State
   private isRunning = false;
   private currentState: VoicePipelineState = 'idle';
   private conversationContext: ConversationContext | null = null;
+  private sessionId: string = '';
 
   // Current interaction tracking
   private currentTranscript = '';
@@ -168,21 +211,46 @@ export class VoicePipeline extends EventEmitter {
     super();
     this.config = { ...DEFAULT_VOICE_PIPELINE_CONFIG, ...config } as Required<VoicePipelineConfig>;
 
+    // Generate a unique session ID
+    this.sessionId = `voice-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
     logger.info('VoicePipeline created', {
       streamToTTS: this.config.streamToTTS,
       enableHistory: this.config.enableHistory,
+      enableInputValidation: this.config.enableInputValidation,
+      sessionId: this.sessionId,
     });
   }
 
   /**
-   * Get current state
+   * Gets the current state of the voice pipeline.
+   *
+   * @returns The current pipeline state: 'idle', 'listening', 'processing', or 'speaking'
+   *
+   * @example
+   * ```typescript
+   * const pipeline = getVoicePipeline();
+   * if (pipeline.state === 'idle') {
+   *   console.log('Ready for voice input');
+   * }
+   * ```
    */
   get state(): VoicePipelineState {
     return this.currentState;
   }
 
   /**
-   * Get full status
+   * Gets the complete status of the voice pipeline including provider information.
+   *
+   * @returns An object containing the pipeline state, active providers, and current transcription/response
+   *
+   * @example
+   * ```typescript
+   * const status = pipeline.getStatus();
+   * console.log(`State: ${status.state}`);
+   * console.log(`STT Provider: ${status.sttProvider}`);
+   * console.log(`Current transcript: ${status.currentTranscript}`);
+   * ```
    */
   getStatus(): VoicePipelineStatus & {
     sttProvider: STTProviderType | null;
@@ -205,7 +273,9 @@ export class VoicePipeline extends EventEmitter {
   }
 
   /**
-   * Check if pipeline is running
+   * Checks if the pipeline is currently running.
+   *
+   * @returns True if the pipeline has been started and is active
    */
   get running(): boolean {
     return this.isRunning;
@@ -225,7 +295,20 @@ export class VoicePipeline extends EventEmitter {
   }
 
   /**
-   * Initialize all components
+   * Initializes and starts all voice pipeline components.
+   *
+   * This method initializes the audio pipeline (wake word + VAD), STT manager,
+   * LLM manager, TTS engine, memory manager, and agent tools. It connects all
+   * components together and begins listening for wake words.
+   *
+   * @throws Error if any critical component fails to initialize
+   *
+   * @example
+   * ```typescript
+   * const pipeline = getVoicePipeline();
+   * await pipeline.start();
+   * console.log('Voice pipeline ready');
+   * ```
    */
   async start(): Promise<void> {
     if (this.isRunning) {
@@ -268,15 +351,19 @@ export class VoicePipeline extends EventEmitter {
       });
       this.setupLLMHandlers();
 
-      // Initialize TTS
+      // Initialize TTS Manager (handles ElevenLabs with offline fallback)
       if (appConfig.elevenlabsApiKey) {
-        this.tts = new ElevenLabsTTS({
-          apiKey: appConfig.elevenlabsApiKey,
-          voiceId: appConfig.elevenlabsVoiceId,
+        this.tts = getTTSManager({
+          elevenlabs: {
+            apiKey: appConfig.elevenlabsApiKey,
+            voiceId: appConfig.elevenlabsVoiceId,
+          },
         });
         this.setupTTSHandlers();
       } else {
-        logger.warn('ElevenLabs API key not configured - TTS disabled');
+        logger.warn(
+          'ElevenLabs API key not configured. Text-to-speech is disabled. Add ELEVENLABS_API_KEY to your environment to enable voice responses.'
+        );
       }
 
       // Initialize conversation context
@@ -285,6 +372,33 @@ export class VoicePipeline extends EventEmitter {
           NOVA_SYSTEM_PROMPT,
           this.config.userName
         );
+      }
+
+      // Initialize Memory Manager for persistent conversation storage
+      this.memoryManager = await getMemoryManager();
+      this.memoryManager.startSession({ device: 'desktop', startedAt: Date.now() });
+      logger.info('Memory session started', {
+        sessionId: this.memoryManager.getCurrentSessionId(),
+      });
+
+      // Initialize Agent for tool execution (if enabled)
+      if (this.config.enableTools) {
+        this.agent = await initializeAgent();
+        logger.info('Agent initialized', { toolCount: this.agent.getTools().length });
+      }
+
+      // Initialize security components
+      if (this.config.enableInputValidation) {
+        this.inputValidator = getInputValidator({
+          blockOnThreat: this.config.blockOnThreat,
+          sanitizeInput: true,
+          logAllValidations: false,
+        });
+        this.auditLogger = getAuditLogger();
+        logger.info('Security components initialized', {
+          inputValidation: true,
+          blockOnThreat: this.config.blockOnThreat,
+        });
       }
 
       // Connect audio pipeline to STT
@@ -309,12 +423,31 @@ export class VoicePipeline extends EventEmitter {
   }
 
   /**
-   * Stop the pipeline
+   * Stops the voice pipeline and cleans up all resources.
+   *
+   * This method saves memory, stops TTS playback, cancels any pending LLM requests,
+   * disconnects STT, and shuts down the audio pipeline. Safe to call multiple times.
+   *
+   * @example
+   * ```typescript
+   * await pipeline.stop();
+   * console.log('Voice pipeline stopped');
+   * ```
    */
   async stop(): Promise<void> {
     if (!this.isRunning) return;
 
     logger.info('Stopping voice pipeline...');
+
+    // Save memory before shutdown
+    if (this.memoryManager) {
+      try {
+        await this.memoryManager.save();
+        logger.info('Memory saved on pipeline stop');
+      } catch (error) {
+        logger.error('Failed to save memory on stop', { error: (error as Error).message });
+      }
+    }
 
     // Stop TTS
     if (this.tts) {
@@ -338,6 +471,9 @@ export class VoicePipeline extends EventEmitter {
     }
 
     // Stop audio pipeline
+    if (this.audioPipeline) {
+      this.audioPipeline.removeAllListeners();
+    }
     await shutdownAudioPipeline();
     this.audioPipeline = null;
 
@@ -406,6 +542,12 @@ export class VoicePipeline extends EventEmitter {
         confidence: result.confidence,
         sttTime: this.metrics.sttTime,
       });
+
+      // Save user message to memory
+      if (this.memoryManager && result.text.trim()) {
+        this.memoryManager.addMessage({ role: 'user', content: result.text });
+        logger.debug('User message saved to memory');
+      }
 
       this.emit('transcript-final', result);
       this.emit('speech-end', result.duration || 0);
@@ -521,63 +663,243 @@ export class VoicePipeline extends EventEmitter {
    */
   private async processWithLLM(text: string): Promise<void> {
     if (!text.trim()) {
-      logger.warn('Empty transcription - skipping LLM');
+      logger.warn(
+        'Received empty transcription. No speech was detected or the audio was too quiet. Returning to idle state.'
+      );
       this.resetInteraction();
       return;
     }
 
     if (!this.llmManager) {
-      logger.error('LLM manager not initialized');
+      logger.error(
+        'Cannot process speech: LLM manager is not initialized. Check your API keys configuration.'
+      );
       this.resetInteraction();
       return;
     }
 
-    logger.info('Processing with LLM', { text });
+    // SECURITY: Validate input for prompt injection and other threats
+    let processedText = text;
+    if (this.config.enableInputValidation && this.inputValidator) {
+      const validation = this.inputValidator.validateVoiceCommand(text, {
+        sessionId: this.sessionId,
+      });
+
+      if (validation.threats.length > 0) {
+        logger.warn('Security threats detected in voice input', {
+          threatCount: validation.threats.length,
+          threatLevel: validation.threatLevel,
+          threats: validation.threats.map((t) => ({ type: t.type, description: t.description })),
+        });
+
+        // Emit security threat event
+        this.emit(
+          'security-threat',
+          validation.threats.map((t) => ({ type: t.type, description: t.description }))
+        );
+
+        // Block if not safe and blocking is enabled
+        if (!validation.safe && this.config.blockOnThreat) {
+          logger.error('Voice input blocked due to security threat', {
+            threatLevel: validation.threatLevel,
+          });
+
+          this.emit('input-blocked', `Security threat detected: ${validation.threatLevel}`, text);
+
+          // Respond to user about the blocked input
+          if (this.tts) {
+            this.tts.speakWithAudioStream(
+              "I'm sorry, but I detected a potential security issue with that request. Please try rephrasing your question."
+            );
+          }
+
+          this.resetInteraction();
+          return;
+        }
+
+        // Use sanitized input if threats were detected but not blocked
+        processedText = validation.sanitized;
+        logger.info('Using sanitized input after threat detection', {
+          original: text.substring(0, 100),
+          sanitized: processedText.substring(0, 100),
+        });
+      }
+    }
+
+    logger.info('Processing with LLM', { text: processedText });
     perfTimer.start('llm');
     this.emit('response-start');
 
     try {
       this.currentResponse = '';
       this.ttsBuffer = '';
-      let firstChunk = true;
 
-      // Stream LLM response
-      for await (const chunk of this.llmManager.chatStream(
-        text,
-        this.conversationContext ?? undefined
-      )) {
-        if (this.currentState !== 'processing') {
-          // Interrupted (barge-in)
-          this.llmManager.cancel();
-          break;
+      // Prepare context with memory history
+      let contextToUse = this.conversationContext ?? undefined;
+
+      // Load recent messages from memory and inject into context
+      if (this.memoryManager && this.config.enableHistory) {
+        const recentMessages = this.memoryManager.getRecentMessages(this.config.maxHistoryTurns);
+        if (recentMessages.length > 0 && contextToUse) {
+          // Merge memory messages into context (excluding the current message we just saved)
+          // Take all messages except the last user message (we're about to process it)
+          const historyMessages = recentMessages.slice(0, -1);
+          if (historyMessages.length > 0) {
+            contextToUse = {
+              ...contextToUse,
+              messages: [...historyMessages, ...contextToUse.messages],
+            };
+            logger.debug('Loaded conversation history from memory', {
+              historyCount: historyMessages.length,
+            });
+          }
         }
+      }
 
-        if (firstChunk) {
-          this.metrics.llmFirstTokenTime = Date.now() - this.interactionStartTime;
-          firstChunk = false;
-        }
+      // Get tools if enabled
+      const tools = this.config.enableTools && this.agent ? getVoiceToolDefinitions() : undefined;
+      const chatOptions = tools ? { tools, tool_choice: 'auto' as const } : undefined;
 
-        this.currentResponse = chunk.accumulated;
-        this.emit('response-chunk', chunk);
+      // Tool execution loop - allows multiple rounds of tool calls
+      let iterations = 0;
+      let currentMessage = processedText;
+      let pendingToolCalls: ToolCall[] | undefined;
+      let toolMessages: ChatMessage[] = [];
 
-        // Stream to TTS if enabled
-        if (this.config.streamToTTS && this.tts) {
-          this.ttsBuffer += chunk.delta;
+      while (iterations < this.config.maxToolIterations) {
+        iterations++;
+        let firstChunk = true;
+        let accumulatedToolCalls: ToolCall[] = [];
 
-          // Send to TTS when we have enough text (sentence boundary)
-          if (this.shouldFlushTTSBuffer(this.ttsBuffer)) {
-            const textToSpeak = this.ttsBuffer.trim();
-            this.ttsBuffer = '';
+        // Stream LLM response
+        for await (const chunk of this.llmManager.chatStream(
+          currentMessage,
+          contextToUse,
+          chatOptions
+        )) {
+          if (this.currentState !== 'processing') {
+            // Interrupted (barge-in)
+            this.llmManager.cancel();
+            break;
+          }
 
-            if (textToSpeak) {
-              this.tts.speak(textToSpeak);
+          if (firstChunk) {
+            this.metrics.llmFirstTokenTime = Date.now() - this.interactionStartTime;
+            firstChunk = false;
+          }
+
+          // Accumulate text response
+          if (chunk.delta) {
+            this.currentResponse = chunk.accumulated;
+            this.emit('response-chunk', chunk);
+
+            // Stream to TTS if enabled (only for text content, not tool calls)
+            if (this.config.streamToTTS && this.tts && !chunk.toolCalls?.length) {
+              this.ttsBuffer += chunk.delta;
+
+              // Send to TTS when we have enough text (sentence boundary)
+              if (this.shouldFlushTTSBuffer(this.ttsBuffer)) {
+                const textToSpeak = this.ttsBuffer.trim();
+                this.ttsBuffer = '';
+
+                if (textToSpeak) {
+                  this.tts.speakWithAudioStream(textToSpeak);
+                }
+              }
             }
+          }
+
+          // Track tool calls being accumulated
+          if (chunk.toolCalls?.length) {
+            accumulatedToolCalls = chunk.toolCalls;
+          }
+
+          if (chunk.isFinal) {
+            // Check if we have tool calls to execute
+            if (chunk.finishReason === 'tool_calls' && accumulatedToolCalls.length > 0) {
+              pendingToolCalls = accumulatedToolCalls;
+            }
+            break;
           }
         }
 
-        if (chunk.isFinal) {
+        // If no tool calls or interrupted, exit the loop
+        if (!pendingToolCalls?.length || this.currentState !== 'processing') {
           break;
         }
+
+        // Execute tool calls
+        logger.info('Executing tool calls', {
+          count: pendingToolCalls.length,
+          iteration: iterations,
+        });
+
+        const parsedCalls = parseToolCalls(pendingToolCalls);
+        const toolResults: ToolExecutionResult[] = [];
+
+        for (const toolCall of parsedCalls) {
+          if (this.currentState !== 'processing') {
+            // Interrupted during tool execution
+            break;
+          }
+
+          this.emit('tool-start', toolCall.name, toolCall.arguments);
+
+          try {
+            const result = await this.executeToolCall(toolCall);
+            toolResults.push(formatToolResult(toolCall.id, result));
+
+            this.emit('tool-complete', toolCall.name, result);
+
+            // Speak a brief summary of the tool result if TTS is enabled
+            if (this.tts && result.success) {
+              const summary = summarizeToolResultForVoice(toolCall.name, result);
+              // Don't speak intermediate summaries, wait for final LLM response
+              logger.debug('Tool result summary', { toolName: toolCall.name, summary });
+            }
+          } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            this.emit('tool-error', toolCall.name, err);
+            toolResults.push(formatToolResult(toolCall.id, { success: false, error: err.message }));
+          }
+        }
+
+        // If interrupted during tool execution, exit
+        if (this.currentState !== 'processing') {
+          break;
+        }
+
+        // Add assistant message with tool calls to context
+        const assistantMessage: ChatMessage = {
+          role: 'assistant',
+          content: this.currentResponse || '',
+          tool_calls: pendingToolCalls,
+        };
+        toolMessages.push(assistantMessage);
+
+        // Add tool results to context
+        for (const result of toolResults) {
+          const toolMessage: ChatMessage = {
+            role: 'tool',
+            content: result.content,
+            tool_call_id: result.tool_call_id,
+          };
+          toolMessages.push(toolMessage);
+        }
+
+        // Update context with tool messages for next iteration
+        if (contextToUse) {
+          contextToUse = {
+            ...contextToUse,
+            messages: [...contextToUse.messages, ...toolMessages],
+          };
+        }
+
+        // Reset for next iteration - LLM will see tool results and generate response
+        pendingToolCalls = undefined;
+        currentMessage = ''; // Empty message - LLM continues from tool results
+        this.currentResponse = ''; // Reset response for next LLM turn
+        toolMessages = []; // Clear for next iteration
       }
 
       this.metrics.llmTotalTime = Date.now() - this.interactionStartTime;
@@ -587,6 +909,7 @@ export class VoicePipeline extends EventEmitter {
       logger.info('LLM response complete', {
         responseLength: this.currentResponse.length,
         llmTime,
+        toolIterations: iterations,
       });
 
       // Create response object
@@ -597,11 +920,17 @@ export class VoicePipeline extends EventEmitter {
         latency: llmTime,
       };
 
+      // Save assistant response to memory
+      if (this.memoryManager && this.currentResponse.trim()) {
+        this.memoryManager.addMessage({ role: 'assistant', content: this.currentResponse });
+        logger.debug('Assistant response saved to memory');
+      }
+
       this.emit('response-complete', response);
 
       // Flush remaining TTS buffer
       if (this.tts && this.ttsBuffer.trim()) {
-        this.tts.speak(this.ttsBuffer.trim());
+        this.tts.speakWithAudioStream(this.ttsBuffer.trim());
         this.ttsBuffer = '';
       }
 
@@ -615,6 +944,40 @@ export class VoicePipeline extends EventEmitter {
       logger.error('LLM processing failed', { error: err.message });
       this.emit('error', err, 'llm');
       this.resetInteraction();
+    }
+  }
+
+  /**
+   * Execute a single tool call via the Agent
+   */
+  private async executeToolCall(toolCall: ParsedToolCall): Promise<ActionResult> {
+    if (!this.agent) {
+      return {
+        success: false,
+        error: 'Agent tools are not available. The agent system failed to initialize.',
+      };
+    }
+
+    logger.info('Executing tool', { toolName: toolCall.name, args: toolCall.arguments });
+    perfTimer.start(`tool-${toolCall.name}`);
+
+    try {
+      const result = await this.agent.executeTool(toolCall.name, toolCall.arguments);
+      const duration = perfTimer.end(`tool-${toolCall.name}`);
+      logger.info('Tool execution complete', {
+        toolName: toolCall.name,
+        success: result.success,
+        duration,
+      });
+      return result;
+    } catch (error) {
+      perfTimer.end(`tool-${toolCall.name}`);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('Tool execution failed', { toolName: toolCall.name, error: err.message });
+      return {
+        success: false,
+        error: err.message,
+      };
     }
   }
 
@@ -707,11 +1070,22 @@ export class VoicePipeline extends EventEmitter {
   }
 
   /**
-   * Trigger wake manually (push-to-talk)
+   * Manually triggers wake word detection (push-to-talk functionality).
+   *
+   * Use this method to start listening without waiting for the wake word.
+   * The pipeline must be running before calling this method.
+   *
+   * @example
+   * ```typescript
+   * // User presses a button to start speaking
+   * pipeline.triggerWake();
+   * ```
    */
   triggerWake(): void {
     if (!this.isRunning) {
-      logger.warn('Cannot trigger wake - pipeline not running');
+      logger.warn(
+        'Cannot trigger wake word detection: Voice pipeline is not running. Call start() first.'
+      );
       return;
     }
 
@@ -719,11 +1093,25 @@ export class VoicePipeline extends EventEmitter {
   }
 
   /**
-   * Send text directly to LLM (bypass STT)
+   * Sends text directly to the LLM, bypassing speech-to-text.
+   *
+   * Use this method to process text input without voice. The text will be
+   * processed by the LLM and the response will be spoken via TTS if enabled.
+   *
+   * @param text - The text message to send to the LLM
+   * @throws Error if the pipeline is not running
+   *
+   * @example
+   * ```typescript
+   * // Process a typed message
+   * await pipeline.sendText('What is the weather like today?');
+   * ```
    */
   async sendText(text: string): Promise<void> {
     if (!this.isRunning) {
-      throw new Error('Voice pipeline not running');
+      throw new Error(
+        'Cannot send text: Voice pipeline is not running. Call start() before sending messages.'
+      );
     }
 
     this.startInteraction();
@@ -740,34 +1128,79 @@ export class VoicePipeline extends EventEmitter {
   }
 
   /**
-   * Get conversation context
+   * Gets the current conversation context.
+   *
+   * @returns The conversation context containing message history and system prompt, or null if history is disabled
    */
   getConversationContext(): ConversationContext | null {
     return this.conversationContext;
   }
 
   /**
-   * Clear conversation history
+   * Clears all conversation history from both in-memory context and persistent storage.
+   *
+   * This resets the conversation to a fresh state while keeping the pipeline running.
+   *
+   * @example
+   * ```typescript
+   * // Start a new conversation
+   * await pipeline.clearHistory();
+   * ```
    */
-  clearHistory(): void {
+  async clearHistory(): Promise<void> {
     if (this.conversationContext) {
       this.conversationContext = createConversationContext(
         NOVA_SYSTEM_PROMPT,
         this.config.userName
       );
-      logger.info('Conversation history cleared');
     }
+
+    // Also clear persistent memory and start fresh session
+    if (this.memoryManager) {
+      await this.memoryManager.clear();
+      this.memoryManager.startSession({ device: 'desktop', startedAt: Date.now() });
+    }
+
+    logger.info('Conversation history cleared (memory and context)');
   }
 
   /**
-   * Get last interaction metrics
+   * Gets the memory manager instance for accessing persistent conversation storage.
+   *
+   * @returns The MemoryManager instance, or null if not initialized
+   */
+  getMemoryManager(): MemoryManager | null {
+    return this.memoryManager;
+  }
+
+  /**
+   * Gets performance metrics from the last interaction.
+   *
+   * @returns Timing metrics including STT time, LLM response time, and TTS latency
+   *
+   * @example
+   * ```typescript
+   * const metrics = pipeline.getMetrics();
+   * console.log(`Total time: ${metrics.totalTime}ms`);
+   * console.log(`LLM first token: ${metrics.llmFirstTokenTime}ms`);
+   * ```
    */
   getMetrics(): Partial<InteractionMetrics> {
     return { ...this.metrics };
   }
 
   /**
-   * Update configuration
+   * Updates the pipeline configuration at runtime.
+   *
+   * @param config - Partial configuration to merge with existing settings
+   *
+   * @example
+   * ```typescript
+   * pipeline.updateConfig({
+   *   ttsBufferSize: 100,
+   *   maxHistoryTurns: 20
+   * });
+   * ```
    */
   updateConfig(config: Partial<VoicePipelineConfig>): void {
     this.config = { ...this.config, ...config } as Required<VoicePipelineConfig>;
@@ -780,7 +1213,9 @@ export class VoicePipeline extends EventEmitter {
   }
 
   /**
-   * Get current configuration
+   * Gets a copy of the current pipeline configuration.
+   *
+   * @returns The current configuration object
    */
   getConfig(): VoicePipelineConfig {
     return { ...this.config };
@@ -847,7 +1282,19 @@ export function int16ToBuffer(int16: Int16Array): Buffer {
 let voicePipeline: VoicePipeline | null = null;
 
 /**
- * Get or create the voice pipeline instance
+ * Gets or creates the singleton VoicePipeline instance.
+ *
+ * Use this function to access the voice pipeline throughout the application.
+ * The instance is created lazily on first call.
+ *
+ * @param config - Optional configuration for the pipeline (only used on first call)
+ * @returns The VoicePipeline singleton instance
+ *
+ * @example
+ * ```typescript
+ * const pipeline = getVoicePipeline();
+ * await pipeline.start();
+ * ```
  */
 export function getVoicePipeline(config?: Partial<VoicePipelineConfig>): VoicePipeline {
   if (!voicePipeline) {
@@ -857,7 +1304,15 @@ export function getVoicePipeline(config?: Partial<VoicePipelineConfig>): VoicePi
 }
 
 /**
- * Shutdown the voice pipeline
+ * Shuts down the voice pipeline and releases all resources.
+ *
+ * Call this when the application is closing to ensure clean shutdown.
+ *
+ * @example
+ * ```typescript
+ * // In app cleanup
+ * await shutdownVoicePipeline();
+ * ```
  */
 export async function shutdownVoicePipeline(): Promise<void> {
   if (voicePipeline) {

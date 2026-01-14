@@ -167,3 +167,126 @@ export interface VADStatus {
   /** Duration of current speech segment in ms */
   speechDuration: number;
 }
+
+/**
+ * Extended Voice Pipeline Status (includes STT/LLM/TTS state)
+ * Used for the full voice pipeline with AI integration
+ */
+export interface FullVoicePipelineStatus extends VoicePipelineStatus {
+  /** Current STT provider name */
+  sttProvider: string | null;
+  /** Current LLM provider name */
+  llmProvider: string | null;
+  /** Whether TTS is currently speaking */
+  isTTSSpeaking: boolean;
+  /** Current transcript from STT */
+  currentTranscript: string;
+  /** Current response from LLM */
+  currentResponse: string;
+}
+
+/**
+ * Wake word feedback types for UI visualization
+ */
+export type WakeWordFeedbackType =
+  | 'detected' // Wake word detected and validated
+  | 'rejected' // Wake word detected but below confidence threshold
+  | 'cooldown' // Wake word detected but in cooldown period
+  | 'listening' // Actively listening for wake word
+  | 'ready'; // Ready to detect wake word
+
+/**
+ * Wake word feedback event sent to UI
+ */
+export interface WakeWordFeedback {
+  type: WakeWordFeedbackType;
+  timestamp: number;
+  keyword?: string;
+  confidence?: number;
+  threshold?: number;
+  audioLevel?: number;
+  message?: string;
+}
+
+/**
+ * Confidence thresholding configuration for wake word detection
+ */
+export interface ConfidenceConfig {
+  /** Minimum confidence threshold (0-1), detections below this are rejected */
+  minThreshold: number;
+  /** Require audio level above this to validate detection */
+  minAudioLevel: number;
+  /** Number of recent audio levels to track for ambient estimation */
+  audioHistorySize: number;
+  /** Multiplier for ambient noise to set dynamic threshold */
+  ambientMultiplier: number;
+  /** Enable adaptive thresholding based on ambient noise */
+  adaptiveThreshold: boolean;
+}
+
+/**
+ * Extended wake word event with confidence details
+ */
+export interface ExtendedWakeWordEvent extends WakeWordEvent {
+  /** Raw detection confidence from Porcupine (based on sensitivity) */
+  rawConfidence: number;
+  /** Computed confidence based on audio analysis */
+  computedConfidence: number;
+  /** Whether detection passed threshold validation */
+  passedThreshold: boolean;
+  /** Audio level at time of detection */
+  audioLevel: number;
+  /** Ambient noise level estimate */
+  ambientLevel: number;
+}
+
+/**
+ * Detection statistics for monitoring wake word performance
+ */
+export interface DetectionStats {
+  totalDetections: number;
+  acceptedDetections: number;
+  rejectedDetections: number;
+  cooldownRejections: number;
+  averageConfidence: number;
+  lastDetectionTime: number;
+  uptime: number;
+}
+
+/**
+ * Listening state for VAD UI feedback
+ */
+export type ListeningState =
+  | 'idle' // Not listening
+  | 'listening' // Actively listening for speech
+  | 'hearing' // Speech detected, capturing
+  | 'still_listening' // Pause detected, waiting for more
+  | 'processing'; // Speech complete, processing
+
+/**
+ * Still listening event - emitted when VAD detects a pause but expects more speech
+ */
+export interface StillListeningEvent {
+  timestamp: number;
+  pauseDuration: number;
+  reason: 'incomplete_sentence' | 'short_pause' | 'thinking_pause';
+  extendedTimeout: number;
+}
+
+/**
+ * Adaptive silence configuration for VAD
+ */
+export interface AdaptiveSilenceConfig {
+  /** Base silence duration (ms) before ending speech */
+  baseSilenceMs: number;
+  /** Extended silence for incomplete sentences (ms) */
+  incompleteSilenceMs: number;
+  /** Short pause threshold - pauses shorter trigger "still listening" */
+  shortPauseMs: number;
+  /** Maximum silence before forced end (ms) */
+  maxSilenceMs: number;
+  /** Enable sentence ending detection */
+  detectSentenceEndings: boolean;
+  /** Enable adaptive timeout based on transcript */
+  adaptiveTimeout: boolean;
+}

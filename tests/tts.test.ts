@@ -528,7 +528,7 @@ describe('ElevenLabsTTS', () => {
         })
       );
 
-      await expect(tts.getVoices()).rejects.toThrow('Failed to fetch voices');
+      await expect(tts.getVoices()).rejects.toThrow('Failed to fetch ElevenLabs voices');
     });
   });
 

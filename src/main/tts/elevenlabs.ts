@@ -63,7 +63,9 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
     this.config = { ...DEFAULT_TTS_CONFIG, ...config } as TTSConfig;
 
     if (!this.config.apiKey) {
-      throw new Error('ElevenLabs API key is required');
+      throw new Error(
+        'ElevenLabs API key is required. Set ELEVENLABS_API_KEY in your environment or pass it in the configuration.'
+      );
     }
 
     logger.info('ElevenLabsTTS initialized', {
@@ -171,7 +173,9 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
 
             if (!res.ok) {
               const errorData = await res.text();
-              throw new Error(`ElevenLabs API error: ${res.status} - ${errorData}`);
+              throw new Error(
+                `ElevenLabs API returned an error (${res.status}): ${errorData}. Check your API key and voice settings.`
+              );
             }
 
             return res;
@@ -266,11 +270,15 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
 
       if (!response.ok) {
         const errorData = await response.text();
-        throw new Error(`ElevenLabs API error: ${response.status} - ${errorData}`);
+        throw new Error(
+          `ElevenLabs streaming API returned an error (${response.status}): ${errorData}. Check your API key and voice settings.`
+        );
       }
 
       if (!response.body) {
-        throw new Error('Response body is null');
+        throw new Error(
+          'ElevenLabs streaming response body is empty. This may indicate a network issue.'
+        );
       }
 
       const reader = response.body.getReader();
@@ -580,7 +588,9 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch voices: ${response.status}`);
+        throw new Error(
+          `Failed to fetch ElevenLabs voices (${response.status}). Check your API key.`
+        );
       }
 
       const data = (await response.json()) as {

@@ -4,3 +4,13 @@
  */
 
 export { registerIPCHandlers, unregisterIPCHandlers, setMainWindow, cleanupIPC } from './handlers';
+export {
+  IPCResult,
+  success,
+  failure,
+  createAsyncHandler,
+  createSyncHandler,
+  createResourceHandler,
+  removeHandlers,
+  registerHandlers,
+} from './factory';

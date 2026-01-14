@@ -55,6 +55,18 @@ export const halvorsen: AttractorFunction = (x, y, z) => {
 };
 
 /**
+ * Arneodo Attractor - Chaotic, agitated movements for error states
+ */
+export const arneodo: AttractorFunction = (x, y, z) => {
+  const a = -5.5, b = 3.5, c = -1;
+  return [
+    y,
+    z,
+    -a * x - b * y - z + c * x * x * x
+  ];
+};
+
+/**
  * Attractor settings for scaling and animation
  */
 export interface AttractorSettings {
@@ -98,6 +110,14 @@ export const ATTRACTOR_SETTINGS: Record<string, AttractorSettings> = {
     offset: [0, 0, 0],
     baseHue: 0.08, // Gold
     hueRange: 0.08
+  },
+  arneodo: {
+    scale: 2.5,
+    dt: 0.01,
+    camDistance: 20,
+    offset: [0, 0, 0],
+    baseHue: 0.0, // Red
+    hueRange: 0.05
   }
 };
 
@@ -143,3 +163,30 @@ export const STATE_COLORS: Record<string, StateColors> = {
     hueRange: 0.05
   }
 };
+
+/**
+ * Map AI states to strange attractors
+ */
+export type NovaState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+
+export const STATE_TO_ATTRACTOR: Record<NovaState, keyof typeof ATTRACTOR_SETTINGS> = {
+  idle: 'lorenz',       // Calm, balanced butterfly shape
+  listening: 'thomas',   // Compact, attentive listening pose
+  thinking: 'aizawa',    // Dense, concentrated processing
+  speaking: 'halvorsen', // Expansive, warm speaking energy
+  error: 'arneodo'       // Agitated, alert error state
+};
+
+/**
+ * Get attractor function by name
+ */
+export function getAttractor(name: string): AttractorFunction {
+  switch (name) {
+    case 'lorenz': return lorenz;
+    case 'thomas': return thomas;
+    case 'aizawa': return aizawa;
+    case 'halvorsen': return halvorsen;
+    case 'arneodo': return arneodo;
+    default: return lorenz;
+  }
+}

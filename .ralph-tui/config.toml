@@ -1,0 +1,25 @@
+# Ralph TUI Configuration for nova-desktop
+
+# Default tracker (json is simplest - no external dependencies)
+tracker = "json"
+
+# Default agent - using opencode since that's what you're running in
+agent = "opencode"
+
+# Execution limits
+maxIterations = 10
+
+# Agent-specific options
+[agentOptions]
+# model = "sonnet"  # Uncomment and adjust as needed
+
+# Error handling
+[errorHandling]
+strategy = "retry"        # retry | skip | abort
+maxRetries = 3
+retryDelayMs = 5000
+continueOnNonZeroExit = false
+
+# Subagent tracing detail level
+# off | minimal | moderate | full
+subagentTracingDetail = "moderate"

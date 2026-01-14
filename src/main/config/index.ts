@@ -14,6 +14,10 @@ import {
   OPTIONAL_API_KEYS,
 } from '../../shared/types/config';
 
+// NOTE: We intentionally don't import logger here to avoid circular dependency.
+// Logger imports config to get logDir/logLevel, and config would import logger for warnings.
+// Instead, config logs warnings to console during initial load.
+
 // Load .env file
 dotenvConfig();
 
@@ -129,18 +133,14 @@ export function getConfig(): NovaConfig {
     configInstance = loadConfig();
     validationResult = validateConfig(configInstance);
 
+    // Use console for config warnings to avoid circular dependency with logger
+    // Logger imports config to get settings, so we can't import logger here
     if (!validationResult.valid) {
-      console.error('[Nova Config] Missing required configuration:');
-      validationResult.missing.forEach((key) => {
-        console.error(`  - ${key}`);
-      });
+      console.error('[Config] Missing required configuration:', validationResult.missing);
     }
 
     if (validationResult.warnings.length > 0) {
-      console.warn('[Nova Config] Warnings:');
-      validationResult.warnings.forEach((warning) => {
-        console.warn(`  - ${warning}`);
-      });
+      console.warn('[Config] Configuration warnings:', validationResult.warnings);
     }
   }
 

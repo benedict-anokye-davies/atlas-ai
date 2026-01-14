@@ -5,6 +5,7 @@
 
 import { EventEmitter } from 'events';
 import OpenAI from 'openai';
+import { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
 import { createModuleLogger, PerformanceTimer } from '../utils/logger';
 import { APIError, withRetry } from '../utils/errors';
 import {
@@ -15,6 +16,8 @@ import {
   LLMResponse,
   LLMStreamChunk,
   ConversationContext,
+  ChatOptions,
+  ToolCall,
   DEFAULT_LLM_CONFIG,
   NOVA_SYSTEM_PROMPT,
   createConversationContext,
@@ -60,7 +63,9 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
     this.config = { ...DEFAULT_FIREWORKS_CONFIG, ...config } as FireworksConfig;
 
     if (!this.config.apiKey) {
-      throw new Error('Fireworks API key is required');
+      throw new Error(
+        'Fireworks API key is required. Set FIREWORKS_API_KEY in your environment or pass it in the configuration.'
+      );
     }
 
     // Initialize OpenAI client with Fireworks endpoint
@@ -109,8 +114,8 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
   private buildMessages(
     userMessage: string,
     context?: ConversationContext
-  ): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+  ): ChatCompletionMessageParam[] {
+    const messages: ChatCompletionMessageParam[] = [];
 
     // Add system prompt
     messages.push({
@@ -121,10 +126,42 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
     // Add conversation history
     if (context?.messages) {
       for (const msg of context.messages) {
-        messages.push({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        });
+        if (msg.role === 'tool' && msg.tool_call_id) {
+          // Tool response message
+          messages.push({
+            role: 'tool',
+            content: msg.content,
+            tool_call_id: msg.tool_call_id,
+          });
+        } else if (msg.role === 'assistant') {
+          // Assistant message, possibly with tool calls
+          const assistantMsg: ChatCompletionMessageParam = {
+            role: 'assistant',
+            content: msg.content,
+          };
+          if (msg.tool_calls && msg.tool_calls.length > 0) {
+            (
+              assistantMsg as {
+                role: 'assistant';
+                content: string;
+                tool_calls?: OpenAI.Chat.ChatCompletionMessageToolCall[];
+              }
+            ).tool_calls = msg.tool_calls.map((tc) => ({
+              id: tc.id,
+              type: 'function' as const,
+              function: {
+                name: tc.function.name,
+                arguments: tc.function.arguments,
+              },
+            }));
+          }
+          messages.push(assistantMsg);
+        } else if (msg.role === 'user') {
+          messages.push({
+            role: 'user',
+            content: msg.content,
+          });
+        }
       }
     }
 
@@ -140,7 +177,11 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
   /**
    * Send a message and get response (non-streaming)
    */
-  async chat(message: string, context?: ConversationContext): Promise<LLMResponse> {
+  async chat(
+    message: string,
+    context?: ConversationContext,
+    options?: ChatOptions
+  ): Promise<LLMResponse> {
     this.setStatus(LLMStatus.CONNECTING);
     perfTimer.start('chat');
 
@@ -152,28 +193,38 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
       logger.debug('Sending chat request', {
         model: this.config.model,
         messageCount: messages.length,
+        hasTools: !!options?.tools?.length,
       });
 
       this.setStatus(LLMStatus.GENERATING);
 
+      // Build request parameters
+      const requestParams: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming = {
+        model: this.config.model!,
+        messages,
+        max_tokens: this.config.maxTokens,
+        temperature: this.config.temperature,
+        top_p: this.config.topP,
+        frequency_penalty: this.config.frequencyPenalty,
+        presence_penalty: this.config.presencePenalty,
+        stop: this.config.stop,
+        stream: false,
+      };
+
+      // Add tools if provided
+      if (options?.tools && options.tools.length > 0) {
+        requestParams.tools = options.tools as ChatCompletionTool[];
+        if (options.tool_choice) {
+          requestParams.tool_choice = options.tool_choice;
+        }
+      }
+
       const response = await withRetry(
         async () => {
           this.abortController = new AbortController();
-
-          return this.client.chat.completions.create(
-            {
-              model: this.config.model!,
-              messages,
-              max_tokens: this.config.maxTokens,
-              temperature: this.config.temperature,
-              top_p: this.config.topP,
-              frequency_penalty: this.config.frequencyPenalty,
-              presence_penalty: this.config.presencePenalty,
-              stop: this.config.stop,
-              stream: false,
-            },
-            { signal: this.abortController.signal }
-          );
+          return this.client.chat.completions.create(requestParams, {
+            signal: this.abortController.signal,
+          });
         },
         {
           maxAttempts: 3,
@@ -190,6 +241,24 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
       const content = response.choices[0]?.message?.content || '';
       const finishReason = response.choices[0]?.finish_reason as LLMResponse['finishReason'];
 
+      // Extract tool calls if present
+      const rawToolCalls = response.choices[0]?.message?.tool_calls;
+      const toolCalls = rawToolCalls
+        ?.map((tc) => {
+          if (tc.type === 'function') {
+            return {
+              id: tc.id,
+              type: 'function' as const,
+              function: {
+                name: tc.function.name,
+                arguments: tc.function.arguments,
+              },
+            };
+          }
+          return null;
+        })
+        .filter((tc): tc is ToolCall => tc !== null);
+
       const result: LLMResponse = {
         content,
         model: response.model,
@@ -203,10 +272,11 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
           : undefined,
         latency,
         raw: response,
+        toolCalls,
       };
 
-      // Update context if provided
-      if (context) {
+      // Update context if provided (and no tool calls - tool results should be added separately)
+      if (context && !toolCalls?.length) {
         this.updateContext(context, message, content, result.usage?.totalTokens);
       }
 
@@ -214,6 +284,7 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
         latency,
         tokens: result.usage?.totalTokens,
         finishReason,
+        toolCallsCount: toolCalls?.length || 0,
       });
 
       this.setStatus(LLMStatus.IDLE);
@@ -243,7 +314,8 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
    */
   async *chatStream(
     message: string,
-    context?: ConversationContext
+    context?: ConversationContext,
+    options?: ChatOptions
   ): AsyncGenerator<LLMStreamChunk> {
     this.setStatus(LLMStatus.CONNECTING);
     perfTimer.start('chatStream');
@@ -252,30 +324,45 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
     let accumulated = '';
     let firstChunkReceived = false;
 
+    // Track tool calls during streaming
+    const toolCallsInProgress: Map<number, { id: string; name: string; arguments: string }> =
+      new Map();
+
     try {
       const messages = this.buildMessages(message, context);
 
       logger.debug('Starting streaming chat', {
         model: this.config.model,
         messageCount: messages.length,
+        hasTools: !!options?.tools?.length,
       });
 
       this.abortController = new AbortController();
 
-      const stream = await this.client.chat.completions.create(
-        {
-          model: this.config.model!,
-          messages,
-          max_tokens: this.config.maxTokens,
-          temperature: this.config.temperature,
-          top_p: this.config.topP,
-          frequency_penalty: this.config.frequencyPenalty,
-          presence_penalty: this.config.presencePenalty,
-          stop: this.config.stop,
-          stream: true,
-        },
-        { signal: this.abortController.signal }
-      );
+      // Build request parameters
+      const requestParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
+        model: this.config.model!,
+        messages,
+        max_tokens: this.config.maxTokens,
+        temperature: this.config.temperature,
+        top_p: this.config.topP,
+        frequency_penalty: this.config.frequencyPenalty,
+        presence_penalty: this.config.presencePenalty,
+        stop: this.config.stop,
+        stream: true,
+      };
+
+      // Add tools if provided
+      if (options?.tools && options.tools.length > 0) {
+        requestParams.tools = options.tools as ChatCompletionTool[];
+        if (options.tool_choice) {
+          requestParams.tool_choice = options.tool_choice;
+        }
+      }
+
+      const stream = await this.client.chat.completions.create(requestParams, {
+        signal: this.abortController.signal,
+      });
 
       this.setStatus(LLMStatus.STREAMING);
 
@@ -289,15 +376,47 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
         const delta = chunk.choices[0]?.delta?.content || '';
         const finishReason = chunk.choices[0]?.finish_reason as LLMStreamChunk['finishReason'];
 
+        // Track tool calls during streaming
+        const toolCallDeltas = chunk.choices[0]?.delta?.tool_calls;
+        if (toolCallDeltas) {
+          for (const tc of toolCallDeltas) {
+            const index = tc.index;
+            if (!toolCallsInProgress.has(index)) {
+              toolCallsInProgress.set(index, {
+                id: tc.id || '',
+                name: tc.function?.name || '',
+                arguments: '',
+              });
+            }
+            const existing = toolCallsInProgress.get(index)!;
+            if (tc.id) existing.id = tc.id;
+            if (tc.function?.name) existing.name = tc.function.name;
+            if (tc.function?.arguments) existing.arguments += tc.function.arguments;
+          }
+        }
+
         if (delta) {
           accumulated += delta;
         }
+
+        // Build accumulated tool calls
+        const accumulatedToolCalls: ToolCall[] = Array.from(toolCallsInProgress.values()).map(
+          (tc) => ({
+            id: tc.id,
+            type: 'function' as const,
+            function: {
+              name: tc.name,
+              arguments: tc.arguments,
+            },
+          })
+        );
 
         const streamChunk: LLMStreamChunk = {
           delta,
           accumulated,
           isFinal: finishReason !== null && finishReason !== undefined,
           finishReason,
+          toolCalls: accumulatedToolCalls.length > 0 ? accumulatedToolCalls : undefined,
         };
 
         this.emit('chunk', streamChunk);
@@ -311,29 +430,48 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
       const latency = Date.now() - startTime;
       perfTimer.end('chatStream');
 
-      // Update context if provided
-      if (context) {
+      // Build final tool calls
+      const finalToolCalls: ToolCall[] = Array.from(toolCallsInProgress.values()).map((tc) => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: {
+          name: tc.name,
+          arguments: tc.arguments,
+        },
+      }));
+
+      // Update context if provided (and no tool calls - tool results should be added separately)
+      if (context && finalToolCalls.length === 0) {
         const estimatedTokens = estimateTokenCount(message + accumulated);
         this.updateContext(context, message, accumulated, estimatedTokens);
       }
+
+      // Determine finish reason
+      const finalFinishReason = finalToolCalls.length > 0 ? 'tool_calls' : 'stop';
 
       // Emit final response
       const response: LLMResponse = {
         content: accumulated,
         model: this.config.model!,
-        finishReason: 'stop',
+        finishReason: finalFinishReason,
         latency,
         usage: {
-          promptTokens: estimateTokenCount(messages.map((m) => m.content).join('')),
+          promptTokens: estimateTokenCount(
+            messages.map((m) => (m as { content?: string }).content || '').join('')
+          ),
           completionTokens: estimateTokenCount(accumulated),
-          totalTokens: estimateTokenCount(messages.map((m) => m.content).join('') + accumulated),
+          totalTokens: estimateTokenCount(
+            messages.map((m) => (m as { content?: string }).content || '').join('') + accumulated
+          ),
         },
+        toolCalls: finalToolCalls.length > 0 ? finalToolCalls : undefined,
       };
 
       logger.info('Streaming complete', {
         latency,
         tokens: response.usage?.totalTokens,
         length: accumulated.length,
+        toolCallsCount: finalToolCalls.length,
       });
 
       this.setStatus(LLMStatus.IDLE);

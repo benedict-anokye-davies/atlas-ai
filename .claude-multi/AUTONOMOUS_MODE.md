@@ -68,10 +68,10 @@ The multi-Claude system will:
 ### Grand Total:
 - **Conservative**: £110-140
 - **Expected**: £120-165
-- **Maximum**: £190 (auto-stop safety limit)
-- **Your Budget**: £200+ with ability to add more ✅
+- **Maximum**: Could go higher if needed
+- **Your Budget**: £200+ with ability to add unlimited more ✅
 
-**You have sufficient budget. System will complete within limits.**
+**NO COST LIMITS.** System will complete all tasks regardless of cost. User prioritizes completion over budget.
 
 ## What Gets Created
 
@@ -197,12 +197,14 @@ git branch -a | findstr worker
 
 Despite autonomous mode, these safety features remain:
 
-1. **Cost Limit**: Auto-stop at £190 (before £200 budget exhausted)
+1. **No Cost Limit**: System will NOT stop for cost reasons. User has unlimited budget.
 2. **Git Isolation**: Workers use separate branches (merge conflicts are rare)
 3. **Code Review**: Orchestrator reviews diffs before merging (automated)
 4. **Test Requirements**: All code must pass tests before completion
 5. **Type Safety**: All code must pass typecheck before completion
 6. **Error Logging**: All errors logged to state.json for debugging
+
+**CRITICAL: System prioritizes completion over cost. Will continue until all tasks done.**
 
 ## Monitoring (Optional)
 

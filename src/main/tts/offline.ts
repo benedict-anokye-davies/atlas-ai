@@ -231,7 +231,8 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
       this.piperAvailable = result;
       logger.info('Piper availability', { available: result });
       return result;
-    } catch {
+    } catch (error) {
+      logger.debug('Piper availability check failed', { error: (error as Error).message });
       this.piperAvailable = false;
       return false;
     }
@@ -266,7 +267,8 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
       this.espeakAvailable = result;
       logger.info('espeak-ng availability', { available: result });
       return result;
-    } catch {
+    } catch (error) {
+      logger.debug('espeak-ng availability check failed', { error: (error as Error).message });
       this.espeakAvailable = false;
       return false;
     }

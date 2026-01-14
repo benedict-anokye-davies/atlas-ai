@@ -7,20 +7,20 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
-    environment: 'jsdom',
+    // Use node environment to avoid jsdom dependency issues
+    // Tests mock window.nova directly where needed
+    environment: 'node',
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     exclude: ['node_modules', 'dist', 'release'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/',
-        'tests/',
-        'dist/',
-        '**/*.d.ts',
-        '**/*.config.*',
-      ],
+      exclude: ['node_modules/', 'tests/', 'dist/', '**/*.d.ts', '**/*.config.*'],
+    },
+    deps: {
+      // Inline three.js for proper test execution
+      inline: ['three'],
     },
   },
   resolve: {

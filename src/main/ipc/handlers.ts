@@ -19,6 +19,108 @@ import { TTSAudioChunk, TTSSynthesisResult } from '../../shared/types/tts';
 
 const logger = createModuleLogger('IPC');
 
+// ============================================================================
+// Input Validation Utilities
+// ============================================================================
+
+/** Maximum allowed text length for LLM input */
+const MAX_TEXT_LENGTH = 10000;
+
+/** Maximum config object depth */
+const MAX_CONFIG_DEPTH = 3;
+
+/** Rate limiting: requests per minute */
+const RATE_LIMIT_REQUESTS = 60;
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+/**
+ * Validate and sanitize text input
+ */
+function validateTextInput(text: unknown): { valid: boolean; sanitized?: string; error?: string } {
+  if (typeof text !== 'string') {
+    return { valid: false, error: 'Text must be a string' };
+  }
+
+  if (text.length === 0) {
+    return { valid: false, error: 'Text cannot be empty' };
+  }
+
+  if (text.length > MAX_TEXT_LENGTH) {
+    return { valid: false, error: `Text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` };
+  }
+
+  // Sanitize: trim whitespace and normalize line endings
+  const sanitized = text.trim().replace(/\r\n/g, '\n');
+
+  return { valid: true, sanitized };
+}
+
+/**
+ * Validate config object (prevent prototype pollution)
+ */
+function validateConfigObject(
+  config: unknown,
+  depth = 0
+): { valid: boolean; sanitized?: Record<string, unknown>; error?: string } {
+  if (depth > MAX_CONFIG_DEPTH) {
+    return { valid: false, error: 'Config object too deeply nested' };
+  }
+
+  if (config === null || config === undefined) {
+    return { valid: true, sanitized: {} };
+  }
+
+  if (typeof config !== 'object' || Array.isArray(config)) {
+    return { valid: false, error: 'Config must be an object' };
+  }
+
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(config)) {
+    // Prevent prototype pollution
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      logger.warn('Blocked prototype pollution attempt', { key });
+      continue;
+    }
+
+    // Recursively validate nested objects
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      const nested = validateConfigObject(value, depth + 1);
+      if (!nested.valid) {
+        return nested;
+      }
+      sanitized[key] = nested.sanitized;
+    } else {
+      sanitized[key] = value;
+    }
+  }
+
+  return { valid: true, sanitized };
+}
+
+/**
+ * Check rate limit for a channel
+ */
+function checkRateLimit(channel: string): boolean {
+  const now = Date.now();
+  const windowMs = 60000; // 1 minute window
+
+  let limiter = rateLimitMap.get(channel);
+  if (!limiter || now > limiter.resetTime) {
+    limiter = { count: 0, resetTime: now + windowMs };
+    rateLimitMap.set(channel, limiter);
+  }
+
+  limiter.count++;
+
+  if (limiter.count > RATE_LIMIT_REQUESTS) {
+    logger.warn('Rate limit exceeded', { channel, count: limiter.count });
+    return false;
+  }
+
+  return true;
+}
+
 // Track the main window for sending events
 let mainWindow: BrowserWindow | null = null;
 
@@ -196,19 +298,27 @@ export function registerIPCHandlers(): void {
   // =========================================================================
 
   // Start voice pipeline
-  ipcMain.handle(
-    'nova:start',
-    async (_event, config?: Partial<VoicePipelineConfig>): Promise<IPCResult> => {
-      try {
-        const pipeline = await initializeVoicePipeline(config);
-        await pipeline.start();
-        return { success: true };
-      } catch (error) {
-        logger.error('Failed to start pipeline', { error: (error as Error).message });
-        return { success: false, error: (error as Error).message };
+  ipcMain.handle('nova:start', async (_event, config?: unknown): Promise<IPCResult> => {
+    try {
+      // Validate config if provided
+      let validatedConfig: Partial<VoicePipelineConfig> | undefined;
+      if (config !== undefined) {
+        const validation = validateConfigObject(config);
+        if (!validation.valid) {
+          logger.warn('Invalid startup config rejected', { error: validation.error });
+          return { success: false, error: validation.error };
+        }
+        validatedConfig = validation.sanitized as Partial<VoicePipelineConfig>;
       }
+
+      const pipeline = await initializeVoicePipeline(validatedConfig);
+      await pipeline.start();
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to start pipeline', { error: (error as Error).message });
+      return { success: false, error: (error as Error).message };
     }
-  );
+  });
 
   // Stop voice pipeline
   ipcMain.handle('nova:stop', async (): Promise<IPCResult> => {
@@ -264,10 +374,25 @@ export function registerIPCHandlers(): void {
   });
 
   // Send text directly (bypass STT)
-  ipcMain.handle('nova:send-text', async (_event, text: string): Promise<IPCResult> => {
+  ipcMain.handle('nova:send-text', async (_event, text: unknown): Promise<IPCResult> => {
+    // Rate limit check
+    if (!checkRateLimit('nova:send-text')) {
+      return {
+        success: false,
+        error: 'Rate limit exceeded. Please wait before sending more requests.',
+      };
+    }
+
+    // Validate input
+    const validation = validateTextInput(text);
+    if (!validation.valid) {
+      logger.warn('Invalid text input rejected', { error: validation.error });
+      return { success: false, error: validation.error };
+    }
+
     if (voicePipeline) {
       try {
-        await voicePipeline.sendText(text);
+        await voicePipeline.sendText(validation.sanitized!);
         return { success: true };
       } catch (error) {
         return { success: false, error: (error as Error).message };
@@ -277,9 +402,9 @@ export function registerIPCHandlers(): void {
   });
 
   // Clear conversation history
-  ipcMain.handle('nova:clear-history', (): IPCResult => {
+  ipcMain.handle('nova:clear-history', async (): Promise<IPCResult> => {
     if (voicePipeline) {
-      voicePipeline.clearHistory();
+      await voicePipeline.clearHistory();
       return { success: true };
     }
     return { success: false, error: 'Pipeline not initialized' };
@@ -303,16 +428,20 @@ export function registerIPCHandlers(): void {
   });
 
   // Update pipeline config
-  ipcMain.handle(
-    'nova:update-config',
-    (_event, config: Partial<VoicePipelineConfig>): IPCResult => {
-      if (voicePipeline) {
-        voicePipeline.updateConfig(config);
-        return { success: true };
-      }
-      return { success: false, error: 'Pipeline not initialized' };
+  ipcMain.handle('nova:update-config', (_event, config: unknown): IPCResult => {
+    // Validate config object
+    const validation = validateConfigObject(config);
+    if (!validation.valid) {
+      logger.warn('Invalid config object rejected', { error: validation.error });
+      return { success: false, error: validation.error };
     }
-  );
+
+    if (voicePipeline) {
+      voicePipeline.updateConfig(validation.sanitized as Partial<VoicePipelineConfig>);
+      return { success: true };
+    }
+    return { success: false, error: 'Pipeline not initialized' };
+  });
 
   // Get pipeline config
   ipcMain.handle('nova:get-config', (): IPCResult => {
@@ -320,6 +449,137 @@ export function registerIPCHandlers(): void {
       return { success: true, data: voicePipeline.getConfig() };
     }
     return { success: true, data: null };
+  });
+
+  // =========================================================================
+  // Memory Handlers
+  // =========================================================================
+
+  // Get conversation history from memory
+  ipcMain.handle('nova:get-conversation-history', (_event, limit?: number): IPCResult => {
+    if (voicePipeline) {
+      const memoryManager = voicePipeline.getMemoryManager();
+      if (memoryManager) {
+        const messages = memoryManager.getRecentMessages(limit);
+        return { success: true, data: messages };
+      }
+      return { success: false, error: 'Memory manager not initialized' };
+    }
+    return { success: false, error: 'Pipeline not initialized' };
+  });
+
+  // Clear all memory
+  ipcMain.handle('nova:clear-memory', async (): Promise<IPCResult> => {
+    if (voicePipeline) {
+      const memoryManager = voicePipeline.getMemoryManager();
+      if (memoryManager) {
+        await memoryManager.clear();
+        // Start a new session after clearing
+        memoryManager.startSession({ device: 'desktop', startedAt: Date.now() });
+        return { success: true };
+      }
+      return { success: false, error: 'Memory manager not initialized' };
+    }
+    return { success: false, error: 'Pipeline not initialized' };
+  });
+
+  // Get memory statistics
+  ipcMain.handle('nova:get-memory-stats', (): IPCResult => {
+    if (voicePipeline) {
+      const memoryManager = voicePipeline.getMemoryManager();
+      if (memoryManager) {
+        const stats = memoryManager.getStats();
+        return { success: true, data: stats };
+      }
+      return { success: false, error: 'Memory manager not initialized' };
+    }
+    return { success: false, error: 'Pipeline not initialized' };
+  });
+
+  // Search memory entries
+  ipcMain.handle(
+    'nova:search-memory',
+    (
+      _event,
+      query: {
+        type?: string;
+        tags?: string[];
+        minImportance?: number;
+        text?: string;
+        limit?: number;
+      }
+    ): IPCResult => {
+      // Validate query object
+      const validation = validateConfigObject(query);
+      if (!validation.valid) {
+        return { success: false, error: validation.error };
+      }
+
+      if (voicePipeline) {
+        const memoryManager = voicePipeline.getMemoryManager();
+        if (memoryManager) {
+          const results = memoryManager.searchEntries(
+            validation.sanitized as {
+              type?: 'conversation' | 'fact' | 'preference' | 'context';
+              tags?: string[];
+              minImportance?: number;
+              text?: string;
+              limit?: number;
+            }
+          );
+          return { success: true, data: results };
+        }
+        return { success: false, error: 'Memory manager not initialized' };
+      }
+      return { success: false, error: 'Pipeline not initialized' };
+    }
+  );
+
+  // Get all conversation sessions
+  ipcMain.handle('nova:get-all-sessions', (): IPCResult => {
+    if (voicePipeline) {
+      const memoryManager = voicePipeline.getMemoryManager();
+      if (memoryManager) {
+        const sessions = memoryManager.getAllSessions();
+        return { success: true, data: sessions };
+      }
+      return { success: false, error: 'Memory manager not initialized' };
+    }
+    return { success: false, error: 'Pipeline not initialized' };
+  });
+
+  // =========================================================================
+  // Budget & Cost Tracking Handlers
+  // =========================================================================
+
+  // Get budget statistics
+  ipcMain.handle('nova:get-budget-stats', (): IPCResult => {
+    try {
+      const { getCostTracker } = require('../utils/cost-tracker');
+      const costTracker = getCostTracker();
+      const stats = costTracker.getStats();
+      return { success: true, data: stats };
+    } catch (error) {
+      logger.error('Failed to get budget stats', { error });
+      return { success: false, error: 'Cost tracker not available' };
+    }
+  });
+
+  // Set daily budget
+  ipcMain.handle('nova:set-daily-budget', (_event, budget: unknown): IPCResult => {
+    if (typeof budget !== 'number' || budget < 0) {
+      return { success: false, error: 'Budget must be a positive number' };
+    }
+
+    try {
+      const { getCostTracker } = require('../utils/cost-tracker');
+      const costTracker = getCostTracker();
+      costTracker.setDailyBudget(budget);
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to set daily budget', { error });
+      return { success: false, error: 'Cost tracker not available' };
+    }
   });
 
   logger.info('IPC handlers registered');
@@ -341,6 +601,15 @@ export function unregisterIPCHandlers(): void {
     'nova:get-metrics',
     'nova:update-config',
     'nova:get-config',
+    // Memory channels
+    'nova:get-conversation-history',
+    'nova:clear-memory',
+    'nova:get-memory-stats',
+    'nova:search-memory',
+    'nova:get-all-sessions',
+    // Budget channels
+    'nova:get-budget-stats',
+    'nova:set-daily-budget',
   ];
 
   for (const channel of channels) {

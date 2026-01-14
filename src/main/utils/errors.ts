@@ -3,7 +3,7 @@
  * Global error handler, retry utilities, circuit breaker, and recovery
  */
 
-import { app, dialog } from 'electron';
+import { app, dialog, BrowserWindow } from 'electron';
 import { createModuleLogger } from './logger';
 import { existsSync, writeFileSync, readFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
@@ -481,8 +481,9 @@ export function clearRecoveryState(): void {
     if (existsSync(STATE_FILE)) {
       writeFileSync(STATE_FILE, JSON.stringify({ timestamp: 0 }));
     }
-  } catch {
-    // Ignore errors when clearing
+  } catch (error) {
+    // Log but don't throw - clearing state is best-effort
+    errorLogger.debug('Failed to clear recovery state', { error: (error as Error).message });
   }
 }
 
@@ -542,6 +543,9 @@ class ErrorNotificationManager {
       title: fullNotification.title,
     });
 
+    // Send to renderer via IPC
+    this.sendToRenderer(fullNotification);
+
     // Notify all handlers
     for (const handler of this.handlers) {
       try {
@@ -551,6 +555,24 @@ class ErrorNotificationManager {
           error: (error as Error).message,
         });
       }
+    }
+  }
+
+  /**
+   * Send notification to renderer process
+   */
+  private sendToRenderer(notification: ErrorNotification): void {
+    try {
+      const windows = BrowserWindow.getAllWindows();
+      for (const win of windows) {
+        if (!win.isDestroyed()) {
+          win.webContents.send('nova:error-notification', notification);
+        }
+      }
+    } catch (error) {
+      this.logger.debug('Failed to send notification to renderer', {
+        error: (error as Error).message,
+      });
     }
   }
 

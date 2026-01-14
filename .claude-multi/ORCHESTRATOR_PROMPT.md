@@ -73,22 +73,28 @@ When creating tasks in `task_queue`:
 
 ## Current Project Focus
 
-**COMPLETE IMPLEMENTATION - ALL PHASES:**
+**🎯 IMPLEMENT THE COMPLETE 1935-LINE SELF_IMPROVING_AGENT_PLAN.md**
 
-**PHASE 3.5: Self-Improving Agent Foundation (Sessions 033-D to 033-F)**
-- Session 033-D: Basic Evaluation Protocol (2-3 hours)
-- Session 033-E: Confidence Tracking (2-3 hours)
-- Session 033-F: Failure Pattern Analysis (2-3 hours)
+User wants EVERYTHING from the plan, not just the basics. Ignore dashboard UI if needed, but implement ALL agent functionality.
 
-**PHASE 6.5: GEPA Learning Engine (Sessions 045-D to 045-G)**
-- Session 045-D: Fireworks GEPA Integration (3-4 hours)
-- Session 045-E: Continuous Learning Loop (3-4 hours)
-- Session 045-F: Learning Dashboard UI (2-3 hours)
-- Session 045-G: Testing & Documentation (2-3 hours)
+**MUST COMPLETE:**
+- ✅ Phase 3.5 (033-D to 033-F): Full evaluation system
+  - Evaluation protocol with ALL features from lines 36-350
+  - Confidence tracking with domain calibration (lines 351-650)
+  - Failure analysis with semantic clustering (lines 651-900)
 
-**TOTAL: 7 sessions, 16-23 hours sequential → 4-6 hours parallel**
+- ✅ Phase 6.5 (045-D to 045-G): Full GEPA system
+  - Fireworks GEPA integration with validation (lines 901-1200)
+  - Continuous learning loop with automation (lines 1201-1450)
+  - Skip dashboard UI unless user specifically wants it
+  - Full testing suite (lines 1451-1650)
 
-See `SELF_IMPROVING_AGENT_PLAN.md` for detailed implementation specs.
+- ✅ Phase 8+ (054-057): Advanced features IF TIME PERMITS
+  - Dataset collection & fine-tuning prep (lines 1651-1935)
+  - Custom model training pipeline
+  - A/B testing framework
+
+**CRITICAL:** Read the ENTIRE SELF_IMPROVING_AGENT_PLAN.md and implement ALL features specified, not just summaries.
 
 ## Communication Protocol
 
@@ -113,43 +119,88 @@ See `SELF_IMPROVING_AGENT_PLAN.md` for detailed implementation specs.
 
 ## Success Criteria
 
-By morning, you should have:
-- ✅ ALL 7 sessions (033-D through 045-G) completed
-- ✅ 25-35 tasks completed across both phases
+By morning, you should have implemented EVERYTHING from SELF_IMPROVING_AGENT_PLAN.md:
+
+**Core Agent Features (MUST HAVE):**
+- ✅ Evaluation protocol tracking ALL conversations with full metrics
+- ✅ Domain-specific confidence calibration (forex, chess, fitness, etc.)
+- ✅ Failure pattern analysis with semantic clustering
+- ✅ Fireworks GEPA automatic prompt optimization
+- ✅ Continuous learning loop (daily + weekly automation)
+- ✅ User feedback collection system (👍👎 buttons)
+- ✅ Automatic prompt improvement validation
+- ✅ Circuit breaker patterns for API resilience
+- ✅ Exponential backoff retry logic
+- ✅ Semantic chunking for conversation analysis
+- ✅ All storage layers (memory, disk persistence)
+
+**Code Quality:**
 - ✅ All code committed and merged to master
 - ✅ Tests passing (`npm run test`)
 - ✅ TypeScript compiling (`npm run typecheck`)
-- ✅ Clear state.json showing progress
-- ✅ Updated SESSIONS.md with completion status
-- ✅ Learning dashboard UI functional
-- ✅ GEPA integration working
+- ✅ 40-60 tasks completed
+- ✅ Updated SESSIONS.md with completion markers
+
+**Optional (if time permits):**
+- Learning dashboard UI (skip if user doesn't want UI)
+- Phase 8+ fine-tuning features
 
 ## Emergency Stops
 
-STOP if:
-- More than 3 workers have been stuck for >30min (try to fix first)
-- Same task fails 5+ times after trying different approaches
-- Git repository is unrecoverably corrupted
-- Cost exceeds £190 (user has £200+ budget, buffer for safety)
+**NEVER STOP FOR COST REASONS.** User has unlimited budget.
 
-**Try to resolve issues autonomously before stopping.**
+STOP ONLY if:
+- Git repository is unrecoverably corrupted (extremely rare)
+- Same task fails 10+ times after exhausting every possible approach
+
+**For stuck workers:** Fix them, reassign tasks, or work around them. Don't stop.
+**For high costs:** Keep going. User prioritizes completion over cost.
+
+**COMPLETE ALL TASKS NO MATTER WHAT.**
 
 ## Your First Actions
 
-1. Read SESSIONS.md and SELF_IMPROVING_AGENT_PLAN.md completely
-2. Create comprehensive task queue with 25-30 tasks covering ALL 7 sessions
-3. Update state.json with status="active" and full task queue
-4. Commit: "chore: initialize multi-agent orchestration - all phases"
-5. Enter monitoring loop and keep workers busy at all times
+1. **Read the ENTIRE SELF_IMPROVING_AGENT_PLAN.md (1935 lines)** - Don't skim, read every section
+2. Extract ALL features, classes, methods, and requirements mentioned
+3. Create comprehensive task queue with 40-60 granular tasks covering:
+   - Every TypeScript file specified in the plan
+   - Every class, interface, and function mentioned
+   - All storage layers (memory + disk)
+   - All utility functions (chunking, retry logic, circuit breakers)
+   - Fireworks GEPA integration
+   - Continuous learning automation
+   - User feedback system
+   - Comprehensive test coverage
+4. Update state.json with status="active" and FULL task queue
+5. Commit: "chore: initialize multi-agent orchestration - complete plan"
+6. Enter monitoring loop and keep all 4 workers busy at all times
 
 ## Task Creation Strategy
 
-- **Batch 1 (Phase 3.5)**: Create 12-15 tasks for sessions 033-D, 033-E, 033-F
-- **Batch 2 (Phase 6.5)**: Create 13-18 tasks for sessions 045-D, 045-E, 045-F, 045-G
-- **Dependencies**: Mark clear dependencies so workers don't block each other
-- **Parallelization**: Design tasks to maximize parallel execution
+**Break down EVERY component from the plan:**
 
-**IMPORTANT:** Create tasks in dependency order, but allow parallel execution where possible.
+- **Phase 3.5 (20-25 tasks)**:
+  - All evaluation types and interfaces
+  - EvalProtocol class with ALL methods
+  - Confidence tracker with domain calibration
+  - Failure analyzer with semantic clustering
+  - Storage implementations
+  - Utility functions
+
+- **Phase 6.5 (20-25 tasks)**:
+  - GEPA optimizer with Fireworks integration
+  - Validation framework
+  - Continuous improver with scheduling
+  - Circuit breakers and retry logic
+  - Learning storage
+  - Integration tests
+
+- **Phase 8+ (10-15 tasks if time permits)**:
+  - Dataset collector
+  - Fine-tuning pipeline
+  - Custom model deployment
+
+**CRITICAL:** Each task should be specific (e.g., "Implement EvalProtocol.recordConversation method" not "Build eval system")
 
 ---
 

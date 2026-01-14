@@ -1,7 +1,17 @@
 /**
  * Nova Desktop - STT Manager
- * Manages speech-to-text providers with automatic fallback
- * Primary: Deepgram (online), Fallback: Vosk (offline)
+ *
+ * Manages speech-to-text providers with automatic fallback capability.
+ * Primary provider: Deepgram (cloud-based, higher accuracy)
+ * Fallback provider: Vosk (offline, works without internet)
+ *
+ * Features:
+ * - Automatic provider switching on errors via circuit breaker pattern
+ * - Configurable error thresholds and cooldown periods
+ * - Seamless event forwarding from active provider
+ * - Manual provider switching support
+ *
+ * @module stt/manager
  */
 
 import { EventEmitter } from 'events';
@@ -116,7 +126,9 @@ export class STTManager extends EventEmitter implements STTProvider {
   }
 
   /**
-   * Get current status
+   * Gets the current STT status.
+   *
+   * @returns The current status: IDLE, CONNECTING, CONNECTED, LISTENING, ERROR, or CLOSED
    */
   get status(): STTStatus {
     return this._status;
@@ -133,14 +145,18 @@ export class STTManager extends EventEmitter implements STTProvider {
   }
 
   /**
-   * Get active provider type
+   * Gets the type of the currently active STT provider.
+   *
+   * @returns 'deepgram', 'vosk', or null if no provider is active
    */
   getActiveProviderType(): STTProviderType | null {
     return this.activeProviderType;
   }
 
   /**
-   * Check if using offline mode
+   * Checks if the manager is currently using offline mode (Vosk).
+   *
+   * @returns True if using Vosk or offline mode is enabled
    */
   isUsingOffline(): boolean {
     return this.isOfflineMode || this.activeProviderType === 'vosk';
@@ -291,12 +307,29 @@ export class STTManager extends EventEmitter implements STTProvider {
         throw error;
       }
     } else {
-      throw new Error('No fallback provider available');
+      throw new Error(
+        'No fallback speech-to-text provider is available. Configure Vosk for offline fallback.'
+      );
     }
   }
 
   /**
-   * Try to restore primary provider
+   * Attempts to restore the primary provider (Deepgram) after a fallback.
+   *
+   * This method checks if the cooldown period has passed and if the circuit breaker
+   * allows a retry. If successful, switches back from Vosk to Deepgram.
+   *
+   * @returns True if primary was successfully restored, false otherwise
+   *
+   * @example
+   * ```typescript
+   * // Periodically try to restore primary
+   * setInterval(async () => {
+   *   if (await sttManager.tryRestorePrimary()) {
+   *     console.log('Back to Deepgram');
+   *   }
+   * }, 60000);
+   * ```
    */
   async tryRestorePrimary(): Promise<boolean> {
     if (this.activeProviderType === 'deepgram' || !this.deepgramSTT) {
@@ -350,7 +383,20 @@ export class STTManager extends EventEmitter implements STTProvider {
   }
 
   /**
-   * Start STT (selects best available provider)
+   * Starts STT by selecting and initializing the best available provider.
+   *
+   * Provider selection logic:
+   * 1. If preferOffline is true, tries Vosk first
+   * 2. Otherwise tries Deepgram first (if API key is configured)
+   * 3. Falls back to the other provider if the primary fails
+   *
+   * @throws Error if no provider is available or all providers fail to start
+   *
+   * @example
+   * ```typescript
+   * const sttManager = new STTManager({ deepgram: { apiKey: 'your-key' } });
+   * await sttManager.start();
+   * ```
    */
   async start(): Promise<void> {
     if (this._status === STTStatus.CONNECTED || this._status === STTStatus.LISTENING) {
@@ -416,14 +462,18 @@ export class STTManager extends EventEmitter implements STTProvider {
           this.isOfflineMode = true;
           this.emit('fallback-activated', 'vosk', 'Primary unavailable');
         } catch (error) {
-          throw new Error('All STT providers failed to start');
+          throw new Error(
+            'All speech-to-text providers failed to start. Check your API keys and network connection.'
+          );
         }
       }
     }
 
     if (!provider || !providerType) {
       this.setStatus(STTStatus.ERROR);
-      throw new Error('No STT provider available');
+      throw new Error(
+        'No speech-to-text provider is available. Configure at least one of: Deepgram (online) or Vosk (offline).'
+      );
     }
 
     this.activeProvider = provider;
@@ -435,7 +485,9 @@ export class STTManager extends EventEmitter implements STTProvider {
   }
 
   /**
-   * Stop STT
+   * Stops STT and disconnects from the active provider.
+   *
+   * Safe to call multiple times.
    */
   async stop(): Promise<void> {
     if (this.activeProvider) {
@@ -449,7 +501,11 @@ export class STTManager extends EventEmitter implements STTProvider {
   }
 
   /**
-   * Send audio data to active provider
+   * Sends audio data to the active STT provider for transcription.
+   *
+   * Audio data is silently dropped if no provider is active or ready.
+   *
+   * @param audioData - PCM16 audio data as Buffer or Int16Array (16kHz mono)
    */
   sendAudio(audioData: Buffer | Int16Array): void {
     if (!this.activeProvider || !this.isReady()) {
@@ -459,21 +515,29 @@ export class STTManager extends EventEmitter implements STTProvider {
   }
 
   /**
-   * Check if ready to receive audio
+   * Checks if the STT manager is ready to receive audio.
+   *
+   * @returns True if a provider is active and ready for audio input
    */
   isReady(): boolean {
     return this.activeProvider?.isReady() || false;
   }
 
   /**
-   * Get current configuration
+   * Gets the configuration of the active provider.
+   *
+   * @returns The STT configuration, or a default empty config if no provider is active
    */
   getConfig(): STTConfig {
     return this.activeProvider?.getConfig() || { apiKey: '' };
   }
 
   /**
-   * Set offline mode preference
+   * Sets the offline mode preference.
+   *
+   * When enabled, the manager will prefer Vosk over Deepgram.
+   *
+   * @param enabled - True to prefer offline mode
    */
   setOfflineMode(enabled: boolean): void {
     this.isOfflineMode = enabled;
@@ -481,7 +545,16 @@ export class STTManager extends EventEmitter implements STTProvider {
   }
 
   /**
-   * Force switch to specific provider
+   * Manually switches to a specific STT provider.
+   *
+   * @param type - The provider to switch to: 'deepgram' or 'vosk'
+   * @throws Error if the requested provider is not available
+   *
+   * @example
+   * ```typescript
+   * // Force offline mode
+   * await sttManager.switchToProvider('vosk');
+   * ```
    */
   async switchToProvider(type: STTProviderType): Promise<void> {
     const provider = type === 'deepgram' ? this.deepgramSTT : this.voskSTT;
@@ -529,7 +602,16 @@ export class STTManager extends EventEmitter implements STTProvider {
 let sttManager: STTManager | null = null;
 
 /**
- * Get or create STT manager instance
+ * Gets or creates the singleton STTManager instance.
+ *
+ * @param config - Optional configuration (only used on first call)
+ * @returns The STTManager singleton instance
+ *
+ * @example
+ * ```typescript
+ * const stt = getSTTManager({ deepgram: { apiKey: 'key' } });
+ * await stt.start();
+ * ```
  */
 export function getSTTManager(config?: Partial<STTManagerConfig>): STTManager {
   if (!sttManager) {
@@ -539,7 +621,7 @@ export function getSTTManager(config?: Partial<STTManagerConfig>): STTManager {
 }
 
 /**
- * Shutdown STT manager
+ * Shuts down the STT manager and releases resources.
  */
 export async function shutdownSTTManager(): Promise<void> {
   if (sttManager) {
