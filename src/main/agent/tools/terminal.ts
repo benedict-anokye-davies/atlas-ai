@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Terminal Tool
+ * Atlas Desktop - Terminal Tool
  * Provides safe command execution for the agent
  *
  * SECURITY: This module integrates with SafeTerminalExecutor for:
@@ -7,9 +7,12 @@
  * - Dangerous pattern blocking
  * - Rate limiting
  * - Audit logging
+ *
+ * UPDATED: Now includes node-pty support for real PTY terminal emulation
  */
 
 import { spawn, SpawnOptions } from 'child_process';
+import * as pty from 'node-pty';
 import * as path from 'path';
 import * as os from 'os';
 import { AgentTool, ActionResult } from '../../../shared/types/agent';
@@ -21,10 +24,7 @@ import {
   BLOCKED_COMMANDS,
   SAFE_COMMANDS,
 } from '../../../shared/types/agent';
-import {
-  getSafeTerminalExecutor,
-  SafeTerminalExecutor,
-} from '../../security/safe-terminal-executor';
+import { getSafeTerminalExecutor } from '../../security/safe-terminal-executor';
 import { getInputValidator } from '../../security/input-validator';
 
 const logger = createModuleLogger('TerminalTool');
@@ -578,6 +578,279 @@ export function getTerminalTools(): AgentTool[] {
   return [executeCommandTool, npmCommandTool, gitCommandTool, pwdTool, whichCommandTool];
 }
 
+// ==============================================================================
+// TERMINAL TOOL CLASS (PTY-based)
+// Uses node-pty for real terminal emulation - ideal for interactive processes
+// ==============================================================================
+
+/**
+ * Input interface for TerminalTool PTY execution
+ */
+export interface TerminalToolInput {
+  command: string;
+  workingDirectory?: string;
+  timeout?: number; // ms, default 30000
+  shell?: 'powershell' | 'cmd' | 'bash';
+}
+
+/**
+ * Output interface for TerminalTool PTY execution
+ */
+export interface TerminalToolOutput {
+  success: boolean;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  duration: number; // ms
+}
+
+/**
+ * TerminalTool class using node-pty for real PTY terminal emulation.
+ *
+ * This class provides true terminal emulation suitable for:
+ * - Interactive processes that need TTY
+ * - Commands with ANSI escape sequences
+ * - Real-time streaming output
+ * - Full xterm compatibility
+ */
+export class TerminalTool {
+  private shell: string;
+  private shellArgs: string[];
+  private readonly logger = createModuleLogger('TerminalToolPTY');
+
+  constructor() {
+    if (os.platform() === 'win32') {
+      this.shell = 'powershell.exe';
+      this.shellArgs = ['-NoProfile', '-NonInteractive'];
+    } else {
+      this.shell = process.env.SHELL || '/bin/bash';
+      this.shellArgs = [];
+    }
+  }
+
+  /**
+   * Execute a command using PTY (pseudo-terminal)
+   * @param input Command input with options
+   * @returns Execution result with stdout, stderr, exit code
+   */
+  async execute(input: TerminalToolInput): Promise<TerminalToolOutput> {
+    const startTime = Date.now();
+    const timeout = input.timeout || DEFAULT_TIMEOUT;
+
+    // Validate command safety first
+    const safety = validateCommandSafety(input.command);
+    if (!safety.allowed) {
+      this.logger.warn('PTY command blocked', { command: input.command, reason: safety.reason });
+      return {
+        success: false,
+        stdout: '',
+        stderr: safety.reason || 'Command blocked for security reasons',
+        exitCode: -1,
+        duration: Date.now() - startTime,
+      };
+    }
+
+    return new Promise((resolve) => {
+      let output = '';
+      let resolved = false;
+
+      // Determine shell based on input or default
+      let shellPath = this.shell;
+      let shellArguments = [...this.shellArgs];
+
+      if (input.shell) {
+        if (input.shell === 'powershell') {
+          shellPath = 'powershell.exe';
+          shellArguments = ['-NoProfile', '-NonInteractive'];
+        } else if (input.shell === 'cmd') {
+          shellPath = 'cmd.exe';
+          shellArguments = [];
+        } else if (input.shell === 'bash') {
+          shellPath = '/bin/bash';
+          shellArguments = [];
+        }
+      }
+
+      try {
+        const term = pty.spawn(shellPath, shellArguments, {
+          name: 'xterm-color',
+          cols: 120,
+          rows: 30,
+          cwd: input.workingDirectory || os.homedir(),
+          env: process.env as Record<string, string>,
+        });
+
+        // Timeout handler
+        const timeoutId = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            term.kill();
+            this.logger.warn('PTY command timed out', { command: input.command, timeout });
+            resolve({
+              success: false,
+              stdout: this.cleanOutput(output),
+              stderr: 'Command timed out',
+              exitCode: -1,
+              duration: Date.now() - startTime,
+            });
+          }
+        }, timeout);
+
+        // Collect output
+        term.onData((data) => {
+          output += data;
+        });
+
+        // Handle process exit
+        term.onExit(({ exitCode }) => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeoutId);
+
+            const duration = Date.now() - startTime;
+            this.logger.debug('PTY command completed', {
+              command: input.command,
+              exitCode,
+              duration,
+            });
+
+            resolve({
+              success: exitCode === 0,
+              stdout: this.cleanOutput(output),
+              stderr: '',
+              exitCode,
+              duration,
+            });
+          }
+        });
+
+        // Write command and exit
+        term.write(`${input.command}\r`);
+        term.write('exit\r');
+      } catch (error) {
+        if (!resolved) {
+          resolved = true;
+          const err = error as Error;
+          this.logger.error('PTY spawn error', { command: input.command, error: err.message });
+          resolve({
+            success: false,
+            stdout: '',
+            stderr: err.message,
+            exitCode: -1,
+            duration: Date.now() - startTime,
+          });
+        }
+      }
+    });
+  }
+
+  /**
+   * Execute a command with streaming output callback
+   * @param input Command input with options
+   * @param onOutput Callback called with each chunk of output
+   * @returns Execution result
+   */
+  async executeStreaming(
+    input: TerminalToolInput,
+    onOutput: (data: string) => void
+  ): Promise<TerminalToolOutput> {
+    const startTime = Date.now();
+    const timeout = input.timeout || DEFAULT_TIMEOUT;
+    let fullOutput = '';
+    let resolved = false;
+
+    // Validate command safety first
+    const safety = validateCommandSafety(input.command);
+    if (!safety.allowed) {
+      this.logger.warn('PTY streaming command blocked', {
+        command: input.command,
+        reason: safety.reason,
+      });
+      return {
+        success: false,
+        stdout: '',
+        stderr: safety.reason || 'Command blocked for security reasons',
+        exitCode: -1,
+        duration: Date.now() - startTime,
+      };
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const term = pty.spawn(this.shell, this.shellArgs, {
+          name: 'xterm-color',
+          cols: 120,
+          rows: 30,
+          cwd: input.workingDirectory || os.homedir(),
+          env: process.env as Record<string, string>,
+        });
+
+        // Timeout handler
+        const timeoutId = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            term.kill();
+            resolve({
+              success: false,
+              stdout: this.cleanOutput(fullOutput),
+              stderr: 'Command timed out',
+              exitCode: -1,
+              duration: Date.now() - startTime,
+            });
+          }
+        }, timeout);
+
+        // Stream output to callback and collect
+        term.onData((data) => {
+          fullOutput += data;
+          onOutput(data);
+        });
+
+        term.onExit(({ exitCode }) => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeoutId);
+            resolve({
+              success: exitCode === 0,
+              stdout: this.cleanOutput(fullOutput),
+              stderr: '',
+              exitCode,
+              duration: Date.now() - startTime,
+            });
+          }
+        });
+
+        term.write(`${input.command}\r`);
+        term.write('exit\r');
+      } catch (error) {
+        if (!resolved) {
+          resolved = true;
+          const err = error as Error;
+          resolve({
+            success: false,
+            stdout: '',
+            stderr: err.message,
+            exitCode: -1,
+            duration: Date.now() - startTime,
+          });
+        }
+      }
+    });
+  }
+
+  /**
+   * Clean output by removing ANSI escape codes
+   */
+  private cleanOutput(output: string): string {
+    // Remove ANSI escape codes (colors, cursor movement, etc.)
+    // eslint-disable-next-line no-control-regex
+    return output.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+  }
+}
+
+// Singleton instance for convenience
+export const terminalTool = new TerminalTool();
+
 export default {
   executeCommandTool,
   npmCommandTool,
@@ -589,4 +862,6 @@ export default {
   validateCommandSafety,
   setSecurityEnabled,
   isSecurityEnabled,
+  TerminalTool,
+  terminalTool,
 };

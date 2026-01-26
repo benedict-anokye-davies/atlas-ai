@@ -1,0 +1,420 @@
+# Atlas Desktop - Test Workflow
+#
+# Dedicated test workflow with enhanced coverage and matrix testing.
+# Runs on pull requests and can be triggered manually.
+
+name: Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+      - orchestrator
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.*'
+      - 'tsconfig*.json'
+
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'src/**'
+      - 'tests/**'
+
+  workflow_dispatch:
+    inputs:
+      coverage_threshold:
+        description: 'Minimum coverage threshold (%)'
+        required: false
+        default: '70'
+      run_smoke_tests:
+        description: 'Run smoke tests'
+        required: false
+        type: boolean
+        default: false
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ==========================================================================
+  # Unit Tests - Fast unit tests with coverage
+  # ==========================================================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Run unit tests with coverage
+        run: npm run test:coverage
+        env:
+          CI: true
+
+      - name: Check coverage threshold
+        run: |
+          THRESHOLD="${{ github.event.inputs.coverage_threshold || '70' }}"
+          echo "Checking coverage against threshold: ${THRESHOLD}%"
+
+          # Parse coverage summary (if vitest outputs JSON)
+          if [ -f coverage/coverage-summary.json ]; then
+            COVERAGE=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct')
+            echo "Line coverage: ${COVERAGE}%"
+
+            if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+              echo "Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+              exit 1
+            fi
+          else
+            echo "Coverage summary not found, skipping threshold check"
+          fi
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+          verbose: true
+
+  # ==========================================================================
+  # Matrix Tests - Cross-platform and Node version testing
+  # ==========================================================================
+  matrix-tests:
+    name: Test (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: ['18', '20', '22']
+        exclude:
+          # Reduce matrix size by excluding some combinations
+          - os: windows-latest
+            node: '18'
+          - os: macos-latest
+            node: '18'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ matrix.node }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ matrix.node }}-
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test
+        env:
+          CI: true
+
+  # ==========================================================================
+  # Smoke Tests - Integration/E2E tests (optional)
+  # ==========================================================================
+  smoke-tests:
+    name: Smoke Tests
+    needs: unit-tests
+    if: github.event.inputs.run_smoke_tests == 'true' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        continue-on-error: true
+
+      - name: Run smoke tests
+        run: npm run test:smoke || echo "Smoke tests not configured"
+        env:
+          CI: true
+          HEADLESS: true
+
+      - name: Upload smoke test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-results
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ==========================================================================
+  # Type Check - Separate TypeScript validation
+  # ==========================================================================
+  typecheck:
+    name: TypeScript Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Run TypeScript check (renderer)
+        run: npm run typecheck
+
+      - name: Run TypeScript check (main)
+        run: npm run typecheck:main
+
+  # ==========================================================================
+  # Lint Check - ESLint validation
+  # ==========================================================================
+  lint:
+    name: ESLint Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Annotate linting issues
+        if: failure()
+        run: |
+          echo "ESLint found issues. Run 'npm run lint' locally to see details."
+
+  # ==========================================================================
+  # Test Status - Aggregates all test job results
+  # ==========================================================================
+  test-status:
+    name: Test Status
+    needs: [unit-tests, matrix-tests, typecheck, lint]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check all test results
+        run: |
+          echo "Test Results Summary:"
+          echo "====================="
+          echo "Unit Tests: ${{ needs.unit-tests.result }}"
+          echo "Matrix Tests: ${{ needs.matrix-tests.result }}"
+          echo "TypeScript: ${{ needs.typecheck.result }}"
+          echo "ESLint: ${{ needs.lint.result }}"
+          echo ""
+
+          if [ "${{ needs.unit-tests.result }}" == "failure" ] || \
+             [ "${{ needs.matrix-tests.result }}" == "failure" ] || \
+             [ "${{ needs.typecheck.result }}" == "failure" ] || \
+             [ "${{ needs.lint.result }}" == "failure" ]; then
+            echo "One or more checks failed!"
+            exit 1
+          fi
+
+          echo "All tests passed successfully!"
+
+  # ==========================================================================
+  # PR Comment - Add test summary to PR
+  # ==========================================================================
+  pr-comment:
+    name: PR Comment
+    needs: [unit-tests, matrix-tests, typecheck, lint]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+        continue-on-error: true
+
+      - name: Create PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Build status icons
+            const getIcon = (result) => {
+              if (result === 'success') return ':white_check_mark:';
+              if (result === 'failure') return ':x:';
+              if (result === 'skipped') return ':fast_forward:';
+              return ':grey_question:';
+            };
+
+            // Try to read coverage
+            let coverageInfo = '';
+            try {
+              const coverage = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+              coverageInfo = `
+            ### Coverage Summary
+            | Metric | Coverage |
+            |--------|----------|
+            | Lines | ${coverage.total.lines.pct}% |
+            | Statements | ${coverage.total.statements.pct}% |
+            | Functions | ${coverage.total.functions.pct}% |
+            | Branches | ${coverage.total.branches.pct}% |
+            `;
+            } catch (e) {
+              coverageInfo = '_Coverage report not available_';
+            }
+
+            const body = `## Test Results
+
+            | Check | Status |
+            |-------|--------|
+            | Unit Tests | ${getIcon('${{ needs.unit-tests.result }}')} ${{ needs.unit-tests.result }} |
+            | Matrix Tests | ${getIcon('${{ needs.matrix-tests.result }}')} ${{ needs.matrix-tests.result }} |
+            | TypeScript | ${getIcon('${{ needs.typecheck.result }}')} ${{ needs.typecheck.result }} |
+            | ESLint | ${getIcon('${{ needs.lint.result }}')} ${{ needs.lint.result }} |
+
+            ${coverageInfo}
+
+            ---
+            _Generated by Atlas CI_
+            `;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('## Test Results')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }

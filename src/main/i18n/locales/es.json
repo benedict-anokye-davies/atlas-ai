@@ -1,0 +1,172 @@
+{
+  "common": {
+    "atlas": "Atlas",
+    "settings": "Configuracion",
+    "close": "Cerrar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "reset": "Restablecer",
+    "apply": "Aplicar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Exito",
+    "warning": "Advertencia",
+    "info": "Informacion",
+    "yes": "Si",
+    "no": "No",
+    "ok": "Aceptar",
+    "retry": "Reintentar",
+    "connected": "Conectado",
+    "disconnected": "Desconectado",
+    "online": "En linea",
+    "offline": "Sin conexion"
+  },
+  "voice": {
+    "listening": "Escuchando...",
+    "speaking": "Hablando...",
+    "thinking": "Pensando...",
+    "idle": "Listo",
+    "wakeWordPrompt": "Di \"Hey Atlas\" o haz clic en el orbe",
+    "pushToTalk": "Manten presionado para hablar",
+    "processing": "Procesando...",
+    "transcribing": "Transcribiendo...",
+    "responding": "Respondiendo...",
+    "error": "Error de voz"
+  },
+  "settings": {
+    "title": "Configuracion",
+    "sections": {
+      "audio": "Audio",
+      "voice": "Voz",
+      "visual": "Visual",
+      "behavior": "Comportamiento",
+      "providers": "Proveedores",
+      "personality": "Personalidad",
+      "budget": "Presupuesto",
+      "advanced": "Avanzado",
+      "language": "Idioma"
+    },
+    "audio": {
+      "inputDevice": "Microfono",
+      "outputDevice": "Altavoz",
+      "volume": "Volumen",
+      "testAudio": "Probar audio",
+      "selectDevice": "Seleccionar dispositivo"
+    },
+    "voice": {
+      "voiceId": "Voz",
+      "speed": "Velocidad",
+      "stability": "Estabilidad",
+      "wakeWord": "Palabra de activacion",
+      "sensitivity": "Sensibilidad"
+    },
+    "visual": {
+      "theme": "Tema",
+      "particleCount": "Cantidad de particulas",
+      "adaptivePerformance": "Rendimiento adaptativo",
+      "qualityPreset": "Calidad",
+      "effects": "Efectos",
+      "orbColor": "Color del orbe",
+      "brightness": "Brillo"
+    },
+    "behavior": {
+      "autoStart": "Iniciar automaticamente",
+      "pushToTalk": "Modo presionar para hablar",
+      "minimizeToTray": "Minimizar a la bandeja",
+      "startMinimized": "Iniciar minimizado",
+      "privacyMode": "Modo privado (sin registro)",
+      "bargeIn": "Permitir interrupcion"
+    },
+    "language": {
+      "title": "Configuracion de idioma",
+      "description": "Elige tu idioma preferido para la interfaz e interacciones de voz.",
+      "currentLanguage": "Idioma actual",
+      "selectLanguage": "Seleccionar idioma",
+      "autoDetect": "Detectar automaticamente del sistema",
+      "syncVoice": "Sincronizar idioma de voz con la interfaz"
+    },
+    "budget": {
+      "dailyLimit": "Limite diario de presupuesto",
+      "warningThreshold": "Umbral de advertencia",
+      "currentUsage": "Uso de hoy",
+      "remaining": "Presupuesto restante"
+    }
+  },
+  "errors": {
+    "generic": "Algo salio mal. Por favor, intenta de nuevo.",
+    "network": "Error de red. Verifica tu conexion a internet.",
+    "apiKey": "Error de clave API. Por favor, verifica tu configuracion.",
+    "microphone": "Acceso al microfono denegado. Por favor, habilita los permisos del microfono.",
+    "wakeWord": "Fallo en la deteccion de la palabra de activacion. Por favor, reinicia la aplicacion.",
+    "stt": "Fallo en el reconocimiento de voz. Por favor, intenta de nuevo.",
+    "llm": "Fallo en la respuesta de IA. Por favor, intenta de nuevo.",
+    "tts": "Fallo en la sintesis de voz. Usando respuesta de texto en su lugar.",
+    "budget": "Presupuesto diario excedido. Las respuestas se reanudararan manana.",
+    "rateLimited": "Demasiadas solicitudes. Por favor, espera un momento.",
+    "timeout": "La solicitud expiro. Por favor, intenta de nuevo."
+  },
+  "notifications": {
+    "budgetWarning": "Has usado el {{percent}}% de tu presupuesto diario.",
+    "budgetExceeded": "Presupuesto diario excedido. Respuestas limitadas hasta manana.",
+    "updateAvailable": "Una nueva version ({{version}}) esta disponible.",
+    "updateDownloaded": "Actualizacion descargada. Reinicia para aplicar.",
+    "providerChanged": "Cambiado a {{provider}} para {{service}}.",
+    "offlineMode": "Estas sin conexion. Usando proveedores locales.",
+    "connected": "De vuelta en linea.",
+    "disconnected": "Te has desconectado."
+  },
+  "accessibility": {
+    "skipToMain": "Saltar al contenido principal",
+    "openSettings": "Abrir configuracion",
+    "closeSettings": "Cerrar configuracion",
+    "voiceState": "Estado del asistente de voz: {{state}}",
+    "audioLevel": "Nivel de audio: {{level}}",
+    "orbVisualization": "Visualizacion del orbe de Atlas",
+    "keyboardShortcuts": "Atajos de teclado"
+  },
+  "tray": {
+    "title": "Atlas",
+    "status": {
+      "ready": "Listo",
+      "listening": "Escuchando",
+      "thinking": "Pensando",
+      "speaking": "Hablando",
+      "offline": "Sin conexion"
+    },
+    "actions": {
+      "show": "Mostrar Atlas",
+      "hide": "Ocultar Atlas",
+      "pushToTalk": "Presionar para hablar",
+      "settings": "Configuracion",
+      "quit": "Salir de Atlas"
+    }
+  },
+  "onboarding": {
+    "welcome": {
+      "title": "Bienvenido a Atlas",
+      "description": "Tu asistente de IA de voz para escritorio."
+    },
+    "microphone": {
+      "title": "Acceso al microfono",
+      "description": "Atlas necesita acceso al microfono para escuchar tus comandos."
+    },
+    "apiKeys": {
+      "title": "Configuracion de API",
+      "description": "Ingresa tus claves API para habilitar las funciones de Atlas."
+    },
+    "complete": {
+      "title": "Todo listo!",
+      "description": "Di \"Hey Atlas\" o haz clic en el orbe para comenzar."
+    }
+  },
+  "keyboard": {
+    "shortcuts": {
+      "title": "Atajos de teclado",
+      "pushToTalk": "Presionar para hablar",
+      "toggleSettings": "Alternar configuracion",
+      "toggleDebug": "Alternar panel de depuracion",
+      "cancelInteraction": "Cancelar interaccion",
+      "showShortcuts": "Mostrar atajos de teclado"
+    }
+  }
+}

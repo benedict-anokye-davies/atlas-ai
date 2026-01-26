@@ -1,0 +1,874 @@
+/**
+ * Atlas Desktop - Memory Statistics Styles
+ * Styling for the memory statistics panel
+ */
+
+/* ============================================================================
+   OVERLAY AND PANEL
+   ============================================================================ */
+
+.memory-stats-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.memory-stats-panel {
+  width: 90%;
+  max-width: 900px;
+  max-height: 85vh;
+  background: linear-gradient(145deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid rgba(74, 158, 255, 0.3);
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================================
+   HEADER
+   ============================================================================ */
+
+.memory-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.memory-stats-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.memory-stats-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.export-dropdown {
+  position: relative;
+}
+
+.export-button,
+.refresh-button {
+  padding: 8px 16px;
+  background: rgba(74, 158, 255, 0.1);
+  border: 1px solid rgba(74, 158, 255, 0.3);
+  border-radius: 8px;
+  color: #4a9eff;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.export-button:hover,
+.refresh-button:hover {
+  background: rgba(74, 158, 255, 0.2);
+  border-color: rgba(74, 158, 255, 0.5);
+}
+
+.export-button:disabled,
+.refresh-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: #1a1a2e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.export-dropdown:hover .export-menu {
+  opacity: 1;
+  visibility: visible;
+}
+
+.export-menu button {
+  display: block;
+  width: 100%;
+  padding: 10px 20px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.export-menu button:hover {
+  background: rgba(74, 158, 255, 0.2);
+}
+
+.close-button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.close-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ============================================================================
+   MEMORY ANSWER
+   ============================================================================ */
+
+.memory-answer {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, rgba(74, 158, 255, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.memory-answer-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(74, 158, 255, 0.2);
+  border-radius: 50%;
+  color: #4a9eff;
+  font-size: 1.25rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.memory-answer-text {
+  flex: 1;
+}
+
+.memory-answer-text strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #fff;
+  font-size: 0.875rem;
+}
+
+.memory-answer-text p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+/* ============================================================================
+   TABS
+   ============================================================================ */
+
+.memory-stats-tabs {
+  display: flex;
+  padding: 0 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.tab-button {
+  padding: 14px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-button:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.tab-button.active {
+  color: #4a9eff;
+  border-bottom-color: #4a9eff;
+}
+
+/* ============================================================================
+   CONTENT AREA
+   ============================================================================ */
+
+.memory-stats-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: rgba(255, 255, 255, 0.6);
+  gap: 16px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(74, 158, 255, 0.2);
+  border-top-color: #4a9eff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error State */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #ef4444;
+  gap: 12px;
+}
+
+.error-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 50%;
+  font-size: 1.5rem;
+}
+
+.error-state button {
+  margin-top: 8px;
+  padding: 8px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #ef4444;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.error-state button:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* ============================================================================
+   STAT CARDS
+   ============================================================================ */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.stat-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.stat-card-default {
+  border-left: 3px solid #64748b;
+}
+
+.stat-card-success {
+  border-left: 3px solid #22c55e;
+}
+
+.stat-card-warning {
+  border-left: 3px solid #f59e0b;
+}
+
+.stat-card-info {
+  border-left: 3px solid #4a9eff;
+}
+
+.stat-card-icon {
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.stat-card-content {
+  flex: 1;
+}
+
+.stat-card-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-card-label {
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 2px;
+}
+
+.stat-card-sublabel {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 2px;
+}
+
+.stat-trend {
+  font-size: 0.875rem;
+}
+
+.stat-trend-up {
+  color: #22c55e;
+}
+
+.stat-trend-down {
+  color: #ef4444;
+}
+
+.stat-trend-neutral {
+  color: #64748b;
+}
+
+/* ============================================================================
+   SECTIONS
+   ============================================================================ */
+
+.stats-section {
+  margin-bottom: 28px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ============================================================================
+   PROGRESS BARS
+   ============================================================================ */
+
+.progress-item {
+  margin-bottom: 12px;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.progress-label {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.progress-value {
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.progress-bar-container {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* ============================================================================
+   STORAGE
+   ============================================================================ */
+
+.storage-overview {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.storage-total {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 20px;
+  background: rgba(74, 158, 255, 0.1);
+  border-radius: 12px;
+}
+
+.storage-value {
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #4a9eff;
+}
+
+.storage-label {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 4px;
+}
+
+.storage-breakdown {
+  flex: 1;
+}
+
+/* ============================================================================
+   ACTION ITEMS
+   ============================================================================ */
+
+.action-items-overview .action-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.priority-breakdown {
+  display: flex;
+  gap: 16px;
+}
+
+.priority-item {
+  font-size: 0.875rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.priority-high {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.priority-medium {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.priority-low {
+  background: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
+}
+
+/* ============================================================================
+   SENTIMENT
+   ============================================================================ */
+
+.sentiment-bars {
+  display: grid;
+  gap: 8px;
+}
+
+/* ============================================================================
+   KNOWLEDGE TAB
+   ============================================================================ */
+
+.confidence-breakdown .confidence-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.confidence-average {
+  text-align: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9375rem;
+}
+
+.confidence-average strong {
+  color: #4a9eff;
+}
+
+/* ============================================================================
+   TOPIC LIST
+   ============================================================================ */
+
+.topic-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.topic-list-empty,
+.referenced-list-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+}
+
+.topic-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.topic-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.topic-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.topic-details {
+  flex: 1;
+}
+
+.topic-name {
+  display: block;
+  font-size: 0.9375rem;
+  color: #fff;
+}
+
+.topic-category {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.topic-stats {
+  text-align: right;
+}
+
+.topic-count {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.topic-percentage {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ============================================================================
+   REFERENCED LIST
+   ============================================================================ */
+
+.referenced-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.referenced-item {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+
+.referenced-type {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(74, 158, 255, 0.2);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: #4a9eff;
+  margin-bottom: 6px;
+}
+
+.referenced-content {
+  font-size: 0.9375rem;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.referenced-meta {
+  display: flex;
+  gap: 12px;
+}
+
+.referenced-accesses {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ============================================================================
+   SESSIONS TAB
+   ============================================================================ */
+
+.longest-session {
+  display: flex;
+  gap: 32px;
+  padding: 20px;
+  background: rgba(74, 158, 255, 0.1);
+  border-radius: 12px;
+}
+
+.longest-session-stat {
+  text-align: center;
+}
+
+.longest-session-stat .stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #4a9eff;
+}
+
+.longest-session-stat .stat-label {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.performance-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.metric-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+
+.metric-label {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.metric-value {
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ============================================================================
+   GROWTH TAB
+   ============================================================================ */
+
+.growth-overview {
+  margin-bottom: 24px;
+}
+
+.growth-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.growth-chart {
+  position: relative;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.growth-chart svg {
+  display: block;
+  width: 100%;
+}
+
+.growth-chart-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+}
+
+.growth-chart-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.data-points-table {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.table-header,
+.table-row {
+  display: grid;
+  grid-template-columns: 1.5fr repeat(3, 1fr);
+  padding: 12px 16px;
+}
+
+.table-header {
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+}
+
+.table-row {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.table-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ============================================================================
+   FOOTER
+   ============================================================================ */
+
+.memory-stats-footer {
+  padding: 16px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.last-updated {
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .memory-stats-panel {
+    width: 100%;
+    max-width: none;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .memory-stats-header {
+    padding: 16px;
+  }
+
+  .memory-stats-title {
+    font-size: 1.25rem;
+  }
+
+  .memory-stats-content {
+    padding: 16px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .storage-overview {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .storage-total {
+    width: 100%;
+  }
+
+  .action-items-overview .action-stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .confidence-breakdown .confidence-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .performance-metrics {
+    grid-template-columns: 1fr;
+  }
+}

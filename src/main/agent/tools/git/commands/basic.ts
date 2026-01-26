@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Basic Git Commands
+ * Atlas Desktop - Basic Git Commands
  * Implements: status, add, commit, push, pull
  */
 

@@ -923,7 +923,7 @@ describe('Browser Tools', () => {
   describe('getBrowserTools', () => {
     it('should return all browser tools', () => {
       const tools = getBrowserTools();
-      expect(tools.length).toBe(6);
+      expect(tools.length).toBe(8); // Updated: includes browser_launch and browser_check_brave
     });
 
     it('should include browser_navigate tool', () => {

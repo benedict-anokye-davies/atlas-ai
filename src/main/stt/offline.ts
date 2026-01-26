@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Offline STT Provider (Whisper)
+ * Atlas Desktop - Offline STT Provider (Whisper)
  * Offline speech-to-text fallback using local Whisper model
  *
  * Note: This is a stub implementation. Full implementation requires
@@ -76,7 +76,12 @@ export class OfflineSTT extends EventEmitter implements STTProvider {
   private config: OfflineSTTConfig;
   private modelLoaded: boolean = false;
   private audioBuffer: Int16Array[] = [];
+  private audioBufferSize: number = 0; // Track total samples for memory management
   private isProcessing: boolean = false;
+  private isClosing: boolean = false;
+
+  // Maximum buffer size: 30 seconds of audio at 16kHz (480,000 samples)
+  private static readonly MAX_BUFFER_SAMPLES = 16000 * 30;
 
   constructor(config: Partial<OfflineSTTConfig> = {}) {
     super();
@@ -218,10 +223,12 @@ export class OfflineSTT extends EventEmitter implements STTProvider {
     }
 
     this.setStatus(STTStatus.CONNECTING);
+    this.isClosing = false; // Reset closing flag
 
     try {
       await this.loadModel();
       this.audioBuffer = [];
+      this.audioBufferSize = 0;
       this.setStatus(STTStatus.CONNECTED);
       this.emit('open');
       logger.info('Offline STT started');
@@ -240,12 +247,23 @@ export class OfflineSTT extends EventEmitter implements STTProvider {
   async stop(): Promise<void> {
     logger.info('Stopping offline STT');
 
+    // Set closing flag to prevent new audio from being added
+    this.isClosing = true;
+
     // Process any remaining audio
-    if (this.audioBuffer.length > 0) {
-      await this.processBufferedAudio();
+    if (this.audioBuffer.length > 0 && !this.isProcessing) {
+      try {
+        await this.processBufferedAudio();
+      } catch (error) {
+        logger.warn('Error processing remaining audio during stop', {
+          error: (error as Error).message,
+        });
+      }
     }
 
+    // Clear buffers
     this.audioBuffer = [];
+    this.audioBufferSize = 0;
     this.setStatus(STTStatus.CLOSED);
     this.emit('close');
     logger.info('Offline STT stopped');
@@ -255,8 +273,11 @@ export class OfflineSTT extends EventEmitter implements STTProvider {
    * Send audio data for transcription
    */
   sendAudio(audioData: Buffer | Int16Array): void {
-    if (!this.isReady()) {
-      logger.warn('Cannot send audio - not ready', { status: this._status });
+    // Check both ready state and closing flag
+    if (!this.isReady() || this.isClosing) {
+      if (!this.isClosing) {
+        logger.warn('Cannot send audio - not ready', { status: this._status });
+      }
       return;
     }
 
@@ -268,13 +289,26 @@ export class OfflineSTT extends EventEmitter implements STTProvider {
       samples = audioData as Int16Array;
     }
 
+    // Check buffer size limits to prevent memory leaks
+    if (this.audioBufferSize + samples.length > OfflineSTT.MAX_BUFFER_SAMPLES) {
+      logger.warn('Audio buffer limit reached, processing early', {
+        currentSize: this.audioBufferSize,
+        maxSize: OfflineSTT.MAX_BUFFER_SAMPLES,
+      });
+      // Force process current buffer before adding more
+      if (!this.isProcessing) {
+        this.processBufferedAudio();
+      }
+      return; // Drop this audio chunk if we're still processing
+    }
+
     this.audioBuffer.push(samples);
+    this.audioBufferSize += samples.length;
     this.setStatus(STTStatus.LISTENING);
     this.emit('speechStarted');
 
     // Process when we have enough audio (e.g., 1 second at 16kHz)
-    const totalSamples = this.audioBuffer.reduce((sum, buf) => sum + buf.length, 0);
-    if (totalSamples >= this.config.sampleRate! && !this.isProcessing) {
+    if (this.audioBufferSize >= this.config.sampleRate! && !this.isProcessing) {
       this.processBufferedAudio();
     }
   }
@@ -293,14 +327,16 @@ export class OfflineSTT extends EventEmitter implements STTProvider {
 
     try {
       // Combine all audio buffers
-      const totalLength = this.audioBuffer.reduce((sum, buf) => sum + buf.length, 0);
+      const totalLength = this.audioBufferSize;
       const combined = new Int16Array(totalLength);
       let offset = 0;
       for (const buf of this.audioBuffer) {
         combined.set(buf, offset);
         offset += buf.length;
       }
+      // Clear buffer and reset size counter
       this.audioBuffer = [];
+      this.audioBufferSize = 0;
 
       // Stub: In a real implementation, this would call whisper.cpp
       // For now, emit an empty result to show the interface works

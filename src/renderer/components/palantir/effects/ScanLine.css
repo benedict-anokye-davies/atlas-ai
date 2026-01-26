@@ -1,0 +1,93 @@
+/**
+ * ScanLine Styles - CRT monitor effect
+ */
+
+.scanline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 100;
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgba(0, 0, 0, 0.03) 50%
+  );
+  background-size: 100% 4px;
+}
+
+/* Intensity variants */
+.scanline--subtle {
+  opacity: 0.3;
+}
+
+.scanline--medium {
+  opacity: 0.5;
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgba(0, 0, 0, 0.05) 50%
+  );
+  background-size: 100% 3px;
+}
+
+.scanline--heavy {
+  opacity: 0.7;
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgba(0, 0, 0, 0.08) 50%
+  );
+  background-size: 100% 2px;
+}
+
+/* Animated scanline sweep */
+.scanline--animate::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(0, 212, 255, 0.1),
+    transparent
+  );
+  animation: scanline-sweep 8s linear infinite;
+}
+
+@keyframes scanline-sweep {
+  0% { transform: translateY(-100vh); }
+  100% { transform: translateY(100vh); }
+}
+
+/* Flicker effect */
+.scanline--animate::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 212, 255, 0.01);
+  animation: screen-flicker 0.15s infinite;
+  pointer-events: none;
+}
+
+@keyframes screen-flicker {
+  0% { opacity: 0.27; }
+  5% { opacity: 0.25; }
+  10% { opacity: 0.27; }
+  15% { opacity: 0.25; }
+  20% { opacity: 0.27; }
+  55% { opacity: 0.27; }
+  60% { opacity: 0.25; }
+  65% { opacity: 0.27; }
+  70% { opacity: 0.25; }
+  80% { opacity: 0.27; }
+  100% { opacity: 0.27; }
+}

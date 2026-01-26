@@ -1,0 +1,51 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Build directory
+/build/
+/tmp/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data directory (contains market data)
+/data/*.json
+
+# Logs
+*.log
+
+# Air tmp directory
+/tmp/
+
+# Vendor (if using)
+/vendor/
+
+# Coverage
+coverage.html
+coverage.out
+
+# Profiling
+*.pprof
+*.prof
+
+# Debug
+debug
+__debug_bin

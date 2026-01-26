@@ -32,7 +32,7 @@ vi.mock('fs', async (importOriginal) => {
 
 // Import after mocks
 import {
-  NovaError,
+  AtlasError,
   APIError,
   AudioError,
   ConfigError,
@@ -45,14 +45,14 @@ import {
 } from '../src/main/utils/errors';
 
 describe('Error Classes', () => {
-  it('should create NovaError with correct properties', () => {
-    const error = new NovaError('Test error', 'TEST_CODE', true, { key: 'value' });
-    
+  it('should create AtlasError with correct properties', () => {
+    const error = new AtlasError('Test error', 'TEST_CODE', true, { key: 'value' });
+
     expect(error.message).toBe('Test error');
     expect(error.code).toBe('TEST_CODE');
     expect(error.recoverable).toBe(true);
     expect(error.context).toEqual({ key: 'value' });
-    expect(error.name).toBe('NovaError');
+    expect(error.name).toBe('AtlasError');
   });
 
   it('should create APIError with service info', () => {

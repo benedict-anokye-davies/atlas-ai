@@ -1,0 +1,744 @@
+/**
+ * Atlas Desktop - Theme Customization Styles
+ * Comprehensive appearance settings UI
+ */
+
+/* ============================================================================
+   Overlay & Container
+   ============================================================================ */
+
+.theme-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.theme-container {
+  width: 90%;
+  max-width: 700px;
+  height: 85%;
+  max-height: 700px;
+  background: linear-gradient(135deg, rgba(30, 32, 40, 0.95), rgba(20, 22, 30, 0.98));
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 25px 50px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+
+.theme-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-icon {
+  width: 28px;
+  height: 28px;
+  color: #8b5cf6;
+}
+
+.header-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.save-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.save-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4);
+}
+
+.btn-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.close-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.close-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* ============================================================================
+   Tabs
+   ============================================================================ */
+
+.theme-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.2);
+  overflow-x: auto;
+}
+
+.theme-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.theme-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #9ca3af;
+}
+
+.theme-tab.active {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+}
+
+.tab-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================================
+   Content
+   ============================================================================ */
+
+.theme-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.theme-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.theme-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.theme-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* ============================================================================
+   Sections
+   ============================================================================ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  margin: 0;
+}
+
+.section-desc {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* ============================================================================
+   Mode Options (Theme Mode)
+   ============================================================================ */
+
+.mode-options {
+  display: flex;
+  gap: 12px;
+}
+
+.mode-option {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.mode-option.active {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.5);
+  color: #e5e7eb;
+}
+
+.mode-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.mode-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* ============================================================================
+   Sliders
+   ============================================================================ */
+
+.slider-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #d1d5db;
+}
+
+.slider-value {
+  color: #8b5cf6;
+  font-weight: 500;
+}
+
+.slider {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+  transition: transform 0.15s ease;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+/* ============================================================================
+   Toggle Rows
+   ============================================================================ */
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+}
+
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggle-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #e5e7eb;
+}
+
+.toggle-desc {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.toggle {
+  width: 48px;
+  height: 26px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 13px;
+  padding: 2px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.toggle.active {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+}
+
+.toggle-handle {
+  display: block;
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.toggle.active .toggle-handle {
+  transform: translateX(22px);
+}
+
+/* ============================================================================
+   Color Grid
+   ============================================================================ */
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.color-option {
+  position: relative;
+  height: 60px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+}
+
+.color-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.color-option.active {
+  border-color: #fff;
+}
+
+.check-icon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  color: #fff;
+}
+
+.color-name {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================================================
+   Custom Color
+   ============================================================================ */
+
+.custom-color-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.color-picker {
+  width: 50px;
+  height: 50px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 10px;
+}
+
+.color-input {
+  flex: 1;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: monospace;
+  color: #e5e7eb;
+  outline: none;
+}
+
+.color-input:focus {
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+/* ============================================================================
+   Color Preview
+   ============================================================================ */
+
+.color-preview {
+  padding: 24px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.preview-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.preview-label {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.preview-button {
+  padding: 10px 24px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.preview-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* ============================================================================
+   Orb Grid
+   ============================================================================ */
+
+.orb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+}
+
+.orb-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.orb-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.orb-option.active {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.orb-preview {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 30% 30%, rgba(139, 92, 246, 0.3), rgba(99, 102, 241, 0.1));
+}
+
+.orb-preview.default { background: radial-gradient(circle at 30% 30%, rgba(139, 92, 246, 0.4), rgba(99, 102, 241, 0.1)); }
+.orb-preview.minimal { background: rgba(255, 255, 255, 0.1); }
+.orb-preview.cosmic { background: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.5), rgba(236, 72, 153, 0.2)); }
+.orb-preview.neon { background: radial-gradient(circle at 30% 30%, rgba(34, 197, 94, 0.5), rgba(59, 130, 246, 0.2)); }
+.orb-preview.nature { background: radial-gradient(circle at 30% 30%, rgba(34, 197, 94, 0.4), rgba(16, 185, 129, 0.1)); }
+
+.orb-sphere {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.1));
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.orb-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.orb-desc {
+  font-size: 0.7rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+/* ============================================================================
+   Font Size Options
+   ============================================================================ */
+
+.font-size-options {
+  display: flex;
+  gap: 12px;
+}
+
+.font-size-option {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.font-size-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.font-size-option.active {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.font-preview {
+  color: #e5e7eb;
+  font-weight: 600;
+}
+
+.font-preview.small { font-size: 1.25rem; }
+.font-preview.medium { font-size: 1.5rem; }
+.font-preview.large { font-size: 1.75rem; }
+
+.font-label {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+/* ============================================================================
+   Font Family Options
+   ============================================================================ */
+
+.font-family-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.font-family-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.font-family-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.font-family-option.active {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.family-preview {
+  font-size: 0.95rem;
+  color: #e5e7eb;
+}
+
+.font-system { font-family: system-ui, -apple-system, sans-serif; }
+.font-inter { font-family: 'Inter', sans-serif; }
+.font-roboto { font-family: 'Roboto', sans-serif; }
+.font-mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+
+.family-label {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+/* ============================================================================
+   Reset Button
+   ============================================================================ */
+
+.reset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #f87171;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reset-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* ============================================================================
+   Responsive
+   ============================================================================ */
+
+@media (max-width: 700px) {
+  .theme-container {
+    width: 95%;
+    height: 90%;
+    border-radius: 16px;
+  }
+
+  .theme-tabs {
+    padding: 10px 14px;
+  }
+
+  .theme-tab {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+  }
+
+  .mode-options {
+    flex-direction: column;
+  }
+
+  .color-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .orb-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .font-size-options {
+    flex-wrap: wrap;
+  }
+}

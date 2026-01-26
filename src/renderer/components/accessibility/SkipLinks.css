@@ -1,0 +1,62 @@
+/**
+ * Skip Links Styles
+ * Accessible navigation skip links
+ */
+
+.skip-links {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10000;
+  width: 100%;
+  pointer-events: none;
+}
+
+.skip-links__list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px;
+  margin: 0;
+  list-style: none;
+}
+
+.skip-links__item {
+  margin: 0;
+}
+
+.skip-links__link {
+  position: absolute;
+  left: -9999px;
+  z-index: 10001;
+  padding: 12px 24px;
+  background-color: var(--color-background, #000);
+  color: var(--color-foreground, #fff);
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 3px solid var(--color-focus, #00ffff);
+  border-radius: 4px;
+  outline: none;
+  pointer-events: auto;
+  transition: none;
+}
+
+.skip-links__link:focus {
+  position: static;
+  left: auto;
+  outline: 3px solid var(--color-focus, #00ffff);
+  outline-offset: 2px;
+}
+
+/* High contrast mode */
+.high-contrast .skip-links__link {
+  background-color: #000;
+  color: #fff;
+  border-color: #ffff00;
+}
+
+.high-contrast .skip-links__link:focus {
+  outline-color: #ffff00;
+}

@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Semantic Search
+ * Atlas Desktop - Semantic Search
  * Advanced semantic search retrieval for the memory system
  */
 
@@ -7,6 +7,7 @@ import { EventEmitter } from 'events';
 import { createModuleLogger } from '../../utils/logger';
 import { getVectorStore, VectorSearchResult, VectorMetadata } from '../vector-store';
 import { getSemanticChunker } from '../semantic-chunker';
+import { clamp01 } from '../../../shared/utils';
 
 const logger = createModuleLogger('SemanticSearch');
 
@@ -325,7 +326,7 @@ export class SemanticSearchService extends EventEmitter {
       }
 
       // Normalize to 0-1
-      finalScore = Math.min(1, Math.max(0, finalScore));
+      finalScore = clamp01(finalScore);
 
       enhanced.push({
         result,

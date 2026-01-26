@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Topic Detector
+ * Atlas Desktop - Topic Detector
  * Detects topics and topic shifts in conversations
  */
 

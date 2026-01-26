@@ -1,0 +1,530 @@
+/**
+ * Atlas Desktop - Mobile Companion Settings Styles
+ */
+
+/* ============================================================================
+   Overlay & Container
+   ============================================================================ */
+
+.mobile-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.mobile-container {
+  width: 90%;
+  max-width: 540px;
+  max-height: 85vh;
+  background: linear-gradient(135deg, rgba(30, 32, 40, 0.98), rgba(20, 22, 28, 0.98));
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+
+.mobile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-icon {
+  width: 28px;
+  height: 28px;
+  color: #8b5cf6;
+}
+
+.header-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.close-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================================================
+   Content
+   ============================================================================ */
+
+.mobile-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.95rem;
+}
+
+/* ============================================================================
+   Sections
+   ============================================================================ */
+
+.section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.section-desc {
+  margin: 0 0 12px 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ============================================================================
+   Server Status
+   ============================================================================ */
+
+.server-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.status-indicator-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 100, 100, 0.6);
+  box-shadow: 0 0 12px rgba(255, 100, 100, 0.3);
+  transition: all 0.3s ease;
+}
+
+.status-dot.active {
+  background: #22c55e;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.5);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.1); }
+}
+
+.status-text {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #fff;
+}
+
+.power-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.power-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+}
+
+.power-btn.active {
+  background: rgba(255, 100, 100, 0.2);
+  color: #ff6b6b;
+}
+
+.power-btn.active:hover {
+  background: rgba(255, 100, 100, 0.3);
+  box-shadow: 0 4px 20px rgba(255, 100, 100, 0.3);
+}
+
+.power-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================================================
+   Connection Info
+   ============================================================================ */
+
+.connection-info {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.info-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.info-icon-wrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-icon {
+  width: 22px;
+  height: 22px;
+  color: #8b5cf6;
+}
+
+.port-icon {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #8b5cf6;
+}
+
+.info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.info-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.info-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  font-family: 'Monaco', 'Menlo', monospace;
+}
+
+/* ============================================================================
+   Pairing Code
+   ============================================================================ */
+
+.pairing-code-box {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 20px;
+}
+
+.pairing-code {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.code-digit {
+  width: 48px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(139, 92, 246, 0.1);
+  border: 2px solid rgba(139, 92, 246, 0.3);
+  border-radius: 10px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+  font-family: 'Monaco', 'Menlo', monospace;
+}
+
+.code-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.code-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.code-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.btn-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* ============================================================================
+   Devices
+   ============================================================================ */
+
+.no-devices {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.empty-icon {
+  width: 48px;
+  height: 48px;
+  color: rgba(255, 255, 255, 0.2);
+  margin-bottom: 12px;
+}
+
+.no-devices p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+.no-devices span {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 4px;
+}
+
+.device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.device-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.device-icon {
+  width: 32px;
+  height: 32px;
+  color: #8b5cf6;
+  flex-shrink: 0;
+}
+
+.device-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.device-name {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #fff;
+}
+
+.device-last-seen {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.disconnect-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 100, 100, 0.1);
+  color: rgba(255, 100, 100, 0.6);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.disconnect-btn:hover {
+  background: rgba(255, 100, 100, 0.2);
+  color: #ff6b6b;
+}
+
+.disconnect-btn .btn-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================================
+   Instructions
+   ============================================================================ */
+
+.instructions {
+  margin: 0;
+  padding-left: 20px;
+  list-style-type: decimal;
+}
+
+.instructions li {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 6px 0;
+  line-height: 1.5;
+}
+
+.instructions li::marker {
+  color: #8b5cf6;
+  font-weight: 600;
+}
+
+/* ============================================================================
+   Disabled State
+   ============================================================================ */
+
+.disabled-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 60px 40px;
+}
+
+.disabled-icon {
+  width: 64px;
+  height: 64px;
+  color: rgba(255, 255, 255, 0.15);
+  margin-bottom: 20px;
+}
+
+.disabled-info h3 {
+  margin: 0 0 12px 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.disabled-info p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.6;
+  max-width: 320px;
+}
+
+/* ============================================================================
+   Scrollbar
+   ============================================================================ */
+
+.mobile-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mobile-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mobile-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.mobile-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Vector Indexing
+ * Atlas Desktop - Vector Indexing
  * Manages vector indices for efficient retrieval
  */
 

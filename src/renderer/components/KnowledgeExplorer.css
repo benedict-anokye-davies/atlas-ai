@@ -1,0 +1,569 @@
+.knowledge-explorer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1e1e1e;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.explorer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #252526;
+  border-bottom: 1px solid #333;
+}
+
+.view-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #888;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.tab:hover {
+  background: #333;
+  color: #e0e0e0;
+}
+
+.tab.active {
+  background: #4a9eff;
+  color: #fff;
+}
+
+.badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  background: #fc5c65;
+  border-radius: 8px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.search-box input {
+  width: 220px;
+  padding: 8px 12px;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-size: 13px;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.loading-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.loading-state .spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #444;
+  border-top-color: #4a9eff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  color: #888;
+}
+
+.explorer-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Knowledge View */
+.knowledge-sidebar {
+  width: 320px;
+  background: #252526;
+  border-right: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+}
+
+.tag-filter {
+  padding: 12px 16px;
+  border-bottom: 1px solid #333;
+}
+
+.tag-filter h4 {
+  margin: 0 0 10px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #888;
+  letter-spacing: 0.5px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-btn {
+  padding: 4px 10px;
+  background: #333;
+  border: none;
+  border-radius: 12px;
+  color: #e0e0e0;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tag-btn:hover {
+  background: #444;
+}
+
+.tag-btn.active {
+  background: #4a9eff;
+  color: #fff;
+}
+
+.knowledge-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.knowledge-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.knowledge-item:hover {
+  background: #2a2a2a;
+}
+
+.knowledge-item.selected {
+  background: #333;
+}
+
+.item-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.item-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: #888;
+}
+
+.knowledge-detail {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.no-selection {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.node-type-badge {
+  padding: 4px 10px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.detail-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #fff;
+}
+
+.detail-content {
+  background: #252526;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.detail-content p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.tag {
+  padding: 4px 10px;
+  background: #333;
+  border-radius: 12px;
+  font-size: 11px;
+  color: #e0e0e0;
+}
+
+.detail-stats {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.progress-bar {
+  width: 100px;
+  height: 6px;
+  background: #333;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress {
+  height: 100%;
+  background: #4a9eff;
+  transition: width 0.3s;
+}
+
+.connected-nodes h4 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #888;
+}
+
+.connections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.connected-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #252526;
+  border: 1px solid #333;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.connected-item:hover {
+  background: #333;
+}
+
+.conn-title {
+  font-size: 13px;
+  color: #fff;
+}
+
+.conn-type {
+  font-size: 10px;
+  color: #888;
+  text-transform: uppercase;
+}
+
+/* Journal View */
+.journal-view {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.journal-entry {
+  background: #252526;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.entry-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.entry-mood {
+  font-size: 20px;
+}
+
+.entry-type {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #333;
+  border-radius: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #4a9eff;
+  margin-bottom: 8px;
+}
+
+.entry-summary {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #e0e0e0;
+}
+
+/* Insights View */
+.insights-view {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.empty-insights {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-insights p {
+  margin: 0;
+  color: #888;
+}
+
+.insight-card {
+  background: #252526;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border-left: 3px solid #4a9eff;
+}
+
+.insight-card.pattern {
+  border-left-color: #a55eea;
+}
+
+.insight-card.recommendation {
+  border-left-color: #26de81;
+}
+
+.insight-card.learning {
+  border-left-color: #fd9644;
+}
+
+.insight-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.insight-type {
+  padding: 2px 8px;
+  background: #333;
+  border-radius: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #4a9eff;
+}
+
+.dismiss-btn {
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.dismiss-btn:hover {
+  color: #fc5c65;
+}
+
+.insight-card h4 {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  color: #fff;
+}
+
+.insight-card p {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #e0e0e0;
+}
+
+.action-btn {
+  padding: 8px 16px;
+  background: #4a9eff;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.action-btn:hover {
+  background: #3a8eef;
+}
+
+/* Review View */
+.review-view {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.review-complete {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.complete-icon {
+  width: 60px;
+  height: 60px;
+  background: #26de81;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: #fff;
+  margin-bottom: 16px;
+}
+
+.review-complete p {
+  margin: 0;
+  color: #888;
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.review-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #fff;
+}
+
+.start-review-btn {
+  padding: 10px 20px;
+  background: #26de81;
+  border: none;
+  border-radius: 6px;
+  color: #1e1e1e;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.start-review-btn:hover {
+  background: #20ca74;
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.review-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #252526;
+  border-radius: 6px;
+}
+
+.review-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  min-width: 70px;
+}
+
+.review-title {
+  flex: 1;
+  font-size: 13px;
+  color: #fff;
+}
+
+.review-confidence {
+  font-size: 12px;
+  color: #888;
+}

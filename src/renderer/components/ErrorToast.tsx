@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Nova Desktop - Error Toast Component
  * User-friendly error notifications with actions

@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Vosk Speech-to-Text
+ * Atlas Desktop - Vosk Speech-to-Text
  * Offline speech recognition using Vosk for fallback when Deepgram is unavailable
  */
 
@@ -97,7 +97,7 @@ const DEFAULT_VOSK_CONFIG: Partial<VoskConfig> = {
   modelName: DEFAULT_VOSK_MODEL,
   modelsDir: path.join(
     process.env.HOME || process.env.USERPROFILE || '.',
-    '.nova',
+    '.atlas',
     'models',
     'vosk'
   ),
@@ -123,6 +123,10 @@ export class VoskSTT extends EventEmitter implements STTProvider {
   private model: any = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private recognizer: any = null;
+
+  // State tracking
+  private isClosing = false; // Prevent race conditions during shutdown
+  private isProcessing = false; // Track if audio processing is in progress
 
   // Transcription state
   private currentTranscript = '';
@@ -381,6 +385,8 @@ export class VoskSTT extends EventEmitter implements STTProvider {
     }
 
     this.setStatus(STTStatus.CONNECTING);
+    this.isClosing = false; // Reset closing flag
+    this.isProcessing = false;
     perfTimer.start('start');
 
     try {
@@ -434,8 +440,18 @@ export class VoskSTT extends EventEmitter implements STTProvider {
   async stop(): Promise<void> {
     logger.info('Stopping Vosk STT');
 
+    // Set closing flag FIRST to prevent new audio from being processed
+    this.isClosing = true;
     this.setStatus(STTStatus.CLOSED);
     this.emit('close');
+
+    // Wait for any in-progress processing to complete
+    // This is a simple spin-wait with a timeout
+    const maxWait = 1000; // 1 second max
+    const startWait = Date.now();
+    while (this.isProcessing && Date.now() - startWait < maxWait) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
 
     // Clean up recognizer
     if (this.recognizer) {
@@ -460,6 +476,7 @@ export class VoskSTT extends EventEmitter implements STTProvider {
     this.vosk = null;
     this.currentTranscript = '';
     this.lastFinalTranscript = '';
+    this.isProcessing = false;
 
     logger.info('Vosk STT stopped');
   }
@@ -468,10 +485,16 @@ export class VoskSTT extends EventEmitter implements STTProvider {
    * Send audio data to Vosk
    */
   sendAudio(audioData: Buffer | Int16Array): void {
-    if (!this.isReady()) {
-      logger.warn('Cannot send audio - not ready', { status: this._status });
+    // Check both ready state and closing flag to prevent race conditions
+    if (!this.isReady() || this.isClosing) {
+      if (!this.isClosing) {
+        logger.warn('Cannot send audio - not ready', { status: this._status });
+      }
       return;
     }
+
+    // Mark as processing to prevent stop() from destroying recognizer mid-process
+    this.isProcessing = true;
 
     try {
       this.setStatus(STTStatus.LISTENING);
@@ -484,13 +507,17 @@ export class VoskSTT extends EventEmitter implements STTProvider {
         samples = audioData as Int16Array;
       }
 
-      // Process audio through recognizer (with null check)
-      if (!this.recognizer) {
-        logger.warn('Recognizer not available');
+      // Double-check recognizer is still available (defensive check)
+      if (!this.recognizer || this.isClosing) {
         return;
       }
 
       const isComplete = this.recognizer.acceptWaveform(samples);
+
+      // Check again before accessing results (recognizer might have been freed)
+      if (!this.recognizer || this.isClosing) {
+        return;
+      }
 
       if (isComplete) {
         // Final result for this utterance
@@ -503,17 +530,23 @@ export class VoskSTT extends EventEmitter implements STTProvider {
       }
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      logger.error('Error processing audio', { error: err.message });
-      this.emit('error', err);
+      // Silently ignore errors during shutdown
+      if (!this.isClosing) {
+        logger.error('Error processing audio', { error: err.message });
+        this.emit('error', err);
+      }
+    } finally {
+      this.isProcessing = false;
     }
   }
 
   /**
    * Handle Vosk result
    */
-  private handleResult(jsonResult: string, isFinal: boolean): void {
+  private handleResult(jsonResult: string | object, isFinal: boolean): void {
     try {
-      const data = JSON.parse(jsonResult) as {
+      // Handle case where Vosk returns an object instead of a JSON string
+      let data: {
         text?: string;
         partial?: string;
         result?: Array<{
@@ -523,6 +556,12 @@ export class VoskSTT extends EventEmitter implements STTProvider {
           conf: number;
         }>;
       };
+      
+      if (typeof jsonResult === 'object') {
+        data = jsonResult as typeof data;
+      } else {
+        data = JSON.parse(jsonResult) as typeof data;
+      }
 
       const text = isFinal ? data.text : data.partial;
 
@@ -651,6 +690,7 @@ export class VoskSTT extends EventEmitter implements STTProvider {
     return (
       this.recognizer !== null &&
       this.model !== null &&
+      !this.isClosing &&
       (this._status === STTStatus.CONNECTED || this._status === STTStatus.LISTENING)
     );
   }

@@ -1,7 +1,7 @@
 /**
- * Nova Desktop - Agent System
+ * Atlas Desktop - Agent System
  *
- * Core agent implementation for the Nova AI assistant.
+ * Core agent implementation for the Atlas AI assistant.
  * Manages tool registration, execution, and action planning.
  *
  * Features:
@@ -17,7 +17,7 @@ import { EventEmitter } from 'events';
 import { createModuleLogger } from '../utils/logger';
 
 // Re-export types from shared to maintain backwards compatibility
-export { ActionResult, AgentTool } from '../../shared/types/agent';
+export type { ActionResult, AgentTool } from '../../shared/types/agent';
 import type { ActionResult, AgentTool } from '../../shared/types/agent';
 
 const logger = createModuleLogger('Agent');
@@ -56,7 +56,7 @@ export interface AgentConfig {
  * Default agent configuration
  */
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
-  name: 'Nova',
+  name: 'Atlas',
   persona: 'A helpful, friendly AI assistant focused on productivity and natural conversation.',
   capabilities: ['conversation', 'memory', 'file_system', 'code_execution'],
   maxActionsPerTurn: 5,

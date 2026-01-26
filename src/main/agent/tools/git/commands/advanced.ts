@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Advanced Git Commands
+ * Atlas Desktop - Advanced Git Commands
  * Implements: rebase, cherry-pick, stash, submodule, reset, revert
  */
 

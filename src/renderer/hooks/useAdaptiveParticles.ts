@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Nova Desktop - Adaptive Particles Hook
  * Auto-adjusts particle count based on FPS to maintain smooth performance
@@ -199,10 +200,7 @@ export function calculateReducedParticleCount(
 /**
  * Calculate reduction percentage to reach target count
  */
-export function calculateReductionPercent(
-  currentCount: number,
-  targetCount: number
-): number {
+export function calculateReductionPercent(currentCount: number, targetCount: number): number {
   if (targetCount >= currentCount) return 0;
   return Math.round(((currentCount - targetCount) / currentCount) * 100);
 }

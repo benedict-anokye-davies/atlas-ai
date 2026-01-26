@@ -1,9 +1,171 @@
 /**
- * Nova Desktop - STT Types
- * Speech-to-Text type definitions
+ * Atlas Desktop - STT Types
+ * Speech-to-Text type definitions with multi-language support
  */
 
 import { EventEmitter } from 'events';
+
+/**
+ * Supported languages for speech-to-text
+ * ISO 639-1 language codes with optional regional variants
+ */
+export type SupportedLanguage = 'en' | 'es' | 'fr' | 'de' | 'ja' | 'zh';
+
+/**
+ * Full language codes with regional variants
+ * Maps to provider-specific language codes
+ */
+export type LanguageCode =
+  | 'en-US'
+  | 'en-GB'
+  | 'en-AU'
+  | 'es-ES'
+  | 'es-MX'
+  | 'es-AR'
+  | 'fr-FR'
+  | 'fr-CA'
+  | 'de-DE'
+  | 'de-AT'
+  | 'ja-JP'
+  | 'zh-CN'
+  | 'zh-TW';
+
+/**
+ * Language metadata with display names and model info
+ */
+export interface LanguageInfo {
+  /** ISO 639-1 code (e.g., 'en') */
+  code: SupportedLanguage;
+  /** Full language code with region (e.g., 'en-US') */
+  fullCode: LanguageCode;
+  /** Display name in English */
+  name: string;
+  /** Display name in native language */
+  nativeName: string;
+  /** Deepgram language code */
+  deepgramCode: string;
+  /** Vosk model name for offline support */
+  voskModel: string;
+  /** Whether Vosk model is available */
+  voskAvailable: boolean;
+  /** RTL (right-to-left) language */
+  rtl?: boolean;
+}
+
+/**
+ * Supported languages configuration
+ * Maps language codes to their metadata
+ */
+export const SUPPORTED_LANGUAGES: Record<SupportedLanguage, LanguageInfo> = {
+  en: {
+    code: 'en',
+    fullCode: 'en-US',
+    name: 'English',
+    nativeName: 'English',
+    deepgramCode: 'en-US',
+    voskModel: 'vosk-model-small-en-us-0.15',
+    voskAvailable: true,
+  },
+  es: {
+    code: 'es',
+    fullCode: 'es-ES',
+    name: 'Spanish',
+    nativeName: 'Espanol',
+    deepgramCode: 'es',
+    voskModel: 'vosk-model-small-es-0.42',
+    voskAvailable: true,
+  },
+  fr: {
+    code: 'fr',
+    fullCode: 'fr-FR',
+    name: 'French',
+    nativeName: 'Francais',
+    deepgramCode: 'fr',
+    voskModel: 'vosk-model-small-fr-0.22',
+    voskAvailable: true,
+  },
+  de: {
+    code: 'de',
+    fullCode: 'de-DE',
+    name: 'German',
+    nativeName: 'Deutsch',
+    deepgramCode: 'de',
+    voskModel: 'vosk-model-small-de-0.15',
+    voskAvailable: true,
+  },
+  ja: {
+    code: 'ja',
+    fullCode: 'ja-JP',
+    name: 'Japanese',
+    nativeName: 'Nihongo',
+    deepgramCode: 'ja',
+    voskModel: 'vosk-model-small-ja-0.22',
+    voskAvailable: true,
+  },
+  zh: {
+    code: 'zh',
+    fullCode: 'zh-CN',
+    name: 'Chinese',
+    nativeName: 'Zhongwen',
+    deepgramCode: 'zh-CN',
+    voskModel: 'vosk-model-small-cn-0.22',
+    voskAvailable: true,
+  },
+};
+
+/**
+ * Language detection result
+ */
+export interface LanguageDetectionResult {
+  /** Detected language code */
+  language: SupportedLanguage;
+  /** Confidence score (0-1) */
+  confidence: number;
+  /** Alternative language candidates */
+  alternatives?: Array<{
+    language: SupportedLanguage;
+    confidence: number;
+  }>;
+}
+
+/**
+ * Language preference configuration
+ */
+export interface LanguagePreference {
+  /** Primary language for STT */
+  primary: SupportedLanguage;
+  /** Enable automatic language detection */
+  autoDetect: boolean;
+  /** Languages to consider for auto-detection (empty = all) */
+  detectLanguages?: SupportedLanguage[];
+  /** Minimum confidence for auto-detection switch */
+  detectionThreshold?: number;
+  /** Store detected language as new primary */
+  persistDetection?: boolean;
+}
+
+/**
+ * Default language preference
+ */
+export const DEFAULT_LANGUAGE_PREFERENCE: LanguagePreference = {
+  primary: 'en',
+  autoDetect: false,
+  detectLanguages: ['en', 'es', 'fr', 'de', 'ja', 'zh'],
+  detectionThreshold: 0.7,
+  persistDetection: false,
+};
+
+/**
+ * Voice command patterns for language switching
+ */
+export const LANGUAGE_SWITCH_COMMANDS: Record<SupportedLanguage, string[]> = {
+  en: ['switch to english', 'speak english', 'english please', 'use english'],
+  es: ['cambiar a espanol', 'habla espanol', 'espanol por favor', 'usa espanol'],
+  fr: ['passer au francais', 'parle francais', 'francais s\'il vous plait', 'utilise francais'],
+  de: ['wechsle zu deutsch', 'sprich deutsch', 'deutsch bitte', 'benutze deutsch'],
+  ja: ['nihongo ni shite', 'nihongo de hanashite', 'nihongo onegaishimasu'],
+  zh: ['qie huan dao zhong wen', 'shuo zhong wen', 'qing yong zhong wen'],
+};
 
 /**
  * Transcription result from STT provider

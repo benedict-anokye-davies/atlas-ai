@@ -1,0 +1,722 @@
+/**
+ * Atlas Desktop - Dashboard Widgets Styles
+ * Modern glass-morphism dashboard with widget cards
+ */
+
+/* ============================================================================
+   Overlay & Container
+   ============================================================================ */
+
+.dashboard-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.dashboard-container {
+  width: 90%;
+  max-width: 1200px;
+  height: 85%;
+  max-height: 800px;
+  background: linear-gradient(135deg, rgba(30, 32, 40, 0.95), rgba(20, 22, 30, 0.98));
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 25px 50px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dashboard-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-icon {
+  width: 28px;
+  height: 28px;
+  color: #8b5cf6;
+}
+
+.dashboard-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.add-widget-wrapper {
+  position: relative;
+}
+
+.add-widget-btn {
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.add-widget-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+}
+
+.add-widget-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: rgba(30, 32, 40, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 8px;
+  min-width: 180px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  animation: menuSlide 0.2s ease-out;
+}
+
+@keyframes menuSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.add-widget-menu button {
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #d1d5db;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.add-widget-menu button:hover {
+  background: rgba(139, 92, 246, 0.2);
+  color: #fff;
+}
+
+.close-dashboard-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.close-dashboard-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.close-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* ============================================================================
+   Widgets Grid
+   ============================================================================ */
+
+.widgets-grid {
+  flex: 1;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  overflow-y: auto;
+  align-content: start;
+}
+
+.widgets-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.widgets-grid::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+}
+
+.widgets-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.widgets-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* ============================================================================
+   Widget Card
+   ============================================================================ */
+
+.dashboard-widget {
+  background: linear-gradient(135deg, rgba(40, 42, 54, 0.8), rgba(30, 32, 40, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.dashboard-widget:hover {
+  border-color: rgba(139, 92, 246, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.dashboard-widget.size-small {
+  min-height: 180px;
+}
+
+.dashboard-widget.size-medium {
+  min-height: 240px;
+  grid-column: span 1;
+}
+
+.dashboard-widget.size-large {
+  min-height: 320px;
+  grid-column: span 2;
+}
+
+.widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.widget-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.widget-icon {
+  width: 18px;
+  height: 18px;
+  color: #8b5cf6;
+}
+
+.widget-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.widget-action-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.widget-action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #d1d5db;
+}
+
+.widget-action-btn.remove:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.widget-action-btn .action-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.widget-body {
+  padding: 16px;
+}
+
+.widget-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.widget-placeholder {
+  color: #6b7280;
+  text-align: center;
+  padding: 20px;
+}
+
+/* ============================================================================
+   Weather Widget
+   ============================================================================ */
+
+.weather-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.weather-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.weather-icon-large {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border-radius: 12px;
+}
+
+.weather-svg {
+  width: 28px;
+  height: 28px;
+  color: #fff;
+}
+
+.weather-temp {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+
+.weather-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.weather-condition {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #e5e7eb;
+}
+
+.weather-location {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.weather-stats {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+/* ============================================================================
+   Calendar Widget
+   ============================================================================ */
+
+.calendar-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.calendar-date {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.calendar-events {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.calendar-event {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 3px solid #6366f1;
+  border-radius: 0 8px 8px 0;
+  transition: background 0.2s ease;
+}
+
+.calendar-event:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.event-time {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  min-width: 70px;
+}
+
+.event-title {
+  font-size: 0.85rem;
+  color: #e5e7eb;
+  font-weight: 500;
+}
+
+.no-events {
+  color: #6b7280;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 20px;
+}
+
+/* ============================================================================
+   Study Widget
+   ============================================================================ */
+
+.study-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.study-streak {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.streak-fire {
+  font-size: 1.5rem;
+}
+
+.streak-count {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #f59e0b;
+}
+
+.streak-label {
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.study-stats-grid {
+  display: flex;
+  gap: 24px;
+}
+
+.study-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.study-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.study-goal {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+/* ============================================================================
+   System Widget
+   ============================================================================ */
+
+.system-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.system-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.stat-percent {
+  font-weight: 600;
+}
+
+.stat-percent.normal {
+  color: #22c55e;
+}
+
+.stat-percent.warning {
+  color: #f59e0b;
+}
+
+.stat-percent.critical {
+  color: #ef4444;
+}
+
+.stat-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stat-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.stat-fill.normal {
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+}
+
+.stat-fill.warning {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.stat-fill.critical {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+/* ============================================================================
+   Quick Actions Widget
+   ============================================================================ */
+
+.quick-actions-content {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.quick-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  color: #d1d5db;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quick-action-btn:hover {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.3);
+  transform: translateY(-2px);
+}
+
+.action-icon {
+  font-size: 1.25rem;
+}
+
+.action-label {
+  font-size: 0.7rem;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* ============================================================================
+   Goals Widget
+   ============================================================================ */
+
+.goals-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.goal-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.goal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.goal-title {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #e5e7eb;
+}
+
+.goal-progress {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.goal-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.goal-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6, #6366f1);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* ============================================================================
+   Responsive Design
+   ============================================================================ */
+
+@media (max-width: 900px) {
+  .dashboard-container {
+    width: 95%;
+    height: 90%;
+    border-radius: 16px;
+  }
+
+  .widgets-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .dashboard-widget.size-large {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 600px) {
+  .dashboard-header {
+    padding: 16px;
+  }
+
+  .dashboard-title {
+    font-size: 1.25rem;
+  }
+
+  .add-widget-btn {
+    padding: 8px 14px;
+    font-size: 0.85rem;
+  }
+
+  .widgets-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-actions-content {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

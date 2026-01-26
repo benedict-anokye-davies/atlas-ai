@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Clipboard Tool
+ * Atlas Desktop - Clipboard Tool
  * Read and write to the system clipboard
  */
 

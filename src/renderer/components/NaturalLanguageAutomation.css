@@ -1,0 +1,662 @@
+/**
+ * Atlas Desktop - Natural Language Automation Styles
+ */
+
+.nla-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.nla-container {
+  width: 95vw;
+  max-width: 800px;
+  height: 90vh;
+  max-height: 750px;
+  background: linear-gradient(
+    135deg,
+    rgba(20, 20, 30, 0.95) 0%,
+    rgba(15, 15, 25, 0.98) 100%
+  );
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px) scale(0.98); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) scale(1); 
+  }
+}
+
+/* Header */
+.nla-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nla-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nla-icon {
+  width: 26px;
+  height: 26px;
+  color: #f59e0b;
+}
+
+.nla-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.nla-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.nla-close svg {
+  width: 20px;
+  height: 20px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.nla-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nla-close:hover svg {
+  color: #fff;
+}
+
+/* Content */
+.nla-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+/* Input Section */
+.nla-input-section {
+  margin-bottom: 24px;
+}
+
+.nla-input-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.nla-input-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.nla-examples-btn {
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nla-examples-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* Examples */
+.nla-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(245, 158, 11, 0.05);
+  border-radius: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.1);
+}
+
+.nla-example {
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.nla-example:hover {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+}
+
+/* Input Container */
+.nla-input-container {
+  position: relative;
+}
+
+.nla-input {
+  width: 100%;
+  padding: 16px;
+  padding-right: 60px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 14px;
+  resize: none;
+  transition: all 0.2s ease;
+}
+
+.nla-input:focus {
+  outline: none;
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nla-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.nla-voice-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.nla-voice-btn svg {
+  width: 20px;
+  height: 20px;
+  color: #f59e0b;
+}
+
+.nla-voice-btn:hover {
+  background: rgba(245, 158, 11, 0.25);
+}
+
+.nla-voice-btn.listening {
+  animation: voicePulse 1s ease-in-out infinite;
+}
+
+@keyframes voicePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+  }
+}
+
+/* Preview */
+.nla-preview {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(245, 158, 11, 0.05);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 12px;
+}
+
+.nla-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.nla-preview-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f59e0b;
+}
+
+.nla-preview-confidence {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+}
+
+.nla-preview-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.nla-trigger-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.nla-trigger-value {
+  font-size: 14px;
+  color: #fff;
+  font-style: italic;
+}
+
+.nla-preview-actions {
+  margin-bottom: 16px;
+}
+
+.nla-actions-label {
+  display: block;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 8px;
+}
+
+.nla-preview-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
+.nla-preview-action svg {
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.nla-preview-action span {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.nla-create-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nla-create-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+/* Workflows Section */
+.nla-workflows-section {
+  margin-bottom: 24px;
+}
+
+.nla-workflows-section h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.nla-workflows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nla-empty {
+  padding: 40px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.nla-workflow {
+  position: relative;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nla-workflow:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.nla-workflow.selected {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.nla-workflow.disabled {
+  opacity: 0.5;
+}
+
+.nla-workflow-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.nla-workflow-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* Toggle */
+.nla-toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.nla-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.nla-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.1);
+  transition: 0.3s;
+  border-radius: 22px;
+}
+
+.nla-toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #fff;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.nla-toggle input:checked + .nla-toggle-slider {
+  background-color: #f59e0b;
+}
+
+.nla-toggle input:checked + .nla-toggle-slider:before {
+  transform: translateX(18px);
+}
+
+.nla-workflow-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+  margin-bottom: 8px;
+}
+
+.nla-workflow-trigger svg {
+  width: 12px;
+  height: 12px;
+  color: #f59e0b;
+}
+
+.nla-workflow-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.nla-delete-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 28px;
+  height: 28px;
+  background: rgba(239, 68, 68, 0.1);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.nla-workflow:hover .nla-delete-btn {
+  opacity: 1;
+}
+
+.nla-delete-btn svg {
+  width: 14px;
+  height: 14px;
+  color: #ef4444;
+}
+
+.nla-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Detail Panel */
+.nla-detail {
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+}
+
+.nla-detail h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.nla-detail-trigger {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 20px;
+}
+
+.nla-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.nla-detail-action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.nla-action-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+.nla-action-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.nla-action-icon.app {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.nla-action-icon.command {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+}
+
+.nla-action-icon.file {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.nla-action-icon.script {
+  background: rgba(236, 72, 153, 0.15);
+  color: #ec4899;
+}
+
+.nla-action-icon.notify {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.nla-action-icon.wait {
+  background: rgba(107, 114, 128, 0.15);
+  color: #9ca3af;
+}
+
+.nla-action-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.nla-action-type {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.nla-action-desc {
+  font-size: 14px;
+  color: #fff;
+}
+
+.nla-action-arrow {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+
+.nla-action-arrow svg {
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 255, 255, 0.2);
+}
+
+/* Scrollbar */
+.nla-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.nla-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nla-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.nla-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .nla-container {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .nla-examples {
+    flex-direction: column;
+  }
+
+  .nla-example {
+    width: 100%;
+  }
+}

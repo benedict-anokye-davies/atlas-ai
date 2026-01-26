@@ -1,0 +1,192 @@
+.pt-trading-view {
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.pt-trading-grid {
+  display: grid;
+  grid-template-columns: 250px 1fr 300px;
+  grid-template-rows: 1fr 300px;
+  gap: 16px;
+  height: 100%;
+  width: 100%;
+}
+
+/* Watchlist (Left, full height of top row) */
+.pt-watchlist-panel {
+  grid-column: 1 / 2;
+  grid-row: 1 / 2;
+  overflow: hidden;
+}
+
+/* Chart (Middle, top row) */
+.pt-chart-panel {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Account (Right, top row) */
+.pt-account-panel {
+  grid-column: 3 / 4;
+  grid-row: 1 / 2;
+}
+
+/* Positions (Bottom spans all columns) */
+.pt-positions-panel {
+  grid-column: 1 / 4;
+  grid-row: 2 / 3;
+}
+
+/* Internal Component Styling */
+
+.pt-header-controls {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.pt-control-btn {
+  background: transparent;
+  border: 1px solid var(--pt-border);
+  color: var(--pt-text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 8px;
+}
+
+.pt-control-btn.active {
+  background: var(--pt-grid-line);
+  color: var(--pt-accent);
+  border-color: var(--pt-accent);
+}
+
+.pt-chart-container {
+  flex: 1;
+  position: relative;
+  border-top: 1px solid var(--pt-border);
+  background: 
+    linear-gradient(rgba(0, 255, 170, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 170, 0.02) 1px, transparent 1px);
+  background-size: 20px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pt-chart-placeholder {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pt-chart-overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
+
+.pt-chart-value {
+  font-size: 24px;
+  color: var(--pt-text);
+  margin-bottom: 4px;
+}
+
+.pt-chart-status {
+  font-size: 10px;
+  color: var(--pt-accent);
+  font-family: 'JetBrains Mono', monospace;
+  animation: pt-pulse 2s infinite;
+}
+
+.pt-order-entry {
+  height: 80px;
+  border-top: 1px solid var(--pt-border);
+  background: rgba(0,0,0,0.3);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pt-order-header {
+  font-size: 10px;
+  color: var(--pt-text-muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.pt-order-grid {
+  display: flex;
+  gap: 8px;
+}
+
+.pt-btn-buy, .pt-btn-sell, .pt-btn-submit {
+  flex: 1;
+  height: 30px;
+  border: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pt-btn-buy {
+  background: rgba(0, 255, 170, 0.1);
+  color: var(--pt-accent);
+  border: 1px solid var(--pt-accent);
+}
+
+.pt-btn-sell {
+  background: rgba(255, 50, 50, 0.1);
+  color: #ff3333;
+  border: 1px solid #ff3333;
+}
+
+.pt-input {
+  background: transparent;
+  border: 1px solid var(--pt-border);
+  color: var(--pt-text);
+  font-family: 'JetBrains Mono', monospace;
+  padding: 0 8px;
+  width: 80px;
+  text-align: right;
+}
+
+.pt-btn-submit {
+  background: var(--pt-accent);
+  color: #000;
+  width: 100%;
+}
+
+.pt-metric-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.pt-label {
+  color: var(--pt-text-muted);
+}
+
+.pt-empty-state {
+  padding: 40px;
+  text-align: center;
+  color: var(--pt-text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+@keyframes pt-pulse {
+  0% { opacity: 0.7; }
+  50% { opacity: 1; }
+  100% { opacity: 0.7; }
+}

@@ -8,6 +8,7 @@
 
 import { createModuleLogger } from './logger';
 import { getProfiler, PERFORMANCE_TARGETS } from './performance-profiler';
+import { getErrorMessage } from '../../shared/utils';
 
 const logger = createModuleLogger('connection-warmup');
 
@@ -59,6 +60,20 @@ function getServiceEndpoints(): ServiceEndpoint[] {
       method: 'GET',
       headers: {
         'xi-api-key': process.env.ELEVENLABS_API_KEY,
+      },
+      timeout: 5000,
+    });
+  }
+
+  // Cartesia - verify connectivity (fastest TTS ~90ms)
+  if (process.env.CARTESIA_API_KEY) {
+    endpoints.push({
+      name: 'cartesia',
+      url: 'https://api.cartesia.ai/voices',
+      method: 'GET',
+      headers: {
+        'X-API-Key': process.env.CARTESIA_API_KEY,
+        'Cartesia-Version': '2024-06-10',
       },
       timeout: 5000,
     });
@@ -134,7 +149,7 @@ async function warmupEndpoint(endpoint: ServiceEndpoint): Promise<WarmupResult> 
     }
   } catch (error) {
     const latency = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage = getErrorMessage(error, 'Unknown error');
 
     profiler.endMeasure(measureId, {
       service: endpoint.name,

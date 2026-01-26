@@ -1,0 +1,446 @@
+/**
+ * Atlas Desktop - Accessibility Styles
+ * Global accessibility styles following WCAG 2.1 AA guidelines
+ */
+
+/* ============================================================================
+   Screen Reader Only Utilities
+   ============================================================================ */
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.sr-only-focusable:focus,
+.sr-only-focusable:active {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  padding: inherit !important;
+  margin: inherit !important;
+  overflow: visible !important;
+  clip: auto !important;
+  white-space: normal !important;
+}
+
+/* ============================================================================
+   Focus Indicators
+   ============================================================================ */
+
+/* Default focus style for keyboard navigation */
+.keyboard-navigation *:focus {
+  outline: 2px solid var(--color-focus, #00ffff) !important;
+  outline-offset: 2px !important;
+}
+
+/* Enhanced focus indicators */
+.enhanced-focus *:focus {
+  outline: 3px solid var(--color-focus, #00ffff) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 6px rgba(0, 255, 255, 0.3) !important;
+}
+
+/* Focus visible only (modern browsers) */
+.keyboard-navigation *:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.keyboard-navigation *:focus-visible {
+  outline: 2px solid var(--color-focus, #00ffff) !important;
+  outline-offset: 2px !important;
+}
+
+/* Interactive elements focus */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-focus, #00ffff);
+  outline-offset: 2px;
+}
+
+/* ============================================================================
+   Reduced Motion
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.reduced-motion *,
+.reduced-motion *::before,
+.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ============================================================================
+   High Contrast Mode
+   ============================================================================ */
+
+/* System high contrast mode (Windows) */
+@media (forced-colors: active) {
+  * {
+    forced-color-adjust: none;
+  }
+
+  /* Ensure text is visible */
+  body {
+    color: CanvasText;
+    background-color: Canvas;
+  }
+
+  /* Buttons and links */
+  button,
+  a {
+    color: LinkText;
+    background-color: Canvas;
+    border: 1px solid ButtonBorder;
+  }
+
+  button:hover,
+  a:hover {
+    background-color: Highlight;
+    color: HighlightText;
+  }
+
+  /* Focus indicators */
+  *:focus {
+    outline: 3px solid Highlight !important;
+    outline-offset: 2px !important;
+  }
+
+  /* Form elements */
+  input,
+  select,
+  textarea {
+    border: 2px solid ButtonBorder;
+    background-color: Field;
+    color: FieldText;
+  }
+}
+
+/* Application high contrast mode (dark) */
+.high-contrast {
+  --color-background: #000000;
+  --color-foreground: #ffffff;
+  --color-accent: #00ffff;
+  --color-focus: #ffff00;
+  --color-error: #ff6b6b;
+  --color-success: #00ff00;
+  --color-warning: #ffd700;
+  --color-border: #ffffff;
+  --color-muted: #808080;
+}
+
+.high-contrast body,
+.high-contrast .atlas-app {
+  background-color: var(--color-background) !important;
+  color: var(--color-foreground) !important;
+}
+
+.high-contrast button,
+.high-contrast a {
+  color: var(--color-accent) !important;
+  background-color: transparent !important;
+  border: 2px solid var(--color-accent) !important;
+}
+
+.high-contrast button:hover,
+.high-contrast a:hover {
+  background-color: var(--color-accent) !important;
+  color: var(--color-background) !important;
+}
+
+.high-contrast button:focus,
+.high-contrast a:focus {
+  outline: 3px solid var(--color-focus) !important;
+  outline-offset: 2px !important;
+}
+
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea {
+  border: 2px solid var(--color-foreground) !important;
+  background-color: var(--color-background) !important;
+  color: var(--color-foreground) !important;
+}
+
+.high-contrast input:focus,
+.high-contrast select:focus,
+.high-contrast textarea:focus {
+  border-color: var(--color-focus) !important;
+  outline: 2px solid var(--color-focus) !important;
+}
+
+/* High contrast status indicators */
+.high-contrast .atlas-status {
+  border: 2px solid var(--color-foreground);
+}
+
+.high-contrast .atlas-status-listening {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.high-contrast .atlas-status-thinking {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.high-contrast .atlas-status-speaking {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.high-contrast .atlas-status-error {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+/* ============================================================================
+   Font Scaling
+   ============================================================================ */
+
+/* Base font size is controlled by the provider via html element */
+/* These are relative adjustments */
+
+.font-scale-small {
+  font-size: 0.875em;
+}
+
+.font-scale-large {
+  font-size: 1.25em;
+}
+
+.font-scale-xlarge {
+  font-size: 1.5em;
+}
+
+/* Ensure minimum tap/click target size (44x44px per WCAG) */
+button,
+a,
+[role="button"],
+input[type="checkbox"],
+input[type="radio"] {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* ============================================================================
+   Link Styling (Distinguishable)
+   ============================================================================ */
+
+/* Links must be distinguishable without relying solely on color */
+a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+a:hover,
+a:focus {
+  text-decoration-thickness: 2px;
+}
+
+/* ============================================================================
+   Error States
+   ============================================================================ */
+
+/* Errors should not rely solely on color */
+.error,
+[aria-invalid="true"] {
+  border-color: var(--color-error, #ff6b6b) !important;
+}
+
+.error::before,
+[aria-invalid="true"]::before {
+  content: "!";
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  font-weight: bold;
+  text-align: center;
+  background-color: var(--color-error, #ff6b6b);
+  color: white;
+  border-radius: 50%;
+}
+
+/* ============================================================================
+   Loading/Processing States
+   ============================================================================ */
+
+/* Ensure loading states are announced */
+[aria-busy="true"] {
+  cursor: wait;
+}
+
+[aria-busy="true"]::after {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-left: 8px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.reduced-motion [aria-busy="true"]::after {
+  animation: none;
+  content: "...";
+  border: none;
+}
+
+/* ============================================================================
+   Dialog/Modal Accessibility
+   ============================================================================ */
+
+[role="dialog"],
+[role="alertdialog"] {
+  position: fixed;
+  z-index: 1000;
+}
+
+[role="dialog"][aria-modal="true"],
+[role="alertdialog"][aria-modal="true"] {
+  /* Ensure modal is in front */
+}
+
+/* Overlay for modals - blocks interaction with background */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+.high-contrast .modal-overlay {
+  background-color: rgba(0, 0, 0, 0.9);
+}
+
+/* ============================================================================
+   Tables Accessibility
+   ============================================================================ */
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 8px;
+  border: 1px solid var(--color-border, #333);
+  text-align: left;
+}
+
+th {
+  background-color: var(--color-background-secondary, #111);
+  font-weight: bold;
+}
+
+/* ============================================================================
+   Form Accessibility
+   ============================================================================ */
+
+label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+/* Required field indicator */
+label[data-required]::after {
+  content: " *";
+  color: var(--color-error, #ff6b6b);
+}
+
+/* Error message styling */
+.field-error {
+  color: var(--color-error, #ff6b6b);
+  font-size: 0.875em;
+  margin-top: 4px;
+}
+
+/* Success message styling */
+.field-success {
+  color: var(--color-success, #00ff00);
+  font-size: 0.875em;
+  margin-top: 4px;
+}
+
+/* ============================================================================
+   Live Region Containers
+   ============================================================================ */
+
+[aria-live] {
+  /* Ensure live regions don't affect layout when empty */
+}
+
+[aria-live="polite"],
+[aria-live="assertive"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ============================================================================
+   Caption/Subtitle Styles
+   ============================================================================ */
+
+.captions {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 80%;
+  padding: 12px 24px;
+  background-color: rgba(0, 0, 0, 0.85);
+  color: #ffffff;
+  font-size: 1.125em;
+  text-align: center;
+  border-radius: 8px;
+  z-index: 100;
+}
+
+.captions--hidden {
+  display: none;
+}
+
+.high-contrast .captions {
+  background-color: #000000;
+  border: 2px solid #ffffff;
+}

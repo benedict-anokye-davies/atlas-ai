@@ -1,0 +1,494 @@
+/**
+ * ModelSelector Styles
+ * 
+ * Styles for the local model selector component with
+ * clean, modern design matching the wellness panel aesthetic.
+ */
+
+/* Overlay */
+.model-selector-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Panel */
+.model-selector {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Header */
+.model-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.model-selector-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-selector-header h2::before {
+  content: '🤖';
+}
+
+.model-selector-close {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.model-selector-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* Status Banner */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.status-connected .status-indicator {
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+}
+
+.status-disconnected .status-indicator {
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.status-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  flex: 1;
+}
+
+.status-refresh {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.status-refresh:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.status-link {
+  color: #60a5fa;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.status-link:hover {
+  text-decoration: underline;
+}
+
+/* Filters */
+.model-filters {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.filter-tab {
+  background: none;
+  border: none;
+  color: #888;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.filter-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+
+.filter-tab.active {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+
+.model-search {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #fff;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.model-search:focus {
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
+.model-search::placeholder {
+  color: #666;
+}
+
+/* Content */
+.model-selector-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+}
+
+/* Loading & Error */
+.model-loading,
+.model-error,
+.no-models {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px;
+  color: #888;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.model-error button {
+  background: #60a5fa;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* Model List */
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Model Card */
+.model-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.model-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.model-card-installed {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.model-card-default {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.model-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.model-info {
+  flex: 1;
+}
+
+.model-name {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.default-badge {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+
+.model-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #888;
+}
+
+.model-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Model Actions */
+.model-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.model-btn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.model-btn-primary {
+  background: #22c55e;
+  color: #fff;
+}
+
+.model-btn-primary:hover {
+  background: #16a34a;
+}
+
+.model-btn-download {
+  background: #60a5fa;
+  color: #fff;
+  min-width: 90px;
+}
+
+.model-btn-download:hover {
+  background: #3b82f6;
+}
+
+.model-btn-download:disabled {
+  background: rgba(96, 165, 250, 0.5);
+  cursor: default;
+}
+
+.model-btn-icon {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px;
+}
+
+.model-btn-icon:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.model-btn-danger {
+  background: rgba(239, 68, 68, 0.2);
+  padding: 8px;
+}
+
+.model-btn-danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+/* Download Progress */
+.download-progress {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  margin: 12px 0 8px;
+  overflow: hidden;
+}
+
+.download-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #60a5fa, #22c55e);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Capabilities */
+.model-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.capability-badge {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ccc;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Model Details */
+.model-details {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.detail-label {
+  color: #888;
+  font-size: 12px;
+}
+
+.detail-value {
+  color: #fff;
+  font-size: 12px;
+}
+
+.detail-value.code {
+  font-family: 'Fira Code', monospace;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Footer */
+.model-selector-footer {
+  padding: 16px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.footer-hint {
+  font-size: 12px;
+  color: #888;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .model-selector {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .model-filters {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .filter-tabs {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .model-search {
+    width: 100%;
+  }
+  
+  .model-card-header {
+    flex-direction: column;
+  }
+  
+  .model-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

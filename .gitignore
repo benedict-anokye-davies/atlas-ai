@@ -61,3 +61,22 @@ venv/
 *.pv
 *.onnx
 models/
+
+# AI/Development artifacts (not for public repo)
+.claude/
+.claude-multi/
+.atlas/
+.ralph-tui/
+.github/copilot-instructions.md
+docs/session/
+tasks/
+
+# Random documents (cleanup)
+*.docx
+*.pdf
+*.png
+TikTok Videos Analysis.md
+Atlas Desktop - Implementation Plan*.md
+progress.txt
+START_NOW.txt
+TERMINAL_DASHBOARD.txt

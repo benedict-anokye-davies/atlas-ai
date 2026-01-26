@@ -1,0 +1,192 @@
+/**
+ * Atlas Desktop - Status Bar Styles
+ * Compact information-dense bottom bar
+ */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 12px;
+  background: var(--atlas-bg-sunken);
+  border-top: 1px solid var(--atlas-border);
+  font-size: 11px;
+  color: var(--atlas-text-tertiary);
+  user-select: none;
+}
+
+/* Sections */
+.status-bar__section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-bar__left {
+  flex: 1;
+}
+
+.status-bar__center {
+  flex: 2;
+  justify-content: center;
+}
+
+.status-bar__right {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+/* Individual items */
+.status-bar__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: transparent;
+  border: none;
+  border-radius: var(--atlas-radius-sm);
+  color: inherit;
+  cursor: default;
+  transition: all var(--atlas-transition-fast);
+}
+
+button.status-bar__item {
+  cursor: pointer;
+}
+
+button.status-bar__item:hover {
+  background: var(--atlas-bg-hover);
+  color: var(--atlas-text-secondary);
+}
+
+/* Dot indicator */
+.status-bar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--atlas-text-tertiary);
+}
+
+/* Connection states */
+.status-bar__connection--online .status-bar__dot {
+  background: var(--atlas-accent-green);
+  box-shadow: 0 0 4px var(--atlas-accent-green);
+}
+
+.status-bar__connection--offline .status-bar__dot {
+  background: var(--atlas-accent-red);
+  box-shadow: 0 0 4px var(--atlas-accent-red);
+}
+
+.status-bar__connection--connecting .status-bar__dot {
+  background: var(--atlas-accent-amber);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Voice states */
+.status-bar__voice--listening {
+  color: var(--atlas-accent-cyan);
+}
+
+.status-bar__voice--thinking {
+  color: var(--atlas-accent-purple);
+}
+
+.status-bar__voice--speaking {
+  color: var(--atlas-accent-green);
+}
+
+/* Icon container */
+.status-bar__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+
+.status-bar__icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Label */
+.status-bar__label {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* Performance metrics */
+.status-bar__performance {
+  font-family: var(--atlas-font-mono);
+  font-size: 10px;
+}
+
+.status-bar__metric {
+  min-width: 55px;
+  text-align: right;
+}
+
+.status-bar__separator {
+  color: var(--atlas-border);
+  margin: 0 2px;
+}
+
+/* Date & Time */
+.status-bar__datetime {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 12px;
+  border-left: 1px solid var(--atlas-border);
+}
+
+.status-bar__date {
+  color: var(--atlas-text-tertiary);
+}
+
+.status-bar__time {
+  font-weight: 600;
+  color: var(--atlas-text-secondary);
+  font-family: var(--atlas-font-mono);
+}
+
+/* Provider badge */
+.status-bar__provider {
+  padding: 2px 6px;
+  background: var(--atlas-bg-hover);
+  border-radius: var(--atlas-radius-sm);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .status-bar__center {
+    display: none;
+  }
+  
+  .status-bar__date {
+    display: none;
+  }
+  
+  .status-bar__performance .status-bar__metric:nth-child(3),
+  .status-bar__performance .status-bar__separator:nth-child(4),
+  .status-bar__performance .status-bar__metric:nth-child(5) {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .status-bar__provider {
+    display: none;
+  }
+  
+  .status-bar__performance {
+    display: none;
+  }
+}

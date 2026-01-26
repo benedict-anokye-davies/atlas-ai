@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Context Builder
+ * Atlas Desktop - Context Builder
  * Assembles intelligent context from conversation history, memories, and preferences
  * for LLM prompts
  */
@@ -7,9 +7,8 @@
 import { EventEmitter } from 'events';
 import { createModuleLogger } from '../utils/logger';
 import { ChatMessage } from '../../shared/types/llm';
-import { getSemanticChunker, SemanticChunk } from './semantic-chunker';
-import { getImportanceScorer, ScoredMemory, ConsolidationLevel } from './importance-scorer';
-import { getPreferenceLearner, LearnedPreference } from './preference-learner';
+import { getSemanticChunker } from './semantic-chunker';
+import { getPreferenceLearner } from './preference-learner';
 import { getMemoryManager } from './index';
 
 const logger = createModuleLogger('ContextBuilder');
@@ -367,7 +366,6 @@ export class ContextBuilder extends EventEmitter {
   async buildContext(options?: ContextOptions): Promise<AssembledContext> {
     const opts = { ...DEFAULT_OPTIONS, ...options };
     const parts: string[] = [];
-    let truncated = false;
 
     const debug = {
       recentTurnsIncluded: 0,
@@ -446,7 +444,6 @@ export class ContextBuilder extends EventEmitter {
       systemContext.length + conversationHistory.reduce((acc, m) => acc + m.content.length, 0);
 
     if (totalLength > opts.maxLength) {
-      truncated = true;
       debug.truncated = true;
       logger.debug('Context truncated', {
         totalLength,

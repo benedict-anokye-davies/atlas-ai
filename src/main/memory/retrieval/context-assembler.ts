@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Context Assembler
+ * Atlas Desktop - Context Assembler
  * Assembles relevant context from semantic search results
  */
 

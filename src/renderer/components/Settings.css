@@ -218,11 +218,49 @@
 .settings-toggle {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .settings-toggle .settings-label {
   margin-bottom: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.settings-description {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 400;
+}
+
+.toggle-button {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 60px;
+}
+
+.toggle-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.toggle-button.active {
+  background: #00ff88;
+  border-color: #00ff88;
+  color: #000;
+}
+
+.toggle-button.active:hover {
+  background: #00dd77;
+  border-color: #00dd77;
 }
 
 .toggle-switch {
@@ -418,4 +456,412 @@
 .service-cost {
   color: #6366f1;
   font-family: monospace;
+}
+
+/* Microphone Test (040-B) */
+.settings-mic-test {
+  padding: 0.75rem 0;
+}
+
+.mic-test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.mic-test-button {
+  background: rgba(99, 102, 241, 0.2);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mic-test-button:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.3);
+}
+
+.mic-test-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.mic-test-button.testing {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.3);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.mic-level-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mic-level-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #84cc16);
+  border-radius: 4px;
+  transition: width 0.05s ease-out;
+}
+
+.mic-test-hint {
+  display: block;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+.device-error {
+  display: block;
+  color: #ef4444;
+  font-size: 0.75rem;
+  text-align: center;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 6px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Text Input (040-C) */
+.settings-text-input {
+  padding: 0.5rem 0;
+}
+
+.settings-input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: white;
+  font-size: 0.9rem;
+  margin-top: 0.4rem;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+
+.settings-input:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.5);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.settings-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.settings-description {
+  display: block;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  margin-top: 0.3rem;
+}
+
+/* Action Buttons (040-C) */
+.settings-actions {
+  padding-top: 0.5rem;
+}
+
+.settings-action-button {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid;
+}
+
+.settings-action-button.danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.settings-action-button.danger:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* ============================================================================
+ * Shortcut Settings Styles (Session 047-B)
+ * ============================================================================ */
+
+.shortcut-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.shortcut-settings-loading,
+.shortcut-settings-error {
+  padding: 1rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}
+
+.shortcut-settings-error {
+  color: #ef4444;
+}
+
+/* Global Toggle */
+.shortcut-global-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.shortcut-global-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.shortcut-global-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #fff;
+}
+
+.shortcut-global-description {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Shortcut Categories */
+.shortcut-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.shortcut-category {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.shortcut-category-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
+  padding-left: 0.25rem;
+}
+
+.shortcut-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Shortcut Row */
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+
+.shortcut-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.shortcut-row.disabled {
+  opacity: 0.5;
+}
+
+.shortcut-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.shortcut-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #fff;
+}
+
+.shortcut-description {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shortcut-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Key Capture Input */
+.shortcut-key-input {
+  min-width: 100px;
+  padding: 0.4rem 0.6rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.75rem;
+  font-family: monospace;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.shortcut-key-input:hover:not(.disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.shortcut-key-input:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.shortcut-key-input.capturing {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: #6366f1;
+  animation: pulse 1s infinite;
+}
+
+.shortcut-key-input.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.capture-prompt {
+  color: #6366f1;
+  font-style: italic;
+}
+
+.shortcut-display {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Reset Button */
+.shortcut-reset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.shortcut-reset-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.shortcut-reset-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Toggle Switch */
+.shortcut-toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.shortcut-toggle .toggle-track {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.shortcut-toggle.active .toggle-track {
+  background: #6366f1;
+}
+
+.shortcut-toggle .toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.shortcut-toggle.active .toggle-thumb {
+  transform: translateX(16px);
+}
+
+.shortcut-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.shortcut-toggle.global .toggle-track {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.shortcut-toggle.global.active .toggle-track {
+  background: #22c55e;
+}
+
+/* Help Text */
+.shortcut-help {
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.35);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 0.5rem;
 }

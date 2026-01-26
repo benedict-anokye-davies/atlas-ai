@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - API Cost Tracker
+ * Atlas Desktop - API Cost Tracker
  * Tracks API usage costs and enforces budget limits
  */
 
@@ -8,6 +8,7 @@ import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createModuleLogger } from './logger';
+import { isoDate } from '../../shared/utils';
 
 const logger = createModuleLogger('CostTracker');
 
@@ -26,11 +27,11 @@ export const API_COSTS = {
     perCharacter: 0.0003, // $0.30 / 1000
     perThousandChars: 0.3,
   },
-  // Fireworks AI - ~$0.20 per 1M tokens (varies by model)
+  // Fireworks AI - GLM-4.7 Thinking premium tier (~$0.60-$2.00 per 1M tokens)
   fireworks: {
-    perInputToken: 0.0000002, // $0.20 / 1M
-    perOutputToken: 0.0000008, // $0.80 / 1M (output typically costs more)
-    perThousandTokens: 0.0002,
+    perInputToken: 0.0000006, // $0.60 / 1M (GLM-4.7 Thinking input)
+    perOutputToken: 0.000002, // $2.00 / 1M (GLM-4.7 Thinking output with reasoning)
+    perThousandTokens: 0.0006,
   },
   // OpenRouter - varies by model, using average estimate
   openrouter: {
@@ -103,6 +104,7 @@ export class CostTracker extends EventEmitter {
   private config: CostTrackerConfig;
   private dailyUsage: DailyUsage;
   private saveTimer: ReturnType<typeof setInterval> | null = null;
+  private isDestroyed: boolean = false;
 
   constructor(config: Partial<CostTrackerConfig> = {}) {
     super();
@@ -133,7 +135,7 @@ export class CostTracker extends EventEmitter {
    * Create empty daily usage object
    */
   private createEmptyDailyUsage(): DailyUsage {
-    const today = new Date().toISOString().split('T')[0];
+    const today = isoDate();
     return {
       date: today,
       totalCost: 0,
@@ -153,7 +155,7 @@ export class CostTracker extends EventEmitter {
    * Check if we need to reset for a new day
    */
   private checkDayReset(): void {
-    const today = new Date().toISOString().split('T')[0];
+    const today = isoDate();
     if (this.dailyUsage.date !== today) {
       logger.info('Daily reset', { previousDate: this.dailyUsage.date, newDate: today });
       this.saveUsage(); // Save previous day
@@ -354,7 +356,7 @@ export class CostTracker extends EventEmitter {
    * Save usage to disk
    */
   saveUsage(): void {
-    if (!this.config.persistPath) return;
+    if (!this.config.persistPath || this.isDestroyed) return;
 
     try {
       const dir = path.dirname(this.config.persistPath);
@@ -376,9 +378,15 @@ export class CostTracker extends EventEmitter {
           2
         )
       );
-      logger.debug('Usage saved to disk');
+      // Only log if not destroyed (logger may be closed)
+      if (!this.isDestroyed) {
+        logger.debug('Usage saved to disk');
+      }
     } catch (error) {
-      logger.error('Failed to save usage', { error });
+      // Only log if not destroyed
+      if (!this.isDestroyed) {
+        logger.error('Failed to save usage', { error });
+      }
     }
   }
 
@@ -390,7 +398,7 @@ export class CostTracker extends EventEmitter {
 
     try {
       const data = JSON.parse(fs.readFileSync(this.config.persistPath, 'utf-8'));
-      const today = new Date().toISOString().split('T')[0];
+      const today = isoDate();
 
       // Only restore if same day
       if (data.dailyUsage && data.dailyUsage.date === today) {
@@ -419,11 +427,40 @@ export class CostTracker extends EventEmitter {
    * Cleanup
    */
   destroy(): void {
+    // Mark as destroyed first to prevent timer callbacks from logging
+    this.isDestroyed = true;
+
     if (this.saveTimer) {
       clearInterval(this.saveTimer);
       this.saveTimer = null;
     }
-    this.saveUsage();
+
+    // Save usage without logging (logger may be closed)
+    if (this.config.persistPath) {
+      try {
+        const dir = path.dirname(this.config.persistPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(
+          this.config.persistPath,
+          JSON.stringify(
+            {
+              dailyUsage: this.dailyUsage,
+              config: {
+                dailyBudget: this.config.dailyBudget,
+                warningThreshold: this.config.warningThreshold,
+              },
+            },
+            null,
+            2
+          )
+        );
+      } catch {
+        // Silently fail during shutdown - logger may be closed
+      }
+    }
+
     this.removeAllListeners();
   }
 }

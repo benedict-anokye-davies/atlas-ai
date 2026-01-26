@@ -1,6 +1,10 @@
 /**
- * Nova Desktop - Fireworks AI LLM Provider
+ * Atlas Desktop - Fireworks AI LLM Provider
  * LLM integration using Fireworks AI (OpenAI-compatible API)
+ *
+ * Supports smart model routing:
+ * - GLM-4.7 Thinking: Complex reasoning ($0.60/$2.20 per M)
+ * - GLM-4.7 FlashX: Simple queries ($0.07/$0.40 per M)
  */
 
 import { EventEmitter } from 'events';
@@ -19,13 +23,28 @@ import {
   ChatOptions,
   ToolCall,
   DEFAULT_LLM_CONFIG,
-  NOVA_SYSTEM_PROMPT,
+  ATLAS_SYSTEM_PROMPT,
   createConversationContext,
   estimateTokenCount,
 } from '../../shared/types/llm';
+import { getSmartRouter, FIREWORKS_MODELS } from './smart-router';
 
 const logger = createModuleLogger('FireworksLLM');
 const perfTimer = new PerformanceTimer('FireworksLLM');
+
+/**
+ * Reasoning effort level for GLM-4.7's thinking mode
+ * Controls the depth and thoroughness of the model's reasoning process
+ */
+export type ReasoningEffort = 'low' | 'medium' | 'high';
+
+/**
+ * Reasoning history mode for multi-turn conversations
+ * - 'disabled': No reasoning context preserved (fastest)
+ * - 'interleaved': Reasoning preserved within a turn (tool calls) - GLM-4.7's killer feature
+ * - 'preserved': Reasoning preserved across ALL turns (most coherent multi-turn)
+ */
+export type ReasoningHistory = 'disabled' | 'interleaved' | 'preserved';
 
 /**
  * Fireworks-specific configuration options
@@ -33,6 +52,45 @@ const perfTimer = new PerformanceTimer('FireworksLLM');
 export interface FireworksConfig extends LLMConfig {
   /** Fireworks model ID */
   model?: string;
+  /**
+   * Enable low-latency streaming mode
+   * When true, optimizes for faster first token delivery
+   */
+  lowLatencyStreaming?: boolean;
+  /**
+   * Enable smart model routing
+   * Routes simple queries to FlashX, complex to Thinking
+   */
+  enableSmartRouting?: boolean;
+  /**
+   * Force budget mode (always use FlashX)
+   */
+  budgetMode?: boolean;
+  /**
+   * GLM-4.7 Reasoning Configuration
+   * Controls the model's "thinking" behavior for complex tasks
+   */
+  reasoning?: {
+    /**
+     * Effort level for reasoning (default: 'medium')
+     * - 'low': Quick thinking, minimal reasoning tokens
+     * - 'medium': Balanced thinking (recommended)
+     * - 'high': Deep thinking, extensive reasoning for complex problems
+     */
+    effort: ReasoningEffort;
+    /**
+     * How reasoning history is handled across turns (default: 'interleaved')
+     * - 'disabled': No reasoning preserved (fastest, but loses thinking context)
+     * - 'interleaved': GLM-4.7's killer feature - model thinks BEFORE each tool call
+     * - 'preserved': Full reasoning preserved across user turns (best for complex multi-turn)
+     */
+    history: ReasoningHistory;
+    /**
+     * Auto-adjust reasoning based on task complexity (default: true)
+     * When true, overrides effort/history based on detected task type
+     */
+    autoAdjust: boolean;
+  };
 }
 
 /**
@@ -41,9 +99,22 @@ export interface FireworksConfig extends LLMConfig {
 const DEFAULT_FIREWORKS_CONFIG: Partial<FireworksConfig> = {
   ...DEFAULT_LLM_CONFIG,
   baseURL: 'https://api.fireworks.ai/inference/v1',
-  model: 'accounts/fireworks/models/deepseek-r1',
-  maxTokens: 2048,
-  temperature: 0.7,
+  // Using GLM-4.7 Thinking - #1 ranked open-source LLM (Jan 2026)
+  // 95% AIME 2025, 89% LiveCodeBench, best-in-class reasoning
+  // "Thinking" mode enables step-by-step problem decomposition
+  model: FIREWORKS_MODELS.TEXT_THINKING,
+  maxTokens: 8000, // Allow extended thinking for complex reasoning
+  temperature: 0.7, // Optimal for reasoning tasks
+  lowLatencyStreaming: true, // Enable low-latency mode by default
+  enableSmartRouting: true, // Enable smart routing by default
+  budgetMode: false,
+  // GLM-4.7 Reasoning: Enable interleaved thinking by default
+  // This is what makes GLM-4.7 superior for agentic workflows
+  reasoning: {
+    effort: 'medium',           // Balanced reasoning depth
+    history: 'interleaved',     // Think before EACH tool call (killer feature)
+    autoAdjust: true,           // Auto-adjust based on task complexity
+  },
 };
 
 /**
@@ -60,6 +131,7 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
 
   constructor(config: Partial<FireworksConfig> = {}) {
     super();
+    this.setMaxListeners(20); // Prevent memory leak warnings
     this.config = { ...DEFAULT_FIREWORKS_CONFIG, ...config } as FireworksConfig;
 
     if (!this.config.apiKey) {
@@ -98,29 +170,117 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
   }
 
   /**
-   * Build system prompt with variables
+   * Get reasoning configuration based on task complexity
+   * GLM-4.7's Interleaved Thinking: Model reasons BEFORE each tool call
+   * 
+   * Strategy:
+   * - Complex tasks + tools → High effort + Interleaved (max reasoning)
+   * - Complex tasks (no tools) → High effort + Preserved (carry reasoning across turns)
+   * - Medium tasks + tools → Medium effort + Interleaved
+   * - Simple tasks → Low effort + Disabled (fast responses)
+   * 
+   * @param taskType The detected task type (coding, analysis, etc.)
+   * @param complexityScore 0-1 complexity score
+   * @param hasTools Whether tools are available for this request
+   * @returns Reasoning configuration for the API request
    */
-  private buildSystemPrompt(context?: ConversationContext): string {
-    const template = context?.systemPrompt || NOVA_SYSTEM_PROMPT;
+  private getReasoningConfig(
+    taskType: string,
+    complexityScore: number,
+    hasTools: boolean
+  ): { enabled: boolean; effort: ReasoningEffort; history: ReasoningHistory } {
+    const config = this.config.reasoning;
+    
+    // If auto-adjust is disabled, use configured values directly
+    if (!config?.autoAdjust) {
+      return {
+        enabled: config?.effort !== undefined,
+        effort: config?.effort || 'medium',
+        history: config?.history || 'interleaved',
+      };
+    }
+
+    // Complex reasoning tasks (coding, analysis, debugging, research)
+    const complexTasks = ['coding', 'analysis', 'debugging', 'research', 'factual'];
+    const isComplexTask = complexTasks.includes(taskType) || complexityScore >= 0.7;
+    
+    // High complexity + tools = maximum reasoning (interleaved thinking)
+    if (isComplexTask && hasTools) {
+      return {
+        enabled: true,
+        effort: 'high',
+        history: 'interleaved', // GLM-4.7's killer feature: think before EACH tool call
+      };
+    }
+    
+    // High complexity, no tools = preserved thinking across turns
+    if (isComplexTask) {
+      return {
+        enabled: true,
+        effort: complexityScore >= 0.8 ? 'high' : 'medium',
+        history: 'preserved', // Carry reasoning context across user turns
+      };
+    }
+    
+    // Medium complexity with tools = interleaved but medium effort
+    if (hasTools && complexityScore >= 0.4) {
+      return {
+        enabled: true,
+        effort: 'medium',
+        history: 'interleaved',
+      };
+    }
+    
+    // Simple tasks = low effort or disabled for speed
+    if (complexityScore < 0.3) {
+      return {
+        enabled: false,
+        effort: 'low',
+        history: 'disabled',
+      };
+    }
+    
+    // Default: medium effort, interleaved for tool support
+    return {
+      enabled: true,
+      effort: 'medium',
+      history: hasTools ? 'interleaved' : 'preserved',
+    };
+  }
+
+  /**
+   * Build system prompt with variables and optional task-aware modifier
+   */
+  private buildSystemPrompt(context?: ConversationContext, taskModifier?: string): string {
+    const template = context?.systemPrompt || ATLAS_SYSTEM_PROMPT;
     const userName = context?.userName || 'User';
     const timestamp = new Date().toLocaleString();
 
-    return template.replace('{timestamp}', timestamp).replace('{userName}', userName);
+    let systemPrompt = template.replace('{timestamp}', timestamp).replace('{userName}', userName);
+
+    // Append task-aware modifier if provided (anti-hallucination instructions)
+    if (taskModifier) {
+      systemPrompt += `\n\n## Current Task Configuration\n${taskModifier}`;
+    }
+
+    return systemPrompt;
   }
 
   /**
    * Build messages array for API call
+   * Now supports task-aware system modifier for anti-hallucination
    */
   private buildMessages(
     userMessage: string,
-    context?: ConversationContext
+    context?: ConversationContext,
+    taskModifier?: string
   ): ChatCompletionMessageParam[] {
     const messages: ChatCompletionMessageParam[] = [];
 
-    // Add system prompt
+    // Add system prompt with task-aware modifier
     messages.push({
       role: 'system',
-      content: this.buildSystemPrompt(context),
+      content: this.buildSystemPrompt(context, taskModifier),
     });
 
     // Add conversation history
@@ -134,16 +294,26 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
             tool_call_id: msg.tool_call_id,
           });
         } else if (msg.role === 'assistant') {
-          // Assistant message, possibly with tool calls
-          const assistantMsg: ChatCompletionMessageParam = {
+          // Assistant message, possibly with tool calls AND reasoning_content
+          // GLM-4.7 Interleaved Thinking: reasoning_content must be preserved
+          // for the model to maintain its thinking context across tool calls
+          const assistantMsg: ChatCompletionMessageParam & { reasoning_content?: string } = {
             role: 'assistant',
             content: msg.content,
           };
+          
+          // Include reasoning_content if present (GLM-4.7 interleaved/preserved thinking)
+          // This is critical for maintaining reasoning context across turns
+          if (msg.reasoning_content) {
+            assistantMsg.reasoning_content = msg.reasoning_content;
+          }
+          
           if (msg.tool_calls && msg.tool_calls.length > 0) {
             (
               assistantMsg as {
                 role: 'assistant';
                 content: string;
+                reasoning_content?: string;
                 tool_calls?: OpenAI.Chat.ChatCompletionMessageToolCall[];
               }
             ).tool_calls = msg.tool_calls.map((tc) => ({
@@ -176,6 +346,7 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
 
   /**
    * Send a message and get response (non-streaming)
+   * Now uses task-aware configuration for optimal parameters
    */
   async chat(
     message: string,
@@ -188,28 +359,83 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
     const startTime = Date.now();
 
     try {
-      const messages = this.buildMessages(message, context);
+      // Smart model routing with task-aware parameters
+      let selectedModel = this.config.model!;
+      let selectedMaxTokens = this.config.maxTokens!;
+      let selectedTemperature = this.config.temperature!;
+      let selectedTopP = this.config.topP!;
+      let selectedFrequencyPenalty = this.config.frequencyPenalty!;
+      let selectedPresencePenalty = this.config.presencePenalty!;
+      let systemModifier = '';
+      let taskType = 'general';
+      let complexityScore = 0.5;
+
+      if (this.config.enableSmartRouting) {
+        const router = getSmartRouter({ budgetMode: this.config.budgetMode });
+        
+        // Use task-aware params for comprehensive optimization
+        const taskAwareParams = router.getTaskAwareParams(message, {
+          toolsRequired: !!options?.tools?.length,
+          conversationLength: context?.messages?.length,
+        });
+
+        selectedModel = taskAwareParams.model;
+        selectedMaxTokens = taskAwareParams.maxTokens;
+        selectedTemperature = taskAwareParams.temperature;
+        selectedTopP = taskAwareParams.topP;
+        selectedFrequencyPenalty = taskAwareParams.frequencyPenalty;
+        selectedPresencePenalty = taskAwareParams.presencePenalty;
+        systemModifier = taskAwareParams.systemModifier;
+        taskType = taskAwareParams.taskType;
+        complexityScore = taskAwareParams.complexity.score;
+
+        logger.debug('Task-aware routing selected parameters', {
+          originalModel: this.config.model,
+          selectedModel,
+          taskType: taskAwareParams.taskType,
+          complexity: taskAwareParams.complexity.score,
+          category: taskAwareParams.complexity.category,
+          temperature: selectedTemperature,
+          reason: taskAwareParams.complexity.reasoning,
+        });
+      }
+
+      // Build messages with task-aware system modifier
+      const messages = this.buildMessages(message, context, systemModifier);
+
+      // Determine reasoning parameters based on task complexity
+      // GLM-4.7's killer feature: interleaved thinking (reasons before EACH tool call)
+      const reasoningConfig = this.getReasoningConfig(taskType, complexityScore, !!options?.tools?.length);
 
       logger.debug('Sending chat request', {
-        model: this.config.model,
+        model: selectedModel,
         messageCount: messages.length,
         hasTools: !!options?.tools?.length,
+        temperature: selectedTemperature,
+        reasoning: reasoningConfig,
       });
 
       this.setStatus(LLMStatus.GENERATING);
 
-      // Build request parameters
-      const requestParams: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming = {
-        model: this.config.model!,
+      // Build request parameters with task-aware settings
+      // Using type assertion for Fireworks-specific parameters (reasoning_effort, reasoning_history)
+      const requestParams = {
+        model: selectedModel,
         messages,
-        max_tokens: this.config.maxTokens,
-        temperature: this.config.temperature,
-        top_p: this.config.topP,
-        frequency_penalty: this.config.frequencyPenalty,
-        presence_penalty: this.config.presencePenalty,
+        max_tokens: selectedMaxTokens,
+        temperature: selectedTemperature,
+        top_p: selectedTopP,
+        frequency_penalty: selectedFrequencyPenalty,
+        presence_penalty: selectedPresencePenalty,
         stop: this.config.stop,
         stream: false,
-      };
+        // GLM-4.7 Reasoning Parameters (Fireworks-specific)
+        // These enable the model's advanced thinking capabilities
+        ...(reasoningConfig.enabled && {
+          reasoning_effort: reasoningConfig.effort,
+          reasoning_history: reasoningConfig.history,
+        }),
+      } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming;
 
       // Add tools if provided
       if (options?.tools && options.tools.length > 0) {
@@ -240,6 +466,16 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
 
       const content = response.choices[0]?.message?.content || '';
       const finishReason = response.choices[0]?.finish_reason as LLMResponse['finishReason'];
+      
+      // Extract reasoning_content from GLM-4.7 response (Fireworks-specific field)
+      // This contains the model's internal reasoning/thinking process
+      const responseMessage = response.choices[0]?.message as {
+        content: string | null;
+        role: string;
+        tool_calls?: unknown[];
+        reasoning_content?: string;
+      };
+      const reasoningContent = responseMessage?.reasoning_content;
 
       // Extract tool calls if present
       const rawToolCalls = response.choices[0]?.message?.tool_calls;
@@ -273,11 +509,13 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
         latency,
         raw: response,
         toolCalls,
+        // Include reasoning_content for preserved/interleaved thinking
+        reasoningContent,
       };
 
       // Update context if provided (and no tool calls - tool results should be added separately)
       if (context && !toolCalls?.length) {
-        this.updateContext(context, message, content, result.usage?.totalTokens);
+        this.updateContext(context, message, content, result.usage?.totalTokens, reasoningContent);
       }
 
       logger.info('Chat response received', {
@@ -285,6 +523,7 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
         tokens: result.usage?.totalTokens,
         finishReason,
         toolCallsCount: toolCalls?.length || 0,
+        hasReasoning: !!reasoningContent,
       });
 
       this.setStatus(LLMStatus.IDLE);
@@ -329,28 +568,86 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
       new Map();
 
     try {
-      const messages = this.buildMessages(message, context);
+      // Smart model routing with task-aware parameters
+      let selectedModel = this.config.model!;
+      let selectedMaxTokens = this.config.maxTokens!;
+      let selectedTemperature = this.config.temperature!;
+      let selectedTopP = this.config.topP!;
+      let selectedFrequencyPenalty = this.config.frequencyPenalty!;
+      let selectedPresencePenalty = this.config.presencePenalty!;
+      let systemModifier = '';
+      let taskType = 'general';
+      let complexityScore = 0.5;
+
+      if (this.config.enableSmartRouting) {
+        const router = getSmartRouter({ budgetMode: this.config.budgetMode });
+        
+        // Use task-aware params for comprehensive optimization
+        const taskAwareParams = router.getTaskAwareParams(message, {
+          toolsRequired: !!options?.tools?.length,
+          conversationLength: context?.messages?.length,
+        });
+
+        selectedModel = taskAwareParams.model;
+        selectedMaxTokens = taskAwareParams.maxTokens;
+        selectedTemperature = taskAwareParams.temperature;
+        selectedTopP = taskAwareParams.topP;
+        selectedFrequencyPenalty = taskAwareParams.frequencyPenalty;
+        selectedPresencePenalty = taskAwareParams.presencePenalty;
+        systemModifier = taskAwareParams.systemModifier;
+        taskType = taskAwareParams.taskType;
+        complexityScore = taskAwareParams.complexity.score;
+
+        logger.debug('Task-aware routing (stream) selected parameters', {
+          originalModel: this.config.model,
+          selectedModel,
+          taskType: taskAwareParams.taskType,
+          complexity: taskAwareParams.complexity.score,
+          category: taskAwareParams.complexity.category,
+          temperature: selectedTemperature,
+        });
+      }
+
+      // Build messages with task-aware system modifier
+      const messages = this.buildMessages(message, context, systemModifier);
+
+      // Determine reasoning parameters based on task complexity
+      // GLM-4.7's killer feature: interleaved thinking (reasons before EACH tool call)
+      const reasoningConfig = this.getReasoningConfig(taskType, complexityScore, !!options?.tools?.length);
 
       logger.debug('Starting streaming chat', {
-        model: this.config.model,
+        model: selectedModel,
         messageCount: messages.length,
         hasTools: !!options?.tools?.length,
+        temperature: selectedTemperature,
+        reasoning: reasoningConfig,
       });
 
       this.abortController = new AbortController();
 
-      // Build request parameters
-      const requestParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
-        model: this.config.model!,
+      // Build request parameters with task-aware settings and streaming optimizations
+      // Using type assertion for Fireworks-specific parameters (reasoning_effort, reasoning_history)
+      const requestParams = {
+        model: selectedModel,
         messages,
-        max_tokens: this.config.maxTokens,
-        temperature: this.config.temperature,
-        top_p: this.config.topP,
-        frequency_penalty: this.config.frequencyPenalty,
-        presence_penalty: this.config.presencePenalty,
+        max_tokens: selectedMaxTokens,
+        temperature: selectedTemperature,
+        top_p: selectedTopP,
+        frequency_penalty: selectedFrequencyPenalty,
+        presence_penalty: selectedPresencePenalty,
         stop: this.config.stop,
         stream: true,
-      };
+        // Enable streaming options for lower latency
+        stream_options: this.config.lowLatencyStreaming
+          ? { include_usage: false } // Skip usage stats in stream for faster delivery
+          : undefined,
+        // GLM-4.7 Reasoning Parameters (Fireworks-specific)
+        // These enable the model's advanced thinking capabilities
+        ...(reasoningConfig.enabled && {
+          reasoning_effort: reasoningConfig.effort,
+          reasoning_history: reasoningConfig.history,
+        }),
+      } as OpenAI.Chat.ChatCompletionCreateParamsStreaming;
 
       // Add tools if provided
       if (options?.tools && options.tools.length > 0) {
@@ -360,11 +657,15 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
         }
       }
 
+      // Create stream with optimized fetch settings
       const stream = await this.client.chat.completions.create(requestParams, {
         signal: this.abortController.signal,
       });
 
       this.setStatus(LLMStatus.STREAMING);
+
+      // Track accumulated reasoning content during streaming
+      let accumulatedReasoning = '';
 
       for await (const chunk of stream) {
         if (!firstChunkReceived) {
@@ -375,6 +676,17 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
 
         const delta = chunk.choices[0]?.delta?.content || '';
         const finishReason = chunk.choices[0]?.finish_reason as LLMStreamChunk['finishReason'];
+
+        // Extract reasoning_content delta from GLM-4.7 streaming response (Fireworks-specific)
+        const chunkDelta = chunk.choices[0]?.delta as {
+          content?: string;
+          tool_calls?: unknown[];
+          reasoning_content?: string;
+        };
+        const reasoningDelta = chunkDelta?.reasoning_content || '';
+        if (reasoningDelta) {
+          accumulatedReasoning += reasoningDelta;
+        }
 
         // Track tool calls during streaming
         const toolCallDeltas = chunk.choices[0]?.delta?.tool_calls;
@@ -417,6 +729,9 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
           isFinal: finishReason !== null && finishReason !== undefined,
           finishReason,
           toolCalls: accumulatedToolCalls.length > 0 ? accumulatedToolCalls : undefined,
+          // Include reasoning content for GLM-4.7 interleaved thinking
+          reasoningDelta: reasoningDelta || undefined,
+          reasoningAccumulated: accumulatedReasoning || undefined,
         };
 
         this.emit('chunk', streamChunk);
@@ -441,9 +756,10 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
       }));
 
       // Update context if provided (and no tool calls - tool results should be added separately)
+      // Include accumulated reasoning_content for preserved thinking
       if (context && finalToolCalls.length === 0) {
         const estimatedTokens = estimateTokenCount(message + accumulated);
-        this.updateContext(context, message, accumulated, estimatedTokens);
+        this.updateContext(context, message, accumulated, estimatedTokens, accumulatedReasoning || undefined);
       }
 
       // Determine finish reason
@@ -505,12 +821,14 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
 
   /**
    * Update conversation context with new messages
+   * @param reasoningContent GLM-4.7 reasoning content to preserve for interleaved/preserved thinking
    */
   private updateContext(
     context: ConversationContext,
     userMessage: string,
     assistantResponse: string,
-    tokens?: number
+    tokens?: number,
+    reasoningContent?: string
   ): void {
     // Add user message
     context.messages.push({
@@ -520,12 +838,15 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
       tokens: estimateTokenCount(userMessage),
     });
 
-    // Add assistant response
+    // Add assistant response with reasoning_content for GLM-4.7 preserved thinking
     context.messages.push({
       role: 'assistant',
       content: assistantResponse,
       timestamp: Date.now(),
       tokens: estimateTokenCount(assistantResponse),
+      // Include reasoning_content for preserved/interleaved thinking across turns
+      // This is critical for GLM-4.7 to maintain its reasoning context
+      reasoning_content: reasoningContent,
     });
 
     // Update metadata
@@ -602,7 +923,7 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
    * Create a new conversation context
    */
   createContext(userName?: string): ConversationContext {
-    const context = createConversationContext(NOVA_SYSTEM_PROMPT, userName);
+    const context = createConversationContext(ATLAS_SYSTEM_PROMPT, userName);
     this.currentContext = context;
     return context;
   }

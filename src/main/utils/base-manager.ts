@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Base Provider Manager
+ * Atlas Desktop - Base Provider Manager
  * Abstract base class for managing providers with fallback capability
  */
 

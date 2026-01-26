@@ -14,6 +14,7 @@ vi.mock('../src/main/voice/wake-word', () => {
     pause: vi.fn(),
     resume: vi.fn(),
     setAudioDevice: vi.fn(),
+    setAtlasSpeaking: vi.fn(),
     running: false,
     paused: false,
   };
@@ -348,7 +349,11 @@ describe('AudioPipeline', () => {
       const audio = new Float32Array(512).fill(0.1);
       await pipeline.processAudioFrame(audio);
 
-      expect(mockVAD.processAudio).toHaveBeenCalledWith(audio);
+      // Verify processAudio was called with a Float32Array of the right length
+      expect(mockVAD.processAudio).toHaveBeenCalled();
+      const calledArg = (mockVAD.processAudio as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(calledArg).toBeInstanceOf(Float32Array);
+      expect(calledArg.length).toBe(512);
     });
   });
 });

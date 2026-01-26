@@ -1,10 +1,11 @@
 /**
- * Nova Desktop - Deepgram Speech-to-Text
+ * Atlas Desktop - Deepgram Speech-to-Text
  * Real-time streaming transcription using Deepgram's Nova model
  */
 
 import { EventEmitter } from 'events';
 import { createClient, LiveTranscriptionEvents, LiveClient } from '@deepgram/sdk';
+import WebSocket from 'ws';
 import { createModuleLogger, PerformanceTimer } from '../utils/logger';
 import { APIError, withRetry } from '../utils/errors';
 import {
@@ -15,6 +16,9 @@ import {
   TranscriptionResult,
   TranscriptionWord,
   DEFAULT_STT_CONFIG,
+  SupportedLanguage,
+  LanguageDetectionResult,
+  SUPPORTED_LANGUAGES,
 } from '../../shared/types/stt';
 
 const logger = createModuleLogger('DeepgramSTT');
@@ -30,9 +34,11 @@ export interface DeepgramConfig extends STTConfig {
   tier?: 'enhanced' | 'base';
   /** Enable diarization (speaker detection) */
   diarize?: boolean;
+  /** Number of speakers for diarization (optional, auto-detected if not set) */
+  diarizeSpeakers?: number;
   /** Number of alternative transcriptions */
   alternatives?: number;
-  /** Keywords to boost recognition */
+  /** Keywords to boost recognition (Atlas-specific terms) */
   keywords?: string[];
   /** Custom vocabulary */
   search?: string[];
@@ -40,7 +46,45 @@ export interface DeepgramConfig extends STTConfig {
   fillerWords?: boolean;
   /** Endpointing - how long to wait for speech end (ms) */
   endpointing?: number | false;
+  /** Enable automatic language detection */
+  detectLanguage?: boolean;
+  /** Languages to consider for auto-detection */
+  detectLanguages?: SupportedLanguage[];
+  /** Enable utterances for natural sentence boundaries */
+  utterances?: boolean;
+  /** Utterance end timeout in ms (how long to wait before finalizing utterance) */
+  utteranceEndMs?: number;
 }
+
+/**
+ * Atlas-specific keywords for improved recognition
+ */
+const ATLAS_KEYWORDS: string[] = [
+  // Core Atlas terms
+  'Atlas',
+  'portfolio',
+  'trading',
+  'backtest',
+  'Palantir',
+  // Trading terms
+  'stop loss',
+  'take profit',
+  'position',
+  'long',
+  'short',
+  'PnL',
+  'drawdown',
+  'Sharpe',
+  // Crypto
+  'Bitcoin',
+  'Ethereum',
+  'Solana',
+  'USDT',
+  // Commands
+  'kill switch',
+  'autonomous',
+  'regime',
+];
 
 /**
  * Default Deepgram configuration
@@ -48,16 +92,23 @@ export interface DeepgramConfig extends STTConfig {
 const DEFAULT_DEEPGRAM_CONFIG: Partial<DeepgramConfig> = {
   ...DEFAULT_STT_CONFIG,
   model: 'nova-2',
-  tier: 'enhanced',
-  diarize: false,
+  // Removed 'enhanced' tier - requires special account access
+  // tier: 'enhanced',
+  diarize: true,                    // ENABLED: Multi-speaker support
   alternatives: 1,
   fillerWords: false,
   endpointing: 300, // 300ms of silence = end of speech
+  detectLanguage: false,
+  utterances: true,                 // ENABLED: Natural sentence boundaries
+  utteranceEndMs: 1000,             // 1s utterance timeout
+  keywords: ATLAS_KEYWORDS,         // ENABLED: Atlas-specific vocabulary
+  detectLanguages: ['en', 'es', 'fr', 'de', 'ja', 'zh'],
 };
 
 /**
  * Deepgram Speech-to-Text provider
  * Implements real-time streaming transcription with the Nova model
+ * Supports multi-language recognition and automatic language detection
  */
 export class DeepgramSTT extends EventEmitter implements STTProvider {
   readonly name = 'deepgram';
@@ -68,9 +119,16 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
   private keepAliveInterval: NodeJS.Timeout | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 3;
+  private isClosing = false; // Prevents writes during shutdown
+
+  // Language tracking
+  private _currentLanguage: SupportedLanguage = 'en';
+  private _detectedLanguage: SupportedLanguage | null = null;
+  private languageDetectionHistory: Array<{ language: SupportedLanguage; confidence: number }> = [];
 
   constructor(config: Partial<DeepgramConfig> = {}) {
     super();
+    this.setMaxListeners(20); // Prevent memory leak warnings
     this.config = { ...DEFAULT_DEEPGRAM_CONFIG, ...config } as DeepgramConfig;
 
     if (!this.config.apiKey) {
@@ -79,7 +137,39 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
       );
     }
 
-    logger.info('DeepgramSTT initialized', { model: this.config.model });
+    // Initialize current language from config
+    this._currentLanguage = this.extractLanguageFromCode(this.config.language || 'en-US');
+
+    logger.info('DeepgramSTT initialized', {
+      model: this.config.model,
+      language: this._currentLanguage,
+      detectLanguage: this.config.detectLanguage,
+    });
+  }
+
+  /**
+   * Extract base language code from full language code
+   */
+  private extractLanguageFromCode(fullCode: string): SupportedLanguage {
+    const baseCode = fullCode.split('-')[0].toLowerCase();
+    if (baseCode in SUPPORTED_LANGUAGES) {
+      return baseCode as SupportedLanguage;
+    }
+    return 'en'; // Default to English
+  }
+
+  /**
+   * Get the current language being used for transcription
+   */
+  get currentLanguage(): SupportedLanguage {
+    return this._currentLanguage;
+  }
+
+  /**
+   * Get the most recently detected language (if auto-detection enabled)
+   */
+  get detectedLanguage(): SupportedLanguage | null {
+    return this._detectedLanguage;
   }
 
   /**
@@ -111,11 +201,18 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
     }
 
     this.setStatus(STTStatus.CONNECTING);
+    this.isClosing = false; // Reset closing flag on new connection
     perfTimer.start('connect');
 
     try {
-      // Create Deepgram client
-      this.client = createClient(this.config.apiKey);
+      // Create Deepgram client with Node.js WebSocket for Electron compatibility
+      this.client = createClient(this.config.apiKey, {
+        global: {
+          websocket: {
+            client: WebSocket,
+          },
+        },
+      });
 
       // Build options for live transcription
       const options = this.buildOptions();
@@ -166,7 +263,6 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
   private buildOptions(): Record<string, unknown> {
     const options: Record<string, unknown> = {
       model: this.config.model,
-      language: this.config.language,
       punctuate: this.config.punctuate,
       profanity_filter: this.config.profanityFilter,
       smart_format: this.config.smartFormat,
@@ -178,18 +274,44 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
       utterance_end_ms: this.config.utteranceEndMs,
     };
 
+    // Handle language configuration
+    if (this.config.detectLanguage) {
+      // Enable language detection - Deepgram will auto-detect
+      options.detect_language = true;
+
+      // If specific languages to detect are provided, use them
+      if (this.config.detectLanguages && this.config.detectLanguages.length > 0) {
+        // Map supported languages to Deepgram codes
+        const deepgramCodes = this.config.detectLanguages
+          .filter((lang) => lang in SUPPORTED_LANGUAGES)
+          .map((lang) => SUPPORTED_LANGUAGES[lang].deepgramCode);
+        if (deepgramCodes.length > 0) {
+          options.language = deepgramCodes;
+        }
+      }
+    } else {
+      // Use fixed language from config
+      options.language = this.config.language || SUPPORTED_LANGUAGES[this._currentLanguage].deepgramCode;
+    }
+
     // Add Deepgram-specific options
     if (this.config.tier) {
       options.tier = this.config.tier;
     }
     if (this.config.diarize) {
       options.diarize = this.config.diarize;
+      // Set number of speakers if specified
+      if (this.config.diarizeSpeakers) {
+        options.diarize_version = '2';
+        options.diarize_max_speakers = this.config.diarizeSpeakers;
+      }
     }
     if (this.config.alternatives && this.config.alternatives > 1) {
       options.alternatives = this.config.alternatives;
     }
     if (this.config.keywords?.length) {
-      options.keywords = this.config.keywords;
+      // Format keywords with boost weights for better recognition
+      options.keywords = this.config.keywords.map(kw => `${kw}:2`);  // 2x boost
     }
     if (this.config.search?.length) {
       options.search = this.config.search;
@@ -199,6 +321,10 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
     }
     if (this.config.endpointing !== undefined) {
       options.endpointing = this.config.endpointing;
+    }
+    // Enable utterances for natural sentence boundaries
+    if (this.config.utterances) {
+      options.utterances = this.config.utterances;
     }
 
     return options;
@@ -301,7 +427,9 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
               confidence: number;
               punctuated_word?: string;
             }>;
+            languages?: string[];
           }>;
+          detected_language?: string;
         };
         is_final?: boolean;
         speech_final?: boolean;
@@ -309,12 +437,26 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
         start?: number;
         metadata?: {
           request_id?: string;
+          detected_language?: string;
         };
       };
 
       const alternative = response.channel?.alternatives?.[0];
       if (!alternative?.transcript) {
         return; // Empty transcript, ignore
+      }
+
+      // Process detected language if available
+      let detectedLang: string | undefined =
+        response.channel?.detected_language ||
+        response.metadata?.detected_language ||
+        alternative.languages?.[0];
+
+      // Extract detected language and update tracking
+      if (detectedLang && this.config.detectLanguage) {
+        const normalizedLang = this.extractLanguageFromCode(detectedLang);
+        this.updateLanguageDetection(normalizedLang, alternative.confidence || 0.5);
+        detectedLang = normalizedLang;
       }
 
       const words: TranscriptionWord[] = (alternative.words || []).map((w) => ({
@@ -331,6 +473,7 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
         confidence: alternative.confidence || 0,
         duration: response.duration ? response.duration * 1000 : undefined,
         startTime: response.start ? response.start * 1000 : undefined,
+        language: detectedLang || this._currentLanguage,
         words: words.length > 0 ? words : undefined,
         raw: data,
       };
@@ -340,9 +483,10 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
         logger.info('Final transcript', {
           text: result.text,
           confidence: result.confidence.toFixed(2),
+          language: result.language,
         });
       } else {
-        logger.debug('Interim transcript', { text: result.text });
+        logger.debug('Interim transcript', { text: result.text, language: result.language });
       }
 
       // Emit appropriate events
@@ -355,6 +499,86 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
     } catch (error) {
       logger.error('Error processing transcript', { error: (error as Error).message });
     }
+  }
+
+  /**
+   * Update language detection tracking
+   */
+  private updateLanguageDetection(language: SupportedLanguage, confidence: number): void {
+    // Add to history
+    this.languageDetectionHistory.push({ language, confidence });
+
+    // Keep only last 5 detections for averaging
+    if (this.languageDetectionHistory.length > 5) {
+      this.languageDetectionHistory.shift();
+    }
+
+    // Calculate most frequent detected language
+    const languageCounts = new Map<SupportedLanguage, number>();
+    for (const entry of this.languageDetectionHistory) {
+      const count = languageCounts.get(entry.language) || 0;
+      languageCounts.set(entry.language, count + entry.confidence);
+    }
+
+    // Find language with highest weighted count
+    let maxLang: SupportedLanguage = language;
+    let maxCount = 0;
+    for (const [lang, count] of languageCounts) {
+      if (count > maxCount) {
+        maxCount = count;
+        maxLang = lang;
+      }
+    }
+
+    // Update detected language if it changed
+    if (maxLang !== this._detectedLanguage) {
+      const previousLang = this._detectedLanguage;
+      this._detectedLanguage = maxLang;
+      logger.info('Language detected', {
+        language: maxLang,
+        previous: previousLang,
+        confidence: (maxCount / this.languageDetectionHistory.length).toFixed(2),
+      });
+    }
+  }
+
+  /**
+   * Get language detection result
+   */
+  getLanguageDetection(): LanguageDetectionResult | null {
+    if (!this._detectedLanguage || this.languageDetectionHistory.length === 0) {
+      return null;
+    }
+
+    // Calculate confidence for detected language
+    const totalConfidence = this.languageDetectionHistory
+      .filter((e) => e.language === this._detectedLanguage)
+      .reduce((sum, e) => sum + e.confidence, 0);
+
+    const avgConfidence = totalConfidence / this.languageDetectionHistory.length;
+
+    // Build alternatives from history
+    const langScores = new Map<SupportedLanguage, number>();
+    for (const entry of this.languageDetectionHistory) {
+      const score = langScores.get(entry.language) || 0;
+      langScores.set(entry.language, score + entry.confidence);
+    }
+
+    const alternatives: Array<{ language: SupportedLanguage; confidence: number }> = [];
+    for (const [lang, score] of langScores) {
+      if (lang !== this._detectedLanguage) {
+        alternatives.push({
+          language: lang,
+          confidence: score / this.languageDetectionHistory.length,
+        });
+      }
+    }
+
+    return {
+      language: this._detectedLanguage,
+      confidence: avgConfidence,
+      alternatives: alternatives.length > 0 ? alternatives.sort((a, b) => b.confidence - a.confidence) : undefined,
+    };
   }
 
   /**
@@ -410,6 +634,9 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
   async stop(): Promise<void> {
     logger.info('Stopping Deepgram connection');
 
+    // Set closing flag BEFORE anything else to prevent race conditions
+    this.isClosing = true;
+
     this.stopKeepAlive();
     this.setStatus(STTStatus.CLOSED);
 
@@ -430,8 +657,17 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
    * Send audio data to Deepgram
    */
   sendAudio(audioData: Buffer | Int16Array): void {
-    if (!this.isReady()) {
-      logger.warn('Cannot send audio - connection not ready', { status: this._status });
+    // Check both isReady and isClosing to prevent race conditions
+    if (!this.isReady() || this.isClosing) {
+      if (!this.isClosing) {
+        logger.warn('Cannot send audio - connection not ready', { status: this._status });
+      }
+      return;
+    }
+
+    // Double-check connection exists
+    if (!this.connection) {
+      logger.warn('Cannot send audio - connection is null');
       return;
     }
 
@@ -439,9 +675,15 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
       // Convert Int16Array to Buffer if needed
       const buffer = audioData instanceof Buffer ? audioData : Buffer.from(audioData.buffer);
 
-      this.connection!.send(buffer as unknown as ArrayBuffer);
+      this.connection.send(buffer as unknown as ArrayBuffer);
     } catch (error) {
-      logger.error('Error sending audio', { error: (error as Error).message });
+      const errorMessage = (error as Error).message;
+      // Silently ignore "write after end" errors as they're expected during shutdown
+      if (errorMessage.includes('write after end') || errorMessage.includes('closed')) {
+        logger.debug('Audio send skipped - connection closing', { error: errorMessage });
+        return;
+      }
+      logger.error('Error sending audio', { error: errorMessage });
       this.emit('error', error as Error);
     }
   }
@@ -452,6 +694,7 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
   isReady(): boolean {
     return (
       this.connection !== null &&
+      !this.isClosing &&
       (this._status === STTStatus.CONNECTED || this._status === STTStatus.LISTENING)
     );
   }
@@ -469,6 +712,68 @@ export class DeepgramSTT extends EventEmitter implements STTProvider {
   updateConfig(config: Partial<DeepgramConfig>): void {
     this.config = { ...this.config, ...config };
     logger.info('Configuration updated', { config: this.config });
+  }
+
+  /**
+   * Set the language for transcription
+   * Requires reconnection to take effect
+   *
+   * @param language - The language code to use
+   * @returns True if language was changed and reconnection is needed
+   */
+  async setLanguage(language: SupportedLanguage): Promise<boolean> {
+    if (!(language in SUPPORTED_LANGUAGES)) {
+      logger.warn('Unsupported language', { language });
+      return false;
+    }
+
+    const langInfo = SUPPORTED_LANGUAGES[language];
+    const previousLanguage = this._currentLanguage;
+
+    if (language === previousLanguage) {
+      logger.debug('Language already set', { language });
+      return false;
+    }
+
+    // Update current language
+    this._currentLanguage = language;
+    this.config.language = langInfo.deepgramCode;
+
+    // Clear detection history
+    this.languageDetectionHistory = [];
+    this._detectedLanguage = null;
+
+    logger.info('Language changed', { from: previousLanguage, to: language });
+
+    // If connected, need to reconnect with new language
+    if (this._status === STTStatus.CONNECTED || this._status === STTStatus.LISTENING) {
+      logger.info('Reconnecting with new language');
+      await this.stop();
+      await this.start();
+    }
+
+    return true;
+  }
+
+  /**
+   * Enable or disable automatic language detection
+   */
+  setAutoDetect(enabled: boolean, languages?: SupportedLanguage[]): void {
+    this.config.detectLanguage = enabled;
+    if (languages) {
+      this.config.detectLanguages = languages;
+    }
+    logger.info('Auto-detect language updated', {
+      enabled,
+      languages: this.config.detectLanguages,
+    });
+  }
+
+  /**
+   * Get list of supported languages
+   */
+  static getSupportedLanguages(): SupportedLanguage[] {
+    return Object.keys(SUPPORTED_LANGUAGES) as SupportedLanguage[];
   }
 
   // Type-safe event emitter methods

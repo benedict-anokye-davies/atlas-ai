@@ -1,0 +1,252 @@
+# Atlas Desktop - Electron Builder Configuration
+# Comprehensive build configuration for Windows, macOS, and Linux
+# Reference: https://www.electron.build/configuration/configuration
+
+appId: com.atlas.desktop
+productName: Atlas
+copyright: Copyright © 2024-2026 Atlas Team
+
+# Application metadata
+artifactName: "${productName}-${version}-${os}-${arch}.${ext}"
+
+# Build directories
+directories:
+  output: release
+  buildResources: assets
+
+# Files to include in the build
+files:
+  - dist/**/*
+  - package.json
+  - "!node_modules/**/*"
+  - node_modules/@picovoice/**/*
+  - node_modules/@ricky0123/**/*
+  - node_modules/onnxruntime-node/**/*
+  - node_modules/vosk-koffi/**/*
+
+# Extra resources (copied to app bundle)
+extraResources:
+  - from: assets/wake-words
+    to: wake-words
+    filter:
+      - "**/*.ppn"
+      - "**/*.pv"
+
+# ASAR configuration
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "**/node_modules/@picovoice/**/*"
+  - "**/node_modules/@ricky0123/**/*"
+  - "**/node_modules/onnxruntime-node/**/*"
+  - "**/node_modules/vosk-koffi/**/*"
+
+# ============================================================================
+# Windows Configuration
+# ============================================================================
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+  icon: assets/icons/icon.ico
+  publisherName: Atlas Team
+  legalTrademarks: Atlas Desktop AI Assistant
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  installerIcon: assets/icons/icon.ico
+  uninstallerIcon: assets/icons/icon.ico
+  installerHeaderIcon: assets/icons/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  menuCategory: Atlas
+  shortcutName: Atlas
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+  license: LICENSE
+  installerSidebar: assets/installerSidebar.bmp
+  uninstallerSidebar: assets/installerSidebar.bmp
+
+# Portable configuration
+portable:
+  artifactName: "${productName}-${version}-Portable.${ext}"
+
+# ============================================================================
+# macOS Configuration
+# ============================================================================
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  icon: assets/icons/icon.icns
+  category: public.app-category.productivity
+  darkModeSupport: true
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: assets/entitlements.mac.plist
+  entitlementsInherit: assets/entitlements.mac.inherit.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: Atlas needs access to your microphone for voice commands.
+    NSAppleEventsUsageDescription: Atlas needs to control other applications for automation.
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+  window:
+    width: 540
+    height: 380
+  backgroundColor: "#1a1a2e"
+
+# ============================================================================
+# Linux Configuration
+# ============================================================================
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: rpm
+      arch:
+        - x64
+    - target: tar.gz
+      arch:
+        - x64
+  icon: assets/icons
+  category: Utility
+  maintainer: atlas-team@example.com
+  vendor: Atlas Team
+  synopsis: Voice-First AI Desktop Assistant
+  description: |
+    Atlas is a voice-first AI desktop assistant featuring wake word
+    activation, real-time speech recognition, LLM processing, and
+    natural text-to-speech with a visual particle orb interface.
+  desktop:
+    Name: Atlas
+    GenericName: AI Assistant
+    Comment: Voice-First AI Desktop Assistant
+    Type: Application
+    Categories: Utility;Application;
+    Terminal: false
+    StartupWMClass: Atlas
+
+appImage:
+  license: LICENSE
+  artifactName: "${productName}-${version}.${ext}"
+
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+  priority: optional
+  section: utils
+
+rpm:
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libXScrnSaver
+    - libXtst
+    - xdg-utils
+    - at-spi2-core
+    - libuuid
+    - libsecret
+
+# ============================================================================
+# Auto-Update Configuration
+# ============================================================================
+publish:
+  - provider: github
+    owner: atlas-team
+    repo: atlas-desktop
+    releaseType: release
+
+# ============================================================================
+# Windows Code Signing Configuration
+# ============================================================================
+# Uses Windows Code Signing Certificate for trusted installation
+# Set environment variables:
+#   WIN_CSC_LINK - Path or URL to certificate (PFX/P12)
+#   WIN_CSC_KEY_PASSWORD - Certificate password
+#
+# For Azure Key Vault signing (recommended for EV certificates):
+#   AZURE_KEY_VAULT_URI - Key Vault URI
+#   AZURE_KEY_VAULT_CLIENT_ID - Service Principal Client ID
+#   AZURE_KEY_VAULT_CLIENT_SECRET - Service Principal Secret
+#   AZURE_KEY_VAULT_TENANT_ID - Azure AD Tenant ID
+#   AZURE_KEY_VAULT_CERTIFICATE - Certificate name in Key Vault
+#
+# For CI/CD, set these as secrets in GitHub Actions or your CI platform
+# ============================================================================
+
+# Uncomment for standard code signing
+# win:
+#   certificateFile: ${WIN_CSC_LINK}
+#   certificatePassword: ${WIN_CSC_KEY_PASSWORD}
+#   certificateSubjectName: "Atlas Team"
+#   signingHashAlgorithms:
+#     - sha256
+#   signDlls: true
+#   signAndEditExecutable: true
+#   timeStampServer: http://timestamp.digicert.com
+
+# For Azure Key Vault EV code signing, use the afterSign hook
+
+# ============================================================================
+# macOS Code Signing & Notarization Configuration
+# ============================================================================
+# Uses Apple Developer ID for trusted installation and Gatekeeper approval
+# Set environment variables:
+#   CSC_LINK - Path to Developer ID certificate (P12 file)
+#   CSC_KEY_PASSWORD - Certificate password
+#   APPLE_ID - Apple ID for notarization
+#   APPLE_APP_SPECIFIC_PASSWORD - App-specific password from appleid.apple.com
+#   APPLE_TEAM_ID - Team ID from Apple Developer portal
+#
+# For CI/CD, set these as secrets in GitHub Actions or your CI platform
+# ============================================================================
+
+# Uncomment for macOS code signing and notarization
+# afterSign: scripts/notarize.js
+# mac:
+#   identity: "Developer ID Application: Atlas Team (XXXXXXXXXX)"
+#   notarize:
+#     teamId: ${APPLE_TEAM_ID}
+
+# ============================================================================
+# Build Hooks
+# ============================================================================
+beforeBuild: scripts/before-build.js
+afterPack: scripts/after-pack.js
+afterSign: scripts/after-sign.js

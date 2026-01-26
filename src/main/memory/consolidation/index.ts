@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Memory Consolidation Index
+ * Atlas Desktop - Memory Consolidation Index
  * Main entry point for the consolidation system
  */
 

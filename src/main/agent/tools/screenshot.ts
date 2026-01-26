@@ -1,14 +1,13 @@
 /**
- * Nova Desktop - Screenshot Tools
+ * Atlas Desktop - Screenshot Tools
  * Capture screenshots of the desktop and windows
  */
 
 import { AgentTool, ActionResult } from '../../../shared/types/agent';
 import { createModuleLogger } from '../../utils/logger';
-import { desktopCapturer, screen, BrowserWindow } from 'electron';
+import { desktopCapturer, screen } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import * as os from 'os';
 
 const logger = createModuleLogger('ScreenshotTools');
 
@@ -227,7 +226,7 @@ export const listCaptureSourcesTool: AgentTool = {
 
       const screenSources = sources
         .filter((s) => s.id.startsWith('screen:'))
-        .map((s, i) => ({
+        .map((s, _i) => ({
           type: 'screen',
           name: s.name,
           id: s.id,

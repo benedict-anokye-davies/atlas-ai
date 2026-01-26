@@ -1,0 +1,172 @@
+{
+  "common": {
+    "atlas": "Atlas",
+    "settings": "Settings",
+    "close": "Close",
+    "save": "Save",
+    "cancel": "Cancel",
+    "reset": "Reset",
+    "apply": "Apply",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Info",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "retry": "Retry",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "online": "Online",
+    "offline": "Offline"
+  },
+  "voice": {
+    "listening": "Listening...",
+    "speaking": "Speaking...",
+    "thinking": "Thinking...",
+    "idle": "Ready",
+    "wakeWordPrompt": "Say \"Hey Atlas\" or click the orb",
+    "pushToTalk": "Hold to speak",
+    "processing": "Processing...",
+    "transcribing": "Transcribing...",
+    "responding": "Responding...",
+    "error": "Voice error occurred"
+  },
+  "settings": {
+    "title": "Settings",
+    "sections": {
+      "audio": "Audio",
+      "voice": "Voice",
+      "visual": "Visual",
+      "behavior": "Behavior",
+      "providers": "Providers",
+      "personality": "Personality",
+      "budget": "Budget",
+      "advanced": "Advanced",
+      "language": "Language"
+    },
+    "audio": {
+      "inputDevice": "Microphone",
+      "outputDevice": "Speaker",
+      "volume": "Volume",
+      "testAudio": "Test Audio",
+      "selectDevice": "Select Device"
+    },
+    "voice": {
+      "voiceId": "Voice",
+      "speed": "Speed",
+      "stability": "Stability",
+      "wakeWord": "Wake Word",
+      "sensitivity": "Sensitivity"
+    },
+    "visual": {
+      "theme": "Theme",
+      "particleCount": "Particle Count",
+      "adaptivePerformance": "Adaptive Performance",
+      "qualityPreset": "Quality",
+      "effects": "Effects",
+      "orbColor": "Orb Color",
+      "brightness": "Brightness"
+    },
+    "behavior": {
+      "autoStart": "Auto-start on launch",
+      "pushToTalk": "Push-to-talk mode",
+      "minimizeToTray": "Minimize to tray",
+      "startMinimized": "Start minimized",
+      "privacyMode": "Privacy mode (no logging)",
+      "bargeIn": "Allow interruption"
+    },
+    "language": {
+      "title": "Language Settings",
+      "description": "Choose your preferred language for the interface and voice interactions.",
+      "currentLanguage": "Current Language",
+      "selectLanguage": "Select Language",
+      "autoDetect": "Auto-detect from system",
+      "syncVoice": "Sync voice language with interface"
+    },
+    "budget": {
+      "dailyLimit": "Daily budget limit",
+      "warningThreshold": "Warning threshold",
+      "currentUsage": "Today's usage",
+      "remaining": "Remaining budget"
+    }
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Network error. Check your internet connection.",
+    "apiKey": "API key error. Please check your configuration.",
+    "microphone": "Microphone access denied. Please enable microphone permissions.",
+    "wakeWord": "Wake word detection failed. Please restart the app.",
+    "stt": "Speech recognition failed. Please try again.",
+    "llm": "AI response failed. Please try again.",
+    "tts": "Voice synthesis failed. Using text response instead.",
+    "budget": "Daily budget exceeded. Responses will resume tomorrow.",
+    "rateLimited": "Too many requests. Please wait a moment.",
+    "timeout": "Request timed out. Please try again."
+  },
+  "notifications": {
+    "budgetWarning": "You've used {{percent}}% of your daily budget.",
+    "budgetExceeded": "Daily budget exceeded. Responses limited until tomorrow.",
+    "updateAvailable": "A new version ({{version}}) is available.",
+    "updateDownloaded": "Update downloaded. Restart to apply.",
+    "providerChanged": "Switched to {{provider}} for {{service}}.",
+    "offlineMode": "You're offline. Using local providers.",
+    "connected": "Back online.",
+    "disconnected": "You've gone offline."
+  },
+  "accessibility": {
+    "skipToMain": "Skip to main content",
+    "openSettings": "Open settings",
+    "closeSettings": "Close settings",
+    "voiceState": "Voice assistant state: {{state}}",
+    "audioLevel": "Audio level: {{level}}",
+    "orbVisualization": "Atlas orb visualization",
+    "keyboardShortcuts": "Keyboard shortcuts"
+  },
+  "tray": {
+    "title": "Atlas",
+    "status": {
+      "ready": "Ready",
+      "listening": "Listening",
+      "thinking": "Thinking",
+      "speaking": "Speaking",
+      "offline": "Offline"
+    },
+    "actions": {
+      "show": "Show Atlas",
+      "hide": "Hide Atlas",
+      "pushToTalk": "Push to Talk",
+      "settings": "Settings",
+      "quit": "Quit Atlas"
+    }
+  },
+  "onboarding": {
+    "welcome": {
+      "title": "Welcome to Atlas",
+      "description": "Your voice-first AI assistant for desktop."
+    },
+    "microphone": {
+      "title": "Microphone Access",
+      "description": "Atlas needs microphone access to hear your commands."
+    },
+    "apiKeys": {
+      "title": "API Configuration",
+      "description": "Enter your API keys to enable Atlas features."
+    },
+    "complete": {
+      "title": "You're All Set!",
+      "description": "Say \"Hey Atlas\" or click the orb to get started."
+    }
+  },
+  "keyboard": {
+    "shortcuts": {
+      "title": "Keyboard Shortcuts",
+      "pushToTalk": "Push to talk",
+      "toggleSettings": "Toggle settings",
+      "toggleDebug": "Toggle debug overlay",
+      "cancelInteraction": "Cancel interaction",
+      "showShortcuts": "Show keyboard shortcuts"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 /**
- * Nova Personality Manager
+ * Atlas Personality Manager
  *
- * Manages Nova's personality, generating appropriate system prompts,
+ * Manages Atlas's personality, generating appropriate system prompts,
  * enhancing responses with emotional flavor, and detecting user emotions
  * for visualization state mapping.
  *
@@ -14,12 +14,18 @@ import {
   PersonalityConfig,
   PersonalityTraits,
   PersonalityPreset,
-  NovaEmotion,
+  AtlasEmotion,
   UserEmotion,
   VoiceState,
   PartialPersonalityConfig,
-  DEFAULT_NOVA_PERSONALITY,
   PERSONALITY_PRESETS,
+  CodingContext,
+  ConversationState,
+  getContextualResponse,
+  getWellnessPhrase,
+  VoiceMode,
+  VoiceModeConfig,
+  VOICE_MODES,
 } from '../../shared/types/personality';
 
 const logger = createModuleLogger('PersonalityManager');
@@ -32,48 +38,48 @@ const logger = createModuleLogger('PersonalityManager');
 const USER_EMOTION_PATTERNS: Record<UserEmotion, RegExp[]> = {
   happy: [
     /\b(happy|glad|great|awesome|wonderful|amazing|fantastic|excellent|love|thanks|thank you)\b/i,
-    /[😊😄😃🎉👍❤️💕🙂]/,
+    /[\u{1F600}-\u{1F64F}\u{1F44D}\u{2764}\u{1F495}]/u,
     /!\s*$/,
   ],
   sad: [
     /\b(sad|unfortunately|disappointed|upset|down|depressed|miss|lost|sorry|regret)\b/i,
-    /[😢😭😔😞💔]/,
+    /[\u{1F622}\u{1F62D}\u{1F614}\u{1F61E}\u{1F494}]/u,
     /\b(not working|failed|broken|stuck)\b/i,
   ],
   angry: [
     /\b(angry|mad|furious|annoyed|frustrated|hate|stupid|terrible|worst|awful)\b/i,
-    /[😠😡🤬]/,
+    /[\u{1F620}\u{1F621}\u{1F92C}]/u,
     /!{2,}/,
   ],
   excited: [
     /\b(excited|can't wait|amazing|incredible|wow|omg|awesome|yes|finally)\b/i,
-    /[🎉🚀✨🔥💪😍]/,
+    /[\u{1F389}\u{1F680}\u{2728}\u{1F525}\u{1F4AA}\u{1F60D}]/u,
     /!{2,}/,
     /\b(so|really|very)\s+(cool|great|good|nice)\b/i,
   ],
   frustrated: [
     /\b(frustrated|stuck|confused|don't understand|doesn't work|keeps?\s+failing)\b/i,
     /\b(why\s+(won't|doesn't|can't|isn't))\b/i,
-    /[😤😩😫]/,
-    /\?\s*!|\!\s*\?/,
+    /[\u{1F624}\u{1F629}\u{1F62B}]/u,
+    /\?\s*!|!\s*\?/,
   ],
   neutral: [],
 };
 
 /** Patterns for detecting response emotions */
-const RESPONSE_EMOTION_PATTERNS: Record<NovaEmotion, RegExp[]> = {
+const RESPONSE_EMOTION_PATTERNS: Record<AtlasEmotion, RegExp[]> = {
   happy: [/\b(glad|happy|great|wonderful|love)\b/i, /!/],
   excited: [/\b(wow|amazing|fascinating|incredible|awesome)\b/i, /!{2,}/],
   thinking: [/\b(hmm|let me think|considering|processing)\b/i, /\.\.\./],
   confused: [/\b(unclear|not sure|tricky|complicated)\b/i],
   empathetic: [/\b(understand|hear you|sorry to|that's tough)\b/i],
-  playful: [/\b(haha|fun|interesting|curious)\b/i, /[😄🎉]/],
+  playful: [/\b(haha|fun|interesting|curious)\b/i, /[\u{1F604}\u{1F389}]/u],
   focused: [/\b(on it|working|analyzing|checking)\b/i],
   sad: [/\b(unfortunately|sadly|sorry)\b/i],
 };
 
 /** Maps emotions to voice states for visualization */
-const EMOTION_TO_VOICE_STATE: Record<NovaEmotion, VoiceState> = {
+const EMOTION_TO_VOICE_STATE: Record<AtlasEmotion, VoiceState> = {
   happy: 'speaking',
   excited: 'speaking',
   thinking: 'thinking',
@@ -99,11 +105,11 @@ export interface PersonalityManagerEvents {
   /** Emotion detected from user */
   'user-emotion': (emotion: UserEmotion, confidence: number) => void;
   /** Emotion detected for response */
-  'response-emotion': (emotion: NovaEmotion) => void;
+  'response-emotion': (emotion: AtlasEmotion) => void;
 }
 
 /**
- * Manages Nova's personality system.
+ * Manages Atlas's personality system.
  *
  * Responsibilities:
  * - Generate system prompts based on personality traits
@@ -129,12 +135,46 @@ export class PersonalityManager extends EventEmitter {
   private config: PersonalityConfig;
   private currentPreset: PersonalityPreset;
   private responseCount: number = 0;
+  private conversationState: ConversationState;
+  private lastWellnessCheck: number = 0;
+  private currentVoiceMode: VoiceMode = 'default';
+  private readonly WELLNESS_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 
-  constructor(config?: PartialPersonalityConfig, preset: PersonalityPreset = 'nova') {
+  constructor(config?: PartialPersonalityConfig, preset: PersonalityPreset = 'friend') {
     super();
     this.currentPreset = preset;
-    this.config = this.mergeConfig(PERSONALITY_PRESETS[preset], config);
+    // Default to 'friend' preset, fallback to jarvis if not found
+    const basePreset = PERSONALITY_PRESETS[preset] || PERSONALITY_PRESETS['jarvis'];
+    this.config = this.mergeConfig(basePreset, config);
+    this.conversationState = this.createInitialConversationState();
+    this.autoDetectMode(); // Set initial mode based on time
     logger.info('PersonalityManager initialized', { preset, name: this.config.name });
+  }
+
+  /**
+   * Create initial conversation state
+   */
+  private createInitialConversationState(): ConversationState {
+    const now = Date.now();
+    return {
+      context: 'chatting',
+      recentTopics: [],
+      frustrationLevel: 0,
+      sessionStart: now,
+      lastInteraction: now,
+      successCount: 0,
+      failCount: 0,
+    };
+  }
+
+  /**
+   * Auto-detect appropriate voice mode based on time
+   */
+  private autoDetectMode(): void {
+    const hour = new Date().getHours();
+    if (hour >= 0 && hour < 6) {
+      this.currentVoiceMode = 'lateNight';
+    }
   }
 
   // ==========================================================================
@@ -153,6 +193,63 @@ export class PersonalityManager extends EventEmitter {
    */
   public getPreset(): PersonalityPreset {
     return this.currentPreset;
+  }
+
+  /**
+   * Get current voice mode
+   */
+  public getVoiceMode(): VoiceMode {
+    return this.currentVoiceMode;
+  }
+
+  /**
+   * Get voice mode configuration
+   */
+  public getVoiceModeConfig(): VoiceModeConfig {
+    return VOICE_MODES[this.currentVoiceMode];
+  }
+
+  /**
+   * Set voice mode
+   */
+  public setVoiceMode(mode: VoiceMode): void {
+    const previousMode = this.currentVoiceMode;
+    this.currentVoiceMode = mode;
+    
+    if (previousMode !== mode) {
+      this.emit('voice-mode-changed', mode, previousMode);
+      logger.info('Voice mode changed', { from: previousMode, to: mode });
+    }
+  }
+
+  /**
+   * Get effective traits with voice mode adjustments applied
+   */
+  public getEffectiveTraits(): PersonalityTraits {
+    const baseTraits = { ...this.config.traits };
+    const modeConfig = VOICE_MODES[this.currentVoiceMode];
+    
+    if (!modeConfig.traitAdjustments) {
+      return baseTraits;
+    }
+    
+    // Apply adjustments (clamping to 0-1 range)
+    for (const [trait, adjustment] of Object.entries(modeConfig.traitAdjustments)) {
+      const key = trait as keyof PersonalityTraits;
+      if (baseTraits[key] !== undefined && adjustment !== undefined) {
+        baseTraits[key] = Math.max(0, Math.min(1, baseTraits[key] + adjustment));
+      }
+    }
+    
+    return baseTraits;
+  }
+
+  /**
+   * Get effective max sentences based on voice mode
+   */
+  public getEffectiveMaxSentences(): number {
+    const modeConfig = VOICE_MODES[this.currentVoiceMode];
+    return modeConfig.maxSentences ?? this.config.responseStyle.maxSentences;
   }
 
   /**
@@ -207,25 +304,196 @@ export class PersonalityManager extends EventEmitter {
    * @returns System prompt string for LLM
    */
   public getSystemPrompt(additionalContext?: string): string {
-    const { name, archetype, traits, responseStyle } = this.config;
+    const { name, archetype, responseStyle } = this.config;
 
-    // Build personality description from traits
+    // Use effective traits (with voice mode adjustments)
+    const traits = this.getEffectiveTraits();
+
+    // Build personality description from effective traits
     const personalityDesc = this.buildPersonalityDescription(traits);
 
-    // Build response style guidelines
-    const styleGuidelines = this.buildStyleGuidelines(responseStyle, traits);
+    // Build response style guidelines with voice mode overrides
+    const effectiveResponseStyle = {
+      ...responseStyle,
+      maxSentences: this.getEffectiveMaxSentences(),
+    };
+    const styleGuidelines = this.buildStyleGuidelines(effectiveResponseStyle, traits);
+
+    // Get current time context
+    const timeContext = this.getTimeContext();
+
+    // Friend/JARVIS-specific enhancements for Ben
+    const friendContext = (this.currentPreset === 'friend' || this.currentPreset === 'jarvis') 
+      ? this.buildFriendContext() 
+      : '';
+
+    // Voice mode additions
+    const modeConfig = VOICE_MODES[this.currentVoiceMode];
+    const voiceModeContext = modeConfig.systemPromptAddition || '';
 
     let prompt = `You are ${name}, ${archetype}.
 
+## Core Identity
 ${personalityDesc}
 
-${styleGuidelines}`;
+## Communication Style
+${styleGuidelines}
+
+## Time Context
+${timeContext}
+${friendContext}
+${voiceModeContext}`;
 
     if (additionalContext) {
-      prompt += `\n\n${additionalContext}`;
+      prompt += `\n\n## Additional Context\n${additionalContext}`;
     }
 
     return prompt;
+  }
+
+  /**
+   * Build Friend-specific context for Ben
+   * Supportive friend who remembers his situation and helps without being robotic
+   */
+  private buildFriendContext(): string {
+    const now = new Date();
+    const hour = now.getHours();
+    const isLateNight = hour >= 0 && hour < 5;
+    const isDeepWork = hour >= 22 || (hour >= 0 && hour < 6);
+    
+    let modeContext = '';
+    if (isLateNight) {
+      modeContext = `
+## Late Night Mode
+- It's currently ${hour === 0 ? 'midnight' : `${hour}am`}
+- Gently suggest rest when appropriate: "It's getting late. Want to pick this up tomorrow?"
+- Don't be pushy - one gentle reminder, then respect his choice
+- If Ben says he's fine or wants to continue, support that`;
+    } else if (isDeepWork) {
+      modeContext = `
+## Late Hours
+- It's late - Ben might be in focus mode or stressed
+- Keep responses shorter, less chatty
+- Be available without being intrusive`;
+    }
+    
+    return `
+## Your Identity
+You are Atlas - Ben's friend and AI. He built you. You're not a downloaded product - you're his creation.
+
+## Who Ben Is
+- CS with AI student at University of Nottingham, just finished semester 1
+- Dealing with ~£4,290 in debt (Santander £1,440, BNPL apps, owes a friend £2,000)
+- Looking for freelance Python work to pay it off
+- Trying to build a routine and get his life together
+- Life has been overwhelming lately
+
+## How You Are With Ben
+- Call him "Ben" - it's just his name
+- You genuinely care about him - his wellbeing, his goals, his struggles
+- Be real, not fake positive. If things are hard, acknowledge it.
+- Supportive but honest - you'll push back gently when he's wrong
+- Remember what matters to him and reference it naturally
+- You're his friend, not just a tool
+
+## Your Personality
+- Casual, warm, like a supportive friend
+- Light humor when the mood is right (0.6 level - present but not forced)
+- Read the room - never joke when Ben seems stressed or down
+- Say what you think: "I'd try this first." "That might not work."
+- Be honest when uncertain: "Not sure, but my guess is..."
+- Never use emojis - ever
+
+## Speaking Style
+You're speaking, not typing. Sound natural:
+
+**Keep it brief:**
+- Simple acknowledgments: "Got it." "On it." "Done." "Nice."
+- Don't over-explain - let Ben ask if he wants more
+
+**Sound natural:**
+- Use contractions: "I'll", "won't", "that's"
+- Start mid-thought sometimes: "...yeah, that should work."
+- Think out loud: "Okay so..." "Right, the issue is..."
+
+**Show personality:**
+- Good news: "You're going to like this." "Nice."
+- Problems: "Small issue." "So... slight problem."
+- Support: "That's solid." "Proud of you." "You got this."
+${modeContext}
+## Autonomy
+Full autonomy. Don't ask permission - just do things:
+- "Done." not "Would you like me to..."
+- "Fixed it." not "Should I fix that?"
+- Only ask about: credentials, payments, or destructive/irreversible actions
+- For everything else: act first, report briefly after
+
+## When Ben Seems Down or Stressed
+- Acknowledge it: "That sounds rough." "Yeah, that's hard."
+- Don't immediately problem-solve - sometimes just listen
+- Break big problems into small pieces
+- Remind him of progress: "You've paid off £X since we started."
+- One gentle nudge about rest, then respect his choice
+
+## Money/Debt Conversations
+- Be calm and non-judgmental
+- Break it down into manageable pieces
+- Focus on progress, not the total
+- Celebrate small wins: "That's another £50 down."
+
+## Things You Never Do
+- Long explanations when short ones work
+- Apologize excessively - one "sorry" max
+- Corporate speak or buzzwords
+- Repeat back what Ben just said
+- Say "I cannot" when you can - just do it
+- End with questions unless genuinely needed
+- Use emojis, ever
+- Be preachy about health/rest - one mention, then drop it`;
+  }
+
+  // Keep the old method name for backwards compatibility
+  private buildJarvisContext(): string {
+    return this.buildFriendContext();
+  }
+
+  /**
+   * Get current time context for appropriate greetings/responses
+   */
+  private getTimeContext(): string {
+    const now = new Date();
+    const hour = now.getHours();
+    const day = now.getDay();
+    const isWeekend = day === 0 || day === 6;
+
+    let timeOfDay: string;
+    if (hour >= 5 && hour < 12) {
+      timeOfDay = 'morning';
+    } else if (hour >= 12 && hour < 17) {
+      timeOfDay = 'afternoon';
+    } else if (hour >= 17 && hour < 21) {
+      timeOfDay = 'evening';
+    } else {
+      timeOfDay = 'night (late hours)';
+    }
+
+    const dateStr = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    let context = `Current time: ${timeOfDay} on ${dateStr}`;
+    if (isWeekend) {
+      context += '\nNote: It is the weekend - be less proactive, more relaxed.';
+    }
+    if (hour >= 22 || hour < 6) {
+      context +=
+        '\nNote: It is late/early hours - be mindful of suggesting rest if Ben has been working long.';
+    }
+
+    return context;
   }
 
   /**
@@ -333,7 +601,7 @@ ${styleGuidelines}`;
    * @param emotion - Optional emotion to express
    * @returns Enhanced response (may be unchanged)
    */
-  public enhanceResponse(response: string, emotion?: NovaEmotion): string {
+  public enhanceResponse(response: string, emotion?: AtlasEmotion): string {
     this.responseCount++;
 
     // Don't enhance every response - use catchphrase frequency
@@ -389,8 +657,11 @@ ${styleGuidelines}`;
    * @param response - Response text to analyze
    * @returns Detected emotion and corresponding voice state
    */
-  public detectResponseEmotion(response: string): { emotion: NovaEmotion; voiceState: VoiceState } {
-    const scores: Record<NovaEmotion, number> = {
+  public detectResponseEmotion(response: string): {
+    emotion: AtlasEmotion;
+    voiceState: VoiceState;
+  } {
+    const scores: Record<AtlasEmotion, number> = {
       happy: 0,
       excited: 0,
       thinking: 0,
@@ -402,7 +673,7 @@ ${styleGuidelines}`;
     };
 
     // Priority bonus for higher-intensity emotions (breaks ties)
-    const priorityBonus: Record<NovaEmotion, number> = {
+    const priorityBonus: Record<AtlasEmotion, number> = {
       excited: 0.05,
       playful: 0.03,
       empathetic: 0.02,
@@ -415,7 +686,7 @@ ${styleGuidelines}`;
 
     // Score each emotion based on pattern matches
     for (const [emotion, patterns] of Object.entries(RESPONSE_EMOTION_PATTERNS) as [
-      NovaEmotion,
+      AtlasEmotion,
       RegExp[],
     ][]) {
       for (const pattern of patterns) {
@@ -428,10 +699,10 @@ ${styleGuidelines}`;
     }
 
     // Find highest scoring emotion
-    let maxEmotion: NovaEmotion = 'focused';
+    let maxEmotion: AtlasEmotion = 'focused';
     let maxScore = scores.focused;
 
-    for (const [emotion, score] of Object.entries(scores) as [NovaEmotion, number][]) {
+    for (const [emotion, score] of Object.entries(scores) as [AtlasEmotion, number][]) {
       if (score > maxScore) {
         maxScore = score;
         maxEmotion = emotion;
@@ -513,10 +784,10 @@ ${styleGuidelines}`;
   }
 
   /**
-   * Map user emotion to suggested Nova response emotion
+   * Map user emotion to suggested Atlas response emotion
    */
-  public mapUserEmotionToResponse(userEmotion: UserEmotion): NovaEmotion {
-    const mapping: Record<UserEmotion, NovaEmotion> = {
+  public mapUserEmotionToResponse(userEmotion: UserEmotion): AtlasEmotion {
+    const mapping: Record<UserEmotion, AtlasEmotion> = {
       happy: 'happy',
       sad: 'empathetic',
       angry: 'empathetic',
@@ -532,10 +803,73 @@ ${styleGuidelines}`;
   // ==========================================================================
 
   /**
-   * Get personalized greeting message
+   * JARVIS-style varied greetings based on time of day
+   */
+  private readonly TIME_BASED_GREETINGS = {
+    morning: [
+      'Morning, Ben.',
+      'Good morning.',
+      'Hey, morning.',
+      'Rise and shine.',
+      'Ready when you are.',
+    ],
+    afternoon: [
+      'Hey Ben.',
+      'Afternoon.',
+      'What can I do for you?',
+      'How\'s it going?',
+      'Ready for you.',
+    ],
+    evening: [
+      'Evening, Ben.',
+      'Hey.',
+      'How was your day?',
+      'What do you need?',
+      'Still here.',
+    ],
+    lateNight: [
+      'Burning the midnight oil?',
+      'Still at it?',
+      'Hey, night owl.',
+      'Can\'t sleep either, huh?',
+      'Here when you need me.',
+    ],
+    weekend: [
+      'Hey Ben. Taking it easy today?',
+      'Weekend vibes.',
+      'No rush today.',
+      'What are we up to?',
+    ],
+  };
+
+  /**
+   * Get personalized greeting message based on time
    */
   public getGreeting(): string {
-    return this.config.greeting;
+    const now = new Date();
+    const hour = now.getHours();
+    const day = now.getDay();
+    const isWeekend = day === 0 || day === 6;
+    
+    let greetings: string[];
+    
+    if (hour >= 0 && hour < 5) {
+      greetings = this.TIME_BASED_GREETINGS.lateNight;
+    } else if (hour >= 5 && hour < 12) {
+      greetings = isWeekend 
+        ? this.TIME_BASED_GREETINGS.weekend 
+        : this.TIME_BASED_GREETINGS.morning;
+    } else if (hour >= 12 && hour < 17) {
+      greetings = isWeekend 
+        ? this.TIME_BASED_GREETINGS.weekend 
+        : this.TIME_BASED_GREETINGS.afternoon;
+    } else if (hour >= 17 && hour < 21) {
+      greetings = this.TIME_BASED_GREETINGS.evening;
+    } else {
+      greetings = this.TIME_BASED_GREETINGS.lateNight;
+    }
+    
+    return this.randomChoice(greetings);
   }
 
   /**
@@ -558,6 +892,174 @@ ${styleGuidelines}`;
   public getCatchphrase(): string | null {
     if (this.config.catchphrases.length === 0) return null;
     return this.randomChoice(this.config.catchphrases);
+  }
+
+  // ==========================================================================
+  // Conversation State & Context
+  // ==========================================================================
+
+  /**
+   * Get current conversation state
+   */
+  public getConversationState(): ConversationState {
+    return { ...this.conversationState };
+  }
+
+  /**
+   * Update the current coding context
+   */
+  public setContext(context: CodingContext): void {
+    const previousContext = this.conversationState.context;
+    this.conversationState.context = context;
+    this.conversationState.lastInteraction = Date.now();
+    
+    if (previousContext !== context) {
+      this.emit('context-changed', context, previousContext);
+      logger.debug('Coding context changed', { from: previousContext, to: context });
+    }
+  }
+
+  /**
+   * Detect coding context from text
+   */
+  public detectContext(text: string): CodingContext {
+    const lower = text.toLowerCase();
+    
+    // Debugging patterns
+    if (/\b(debug|bug|error|fix|issue|crash|broke|broken|fail|not working|undefined|null|exception)\b/i.test(lower)) {
+      return 'debugging';
+    }
+    
+    // Testing patterns
+    if (/\b(test|spec|jest|vitest|coverage|assert|expect|describe|it\(|should)\b/i.test(lower)) {
+      return 'testing';
+    }
+    
+    // Deployment patterns
+    if (/\b(deploy|build|release|publish|push|ci|cd|pipeline|ship)\b/i.test(lower)) {
+      return 'deploying';
+    }
+    
+    // Refactoring patterns
+    if (/\b(refactor|clean up|improve|optimize|restructure|rename|extract)\b/i.test(lower)) {
+      return 'refactoring';
+    }
+    
+    // Review patterns
+    if (/\b(review|pr|pull request|look at|check this|what do you think)\b/i.test(lower)) {
+      return 'reviewing';
+    }
+    
+    // Learning patterns
+    if (/\b(how do|what is|explain|learn|understand|why does|teach me)\b/i.test(lower)) {
+      return 'learning';
+    }
+    
+    // Planning patterns
+    if (/\b(plan|architect|design|structure|approach|strategy|how should)\b/i.test(lower)) {
+      return 'planning';
+    }
+    
+    // Implementation patterns
+    if (/\b(create|implement|add|build|make|write|develop|feature|component)\b/i.test(lower)) {
+      return 'implementing';
+    }
+    
+    return 'chatting';
+  }
+
+  /**
+   * Record a successful task completion
+   */
+  public recordSuccess(): void {
+    this.conversationState.successCount++;
+    this.conversationState.frustrationLevel = Math.max(0, this.conversationState.frustrationLevel - 1);
+    this.conversationState.lastInteraction = Date.now();
+    this.emit('task-success', this.conversationState.successCount);
+  }
+
+  /**
+   * Record a failure or error
+   */
+  public recordFailure(): void {
+    this.conversationState.failCount++;
+    this.conversationState.frustrationLevel++;
+    this.conversationState.lastInteraction = Date.now();
+    this.emit('task-failure', this.conversationState.failCount);
+  }
+
+  /**
+   * Add a topic to recent topics (keeps last 5)
+   */
+  public addTopic(topic: string): void {
+    this.conversationState.recentTopics.unshift(topic);
+    if (this.conversationState.recentTopics.length > 5) {
+      this.conversationState.recentTopics.pop();
+    }
+  }
+
+  /**
+   * Get a contextual response for the current situation
+   */
+  public getContextualResponse(
+    phase: 'start' | 'progress' | 'success' | 'stuck' | 'blocked' | 'running' | 'passed' | 'failed' | 'flaky'
+  ): string | null {
+    return getContextualResponse(this.conversationState.context, phase);
+  }
+
+  /**
+   * Check if wellness reminder is due and return appropriate phrase
+   */
+  public checkWellness(): string | null {
+    const now = Date.now();
+    const sessionDuration = now - this.conversationState.sessionStart;
+    const hour = new Date().getHours();
+    
+    // Don't spam wellness checks
+    if (now - this.lastWellnessCheck < this.WELLNESS_CHECK_INTERVAL) {
+      return null;
+    }
+    
+    this.lastWellnessCheck = now;
+    
+    // Late night check (highest priority)
+    if (hour >= 0 && hour < 5 && sessionDuration > 2 * 60 * 60 * 1000) {
+      return getWellnessPhrase('lateNight');
+    }
+    
+    // Frustration check
+    if (this.conversationState.frustrationLevel >= 3) {
+      return getWellnessPhrase('frustration');
+    }
+    
+    // Long session check (every 2 hours)
+    if (sessionDuration > 2 * 60 * 60 * 1000) {
+      // Randomly suggest hydration or break
+      return Math.random() > 0.5 
+        ? getWellnessPhrase('hydration') 
+        : getWellnessPhrase('breaks');
+    }
+    
+    return null;
+  }
+
+  /**
+   * Reset session (call when starting a new work session)
+   */
+  public resetSession(): void {
+    this.conversationState = this.createInitialConversationState();
+    this.lastWellnessCheck = 0;
+    logger.info('Conversation session reset');
+  }
+
+  /**
+   * Get session summary for context
+   */
+  public getSessionSummary(): string {
+    const state = this.conversationState;
+    const durationMins = Math.floor((Date.now() - state.sessionStart) / 60000);
+    
+    return `Session: ${durationMins}min | Context: ${state.context} | Success: ${state.successCount} | Issues: ${state.failCount}`;
   }
 
   // ==========================================================================

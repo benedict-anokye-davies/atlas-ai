@@ -1,0 +1,220 @@
+/**
+ * Atlas Desktop - Dashboard Styles
+ * Grid layout for widgets
+ */
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Top row - Orb + Key Metrics */
+.dashboard__top-row {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* Main grid layout */
+.dashboard__grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Widget containers */
+.dashboard__widget {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard__widget--portfolio {
+  grid-column: 1;
+}
+
+.dashboard__widget--feed {
+  grid-column: 2;
+}
+
+/* Responsive breakpoints */
+@media (max-width: 1200px) {
+  .dashboard__top-row {
+    grid-template-columns: auto 1fr;
+  }
+  
+  .dashboard__top-row > *:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+  
+  .dashboard__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard__top-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .dashboard__top-row > *:first-child {
+    justify-self: center;
+  }
+  
+  .dashboard__grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .dashboard__widget--portfolio,
+  .dashboard__widget--feed {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 600px) {
+  .dashboard {
+    padding: 12px;
+    gap: 12px;
+  }
+  
+  .dashboard__top-row,
+  .dashboard__grid {
+    gap: 12px;
+  }
+}
+
+/* Scrollbar styling */
+.dashboard::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dashboard::-webkit-scrollbar-thumb {
+  background: var(--atlas-bg-elevated);
+  border-radius: 4px;
+}
+
+.dashboard::-webkit-scrollbar-thumb:hover {
+  background: var(--atlas-border-focus);
+}
+
+/* Widget hover effects */
+.dashboard__widget > * {
+  transition: box-shadow var(--atlas-transition-medium);
+}
+
+.dashboard__widget > *:hover {
+  box-shadow: var(--atlas-shadow-lg);
+}
+
+/* Loading skeleton animation */
+.dashboard__skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--atlas-bg-elevated) 0%,
+    var(--atlas-bg-hover) 50%,
+    var(--atlas-bg-elevated) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--atlas-radius-md);
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Command Bar at Bottom */
+.dashboard__command-bar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px;
+  background: linear-gradient(
+    to top,
+    var(--atlas-bg-base) 0%,
+    var(--atlas-bg-base) 60%,
+    transparent 100%
+  );
+  z-index: 100;
+  margin: -16px -16px 0;
+  padding-top: 32px;
+}
+
+.dashboard__command-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--atlas-cyan) 50%,
+    transparent 100%
+  );
+  opacity: 0.3;
+}
+
+/* Scan line overlay - subtle CRT effect */
+.dashboard__scan-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+}
+
+/* Grid background pattern */
+.dashboard::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    linear-gradient(var(--atlas-border-subtle) 1px, transparent 1px),
+    linear-gradient(90deg, var(--atlas-border-subtle) 1px, transparent 1px);
+  background-size: 50px 50px;
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Vignette effect */
+.dashboard::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 0%,
+    transparent 60%,
+    rgba(0, 0, 0, 0.4) 100%
+  );
+  pointer-events: none;
+  z-index: 9998;
+}
+

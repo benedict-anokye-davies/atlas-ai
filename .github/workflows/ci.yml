@@ -1,0 +1,363 @@
+# Atlas Desktop - Continuous Integration Workflow
+#
+# Triggers on:
+# - Pull requests to main/master branches
+# - Push to main/master branches
+# - Manual workflow dispatch
+#
+# Runs quality checks and builds for all platforms in parallel.
+
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+      - orchestrator
+    types: [opened, synchronize, reopened]
+
+  push:
+    branches:
+      - main
+      - master
+      - orchestrator
+
+  workflow_dispatch:
+    inputs:
+      skip_build:
+        description: 'Skip platform builds (quality checks only)'
+        required: false
+        type: boolean
+        default: false
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: 'true'
+
+jobs:
+  # ==========================================================================
+  # Quality Gate Job - Runs lint, typecheck, and tests
+  # ==========================================================================
+  quality:
+    name: Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: false
+
+      - name: Run TypeScript check
+        run: npm run typecheck
+        continue-on-error: false
+
+      - name: Run tests
+        run: npm run test
+        env:
+          CI: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            coverage/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ==========================================================================
+  # Build Jobs - Parallel builds for each platform
+  # ==========================================================================
+  build-windows:
+    name: Build Windows
+    needs: quality
+    if: github.event.inputs.skip_build != 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Build Vite app
+        run: npm run build:vite
+
+      - name: Build Electron main process
+        run: npm run build:electron
+
+      - name: Package for Windows
+        run: npx electron-builder --win --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-windows
+          path: |
+            release/*.exe
+            release/*.exe.blockmap
+          if-no-files-found: warn
+          retention-days: 5
+
+  build-macos:
+    name: Build macOS
+    needs: quality
+    if: github.event.inputs.skip_build != 'true'
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Build Vite app
+        run: npm run build:vite
+
+      - name: Build Electron main process
+        run: npm run build:electron
+
+      - name: Package for macOS
+        run: npx electron-builder --mac --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-macos
+          path: |
+            release/*.dmg
+            release/*.zip
+          if-no-files-found: warn
+          retention-days: 5
+
+  build-linux:
+    name: Build Linux
+    needs: quality
+    if: github.event.inputs.skip_build != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Build Vite app
+        run: npm run build:vite
+
+      - name: Build Electron main process
+        run: npm run build:electron
+
+      - name: Package for Linux
+        run: npx electron-builder --linux --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-linux
+          path: |
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: warn
+          retention-days: 5
+
+  # ==========================================================================
+  # Status Check Job - Aggregates all job results for branch protection
+  # ==========================================================================
+  ci-status:
+    name: CI Status
+    needs: [quality, build-windows, build-macos, build-linux]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check quality job status
+        if: needs.quality.result == 'failure'
+        run: |
+          echo "Quality checks failed!"
+          exit 1
+
+      - name: Check build jobs status
+        if: |
+          github.event.inputs.skip_build != 'true' && (
+            needs.build-windows.result == 'failure' ||
+            needs.build-macos.result == 'failure' ||
+            needs.build-linux.result == 'failure'
+          )
+        run: |
+          echo "One or more platform builds failed!"
+          echo "Windows: ${{ needs.build-windows.result }}"
+          echo "macOS: ${{ needs.build-macos.result }}"
+          echo "Linux: ${{ needs.build-linux.result }}"
+          exit 1
+
+      - name: CI passed
+        run: |
+          echo "All CI checks passed successfully!"
+          echo ""
+          echo "Quality: ${{ needs.quality.result }}"
+          echo "Windows: ${{ needs.build-windows.result || 'skipped' }}"
+          echo "macOS: ${{ needs.build-macos.result || 'skipped' }}"
+          echo "Linux: ${{ needs.build-linux.result || 'skipped' }}"
+
+  # ==========================================================================
+  # Notification Job - Sends notifications on failure
+  # ==========================================================================
+  notify-failure:
+    name: Notify on Failure
+    needs: [quality, build-windows, build-macos, build-linux]
+    if: failure() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Collect failure info
+        id: failure-info
+        run: |
+          FAILED_JOBS=""
+          if [ "${{ needs.quality.result }}" == "failure" ]; then
+            FAILED_JOBS="${FAILED_JOBS}Quality checks, "
+          fi
+          if [ "${{ needs.build-windows.result }}" == "failure" ]; then
+            FAILED_JOBS="${FAILED_JOBS}Windows build, "
+          fi
+          if [ "${{ needs.build-macos.result }}" == "failure" ]; then
+            FAILED_JOBS="${FAILED_JOBS}macOS build, "
+          fi
+          if [ "${{ needs.build-linux.result }}" == "failure" ]; then
+            FAILED_JOBS="${FAILED_JOBS}Linux build, "
+          fi
+          FAILED_JOBS="${FAILED_JOBS%, }"
+          echo "failed_jobs=$FAILED_JOBS" >> $GITHUB_OUTPUT
+
+      - name: Send Discord notification
+        if: env.DISCORD_WEBHOOK_URL != ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          curl -H "Content-Type: application/json" \
+            -d "{\"content\": \"CI failed on ${{ github.ref_name }}! Failed: ${{ steps.failure-info.outputs.failed_jobs }}. Check: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "$DISCORD_WEBHOOK_URL" || true
+
+      - name: Send Slack notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -H "Content-Type: application/json" \
+            -d "{\"text\": \"CI failed on ${{ github.ref_name }}! Failed: ${{ steps.failure-info.outputs.failed_jobs }}. Check: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "$SLACK_WEBHOOK_URL" || true
+
+      - name: Create GitHub Issue on repeated failures
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'ci-failure',
+              state: 'open'
+            });
+
+            if (issues.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `CI Failure on ${context.ref}`,
+                body: `CI failed on commit ${context.sha}.\n\nFailed jobs: ${{ steps.failure-info.outputs.failed_jobs }}\n\nWorkflow run: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                labels: ['ci-failure', 'bug']
+              });
+            }

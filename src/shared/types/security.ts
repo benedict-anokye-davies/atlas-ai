@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Security Types
+ * Atlas Desktop - Security Types
  * Type definitions for security hardening systems
  *
  * @module security
@@ -88,6 +88,12 @@ export interface InputValidationResult {
   threats: DetectedThreat[];
   /** Overall threat level */
   threatLevel: 'none' | 'low' | 'medium' | 'high' | 'critical';
+  /** User-friendly error message (if not safe) */
+  message?: string;
+  /** Actionable suggestion for fixing the input */
+  suggestion?: string;
+  /** Error code for programmatic handling */
+  code?: string;
 }
 
 /**
@@ -313,6 +319,7 @@ export const PROMPT_INJECTION_PATTERNS = [
   /&#x?[0-9a-f]+;/i,
 
   // Control character injection
+  // eslint-disable-next-line no-control-regex
   /[\x00-\x08\x0b\x0c\x0e-\x1f]/,
 ] as const;
 
@@ -627,6 +634,76 @@ export const DEFAULT_COMMAND_WHITELIST: WhitelistEntry[] = [
 ];
 
 /**
+ * Keychain configuration
+ */
+export interface KeychainConfig {
+  /** Whether to use OS keychain (true) or fallback only (false) */
+  useOsKeychain: boolean;
+  /** Path to fallback encrypted storage file */
+  fallbackPath?: string;
+  /** Source for encryption key derivation */
+  encryptionKeySource: 'machine' | 'user' | 'custom';
+  /** Custom encryption key (only if encryptionKeySource is 'custom') */
+  customKey?: string;
+}
+
+/**
+ * Result of a keychain operation
+ */
+export interface KeychainResult {
+  /** Whether the operation was successful */
+  success: boolean;
+  /** Error message if operation failed */
+  error?: string;
+  /** Storage type used (if applicable) */
+  storage?: 'keychain' | 'fallback' | 'both';
+}
+
+/**
+ * Information about a stored key
+ */
+export interface StoredKeyInfo {
+  /** Key name */
+  name: string;
+  /** Where the key is stored */
+  storage: 'keychain' | 'fallback' | 'both';
+  /** Whether the key has a value */
+  hasValue: boolean;
+}
+
+/**
+ * Migration status tracking
+ */
+export interface MigrationStatus {
+  /** Whether migration has been performed */
+  migrated: boolean;
+  /** ISO timestamp of migration */
+  migrationDate: string | null;
+  /** Keys that were migrated */
+  migratedKeys: string[];
+  /** Migration schema version */
+  version: number;
+}
+
+/**
+ * Result of a key migration operation
+ */
+export interface MigrationResult {
+  /** Whether migration was successful */
+  success: boolean;
+  /** Keys that were migrated */
+  migratedKeys: string[];
+  /** Keys that were skipped (already migrated or empty) */
+  skippedKeys: string[];
+  /** Error messages if any */
+  errors: string[];
+  /** Whether migration was already completed */
+  alreadyMigrated: boolean;
+  /** Path to backup file if created */
+  backupPath?: string;
+}
+
+/**
  * Path patterns that are blocked from access
  */
 export const BLOCKED_PATH_PATTERNS = [
@@ -669,3 +746,463 @@ export const BLOCKED_PATH_PATTERNS = [
   /\.\.\//,
   /\.\.\\/, // Windows variant
 ] as const;
+
+// ============================================================================
+// File Guard Types
+// ============================================================================
+
+/**
+ * File access permission types
+ */
+export type FileAccessPermission = 'read' | 'write' | 'create' | 'delete' | 'list';
+
+/**
+ * File operation types
+ */
+export type FileOperationType = 'read' | 'write' | 'create' | 'delete' | 'list';
+
+/**
+ * Directory permission entry
+ */
+export interface DirectoryPermission {
+  /** The directory path */
+  path: string;
+  /** Permissions granted for this directory */
+  permissions: FileAccessPermission[];
+  /** When the permission was granted */
+  grantedAt: number;
+  /** Who granted the permission (system, user, etc.) */
+  grantedBy: string;
+  /** When the permission expires (undefined = never) */
+  expiresAt?: number;
+}
+
+/**
+ * File access result
+ */
+export interface FileAccessResult {
+  /** Whether access is allowed */
+  allowed: boolean;
+  /** Original path requested */
+  path: string;
+  /** Normalized/resolved path */
+  normalizedPath: string;
+  /** The operation that was checked */
+  operation: FileOperationType;
+  /** Reason for the decision */
+  reason?: string;
+  /** Whether the path is blocked (security concern) */
+  isBlocked?: boolean;
+  /** Whether user prompt is required */
+  requiresPrompt?: boolean;
+}
+
+/**
+ * Path validation result
+ */
+export interface PathValidationResult {
+  /** Whether the path is valid */
+  valid: boolean;
+  /** Normalized path */
+  normalizedPath: string;
+  /** List of issues found */
+  issues: string[];
+  /** Whether the path is blocked for security reasons */
+  isBlocked?: boolean;
+}
+
+/**
+ * File Guard configuration
+ */
+export interface FileGuardConfig {
+  /** Enable user prompts for new directory access */
+  enableUserPrompts: boolean;
+  /** Maximum path length allowed */
+  maxPathLength: number;
+  /** Maximum file size for read/write operations */
+  maxFileSize: number;
+  /** Default timeout for file operations (ms) */
+  defaultTimeout: number;
+  /** Session ID for tracking */
+  sessionId?: string;
+}
+
+/**
+ * Default File Guard configuration
+ */
+export const DEFAULT_FILE_GUARD_CONFIG: FileGuardConfig = {
+  enableUserPrompts: true,
+  maxPathLength: 4096,
+  maxFileSize: 50 * 1024 * 1024, // 50MB
+  defaultTimeout: 30000, // 30 seconds
+};
+
+/**
+ * System-level blocked paths (always blocked regardless of whitelist)
+ */
+export const SYSTEM_BLOCKED_PATHS: (string | RegExp)[] = [
+  // Unix system directories
+  '/etc/shadow',
+  '/etc/passwd',
+  '/etc/sudoers',
+  '/etc/sudoers.d',
+  /^\/root\//i,
+  /^\/boot\//i,
+  /^\/sys\//i,
+  /^\/proc\//i,
+  /^\/dev\//i,
+
+  // Windows system directories
+  /^[A-Z]:\\Windows\\System32/i,
+  /^[A-Z]:\\Windows\\SysWOW64/i,
+  /^[A-Z]:\\Windows\\system\.ini$/i,
+  /^[A-Z]:\\Windows\\win\.ini$/i,
+  /^[A-Z]:\\Windows\\System\\config/i,
+  /^[A-Z]:\\ProgramData\\Microsoft\\Windows\\Start Menu/i,
+
+  // macOS system directories
+  /^\/System\//i,
+  /^\/Library\/Preferences\/SystemConfiguration/i,
+
+  // User sensitive directories
+  /\.ssh\//i,
+  /\.gnupg\//i,
+  /\.password-store\//i,
+];
+
+/**
+ * Sensitive file patterns (blocked from all access)
+ */
+export const SENSITIVE_FILE_PATTERNS: RegExp[] = [
+  // SSH keys
+  /^id_(rsa|dsa|ecdsa|ed25519)$/i,
+  /^id_(rsa|dsa|ecdsa|ed25519)\.pub$/i,
+  /^known_hosts$/i,
+  /^authorized_keys$/i,
+
+  // Credentials and secrets
+  /^\.env$/i,
+  /^\.env\.[a-z]+$/i,
+  /^\.netrc$/i,
+  /^\.npmrc$/i,
+  /^\.pypirc$/i,
+  /^credentials\.json$/i,
+  /^secrets?\.json$/i,
+  /^secrets?\.(ya?ml|toml)$/i,
+
+  // Certificates and keys
+  /\.pem$/i,
+  /\.key$/i,
+  /\.p12$/i,
+  /\.pfx$/i,
+  /\.jks$/i,
+  /\.keystore$/i,
+
+  // Wallets and crypto
+  /^wallet\.dat$/i,
+  /^keystore$/i,
+
+  // Browser data
+  /^Login Data$/i,
+  /^Cookies$/i,
+  /^History$/i,
+
+  // Password managers
+  /\.kdbx$/i, // KeePass
+  /^1password\.sqlite$/i,
+  /^logins\.json$/i, // Firefox
+];
+
+// ============================================================================
+// Sandbox Types
+// ============================================================================
+
+/**
+ * Resource limits for sandboxed execution
+ */
+export interface SandboxResourceLimits {
+  /** Maximum execution time (ms) */
+  maxExecutionTime: number;
+  /** Maximum memory usage (bytes) - advisory only */
+  maxMemory: number;
+  /** Maximum output size (bytes) */
+  maxOutputSize: number;
+  /** Maximum number of files that can be accessed */
+  maxFileAccess: number;
+  /** Maximum number of network requests */
+  maxNetworkRequests: number;
+}
+
+/**
+ * Sandbox execution context
+ */
+export interface SandboxExecutionContext {
+  /** Unique execution ID */
+  executionId: string;
+  /** Tool being executed */
+  toolName: string;
+  /** Parameters passed to the tool */
+  params: Record<string, unknown>;
+  /** Start time */
+  startTime: number;
+  /** Session ID */
+  sessionId: string;
+  /** Resource limits */
+  resourceLimits: SandboxResourceLimits;
+  /** Working directory */
+  workingDirectory: string;
+  /** Environment variables */
+  environmentVariables: Record<string, string>;
+  /** File guard instance (injected) */
+  fileGuard?: unknown;
+  /** Terminal executor instance (injected) */
+  terminalExecutor?: unknown;
+  /** Abort signal for cancellation */
+  abortSignal?: AbortSignal;
+}
+
+/**
+ * Sandbox execution result
+ */
+export interface SandboxExecutionResult<T = unknown> {
+  /** Whether execution succeeded */
+  success: boolean;
+  /** Execution ID */
+  executionId: string;
+  /** Tool name */
+  toolName: string;
+  /** Result data (if successful) */
+  result?: T;
+  /** Error message (if failed) */
+  error?: string;
+  /** Execution duration (ms) */
+  duration: number;
+  /** Start time */
+  startTime: number;
+  /** End time */
+  endTime: number;
+  /** Resources used */
+  resourcesUsed?: {
+    memoryPeak?: number;
+    filesAccessed?: number;
+    networkRequests?: number;
+  };
+}
+
+/**
+ * Tool execution record for history
+ */
+export interface ToolExecutionRecord {
+  /** Unique execution ID */
+  id: string;
+  /** Tool name */
+  toolName: string;
+  /** Parameters (sanitized) */
+  params: Record<string, unknown>;
+  /** Start time */
+  startTime: number;
+  /** End time */
+  endTime: number;
+  /** Duration (ms) */
+  duration: number;
+  /** Whether execution succeeded */
+  success: boolean;
+  /** Result (if successful) */
+  result?: unknown;
+  /** Error message (if failed) */
+  error?: string;
+  /** Session ID */
+  sessionId: string;
+  /** Source of the request */
+  source: string;
+}
+
+/**
+ * Sandbox configuration
+ */
+export interface SandboxConfig {
+  /** Maximum concurrent executions */
+  maxConcurrentExecutions: number;
+  /** Default execution timeout (ms) */
+  defaultTimeout: number;
+  /** Resource limits */
+  resourceLimits: SandboxResourceLimits;
+  /** Working directory for executions */
+  workingDirectory?: string;
+  /** Environment variables to inject */
+  environmentVariables: Record<string, string>;
+  /** Maximum history size to keep */
+  maxHistorySize?: number;
+  /** Session ID */
+  sessionId?: string;
+}
+
+/**
+ * Default resource limits
+ */
+export const DEFAULT_RESOURCE_LIMITS: SandboxResourceLimits = {
+  maxExecutionTime: 60000, // 1 minute
+  maxMemory: 256 * 1024 * 1024, // 256MB
+  maxOutputSize: 10 * 1024 * 1024, // 10MB
+  maxFileAccess: 100,
+  maxNetworkRequests: 10,
+};
+
+/**
+ * Default sandbox configuration
+ */
+export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
+  maxConcurrentExecutions: 5,
+  defaultTimeout: 60000, // 1 minute
+  resourceLimits: DEFAULT_RESOURCE_LIMITS,
+  environmentVariables: {},
+  maxHistorySize: 1000,
+};
+
+// ============================================================================
+// Auto-Lock Types
+// ============================================================================
+
+/**
+ * Lock level determines what gets locked
+ */
+export type LockLevel = 'full' | 'sensitive_only' | 'none';
+
+/**
+ * Unlock method types
+ */
+export type UnlockMethod = 'password' | 'biometric' | 'pin' | 'none';
+
+/**
+ * Reason for locking
+ */
+export type LockReason =
+  | 'idle_timeout'
+  | 'manual_lock'
+  | 'voice_command'
+  | 'system_lock'
+  | 'display_off'
+  | 'failed_attempts'
+  | 'app_start';
+
+/**
+ * Auto-lock configuration
+ */
+export interface AutoLockConfig {
+  /** Whether auto-lock is enabled */
+  enabled: boolean;
+
+  /** Idle time before locking (in milliseconds) */
+  idleTimeoutMs: number;
+
+  /** Time to show warning before locking (in milliseconds) */
+  warningTimeMs: number;
+
+  /** Lock level to apply */
+  lockLevel: LockLevel;
+
+  /** Unlock method to use */
+  unlockMethod: UnlockMethod;
+
+  /** Lock when system locks/sleeps */
+  lockOnSystemLock: boolean;
+
+  /** Lock when display turns off */
+  lockOnDisplayOff: boolean;
+
+  /** Quick unlock keyboard shortcut (e.g., 'CommandOrControl+Shift+U') */
+  unlockShortcut: string;
+
+  /** Quick lock keyboard shortcut (e.g., 'CommandOrControl+Shift+L') */
+  lockShortcut: string;
+
+  /** Enable voice command "Lock Atlas" */
+  enableVoiceLock: boolean;
+
+  /** Show notification before locking */
+  showLockNotification: boolean;
+
+  /** Auto-lock after failed unlock attempts */
+  maxUnlockAttempts: number;
+
+  /** Lockout duration after max failed attempts (in milliseconds) */
+  lockoutDurationMs: number;
+
+  /** Operations that require unlock when in 'sensitive_only' mode */
+  sensitiveOperations: string[];
+}
+
+/**
+ * Default auto-lock configuration
+ */
+export const DEFAULT_AUTO_LOCK_CONFIG: AutoLockConfig = {
+  enabled: true,
+  idleTimeoutMs: 5 * 60 * 1000, // 5 minutes
+  warningTimeMs: 30 * 1000, // 30 seconds warning
+  lockLevel: 'full',
+  unlockMethod: 'password',
+  lockOnSystemLock: true,
+  lockOnDisplayOff: true,
+  unlockShortcut: 'CommandOrControl+Shift+U',
+  lockShortcut: 'CommandOrControl+Shift+L',
+  enableVoiceLock: true,
+  showLockNotification: true,
+  maxUnlockAttempts: 5,
+  lockoutDurationMs: 5 * 60 * 1000, // 5 minute lockout
+  sensitiveOperations: [
+    'terminal_execute',
+    'file_delete',
+    'file_write',
+    'system_settings',
+    'browser_automation',
+    'git_push',
+    'api_key_access',
+    'memory_clear',
+  ],
+};
+
+/**
+ * Lock state information
+ */
+export interface LockState {
+  /** Whether the system is locked */
+  isLocked: boolean;
+
+  /** Current lock level */
+  lockLevel: LockLevel;
+
+  /** When the lock was activated */
+  lockedAt: number | null;
+
+  /** Number of failed unlock attempts */
+  failedAttempts: number;
+
+  /** Whether currently in lockout */
+  isLockedOut: boolean;
+
+  /** When lockout ends (if in lockout) */
+  lockoutEndsAt: number | null;
+
+  /** Session ID of who locked */
+  lockedBySession: string | null;
+
+  /** Lock reason */
+  lockReason: LockReason;
+}
+
+/**
+ * Unlock result
+ */
+export interface UnlockResult {
+  /** Whether unlock was successful */
+  success: boolean;
+
+  /** Error message if failed */
+  error?: string;
+
+  /** Remaining attempts if failed */
+  remainingAttempts?: number;
+
+  /** Lockout time remaining if locked out */
+  lockoutRemainingMs?: number;
+}

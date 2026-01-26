@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Vector Store Cleanup
+ * Atlas Desktop - Vector Store Cleanup
  * Automatic cleanup and maintenance of the vector store
  */
 

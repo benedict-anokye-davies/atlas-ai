@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Nova Desktop - Audio Analysis Hook
  * Real-time audio frequency analysis using Web Audio API
@@ -63,6 +64,7 @@ export function useAudioAnalysis(
     const initAudio = () => {
       try {
         // Create audio context
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
         const audioContext = new AudioContext();
         audioContextRef.current = audioContext;

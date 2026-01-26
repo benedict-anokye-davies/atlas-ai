@@ -1,7 +1,8 @@
 /**
- * Nova Desktop - Offline TTS Provider
+ * Atlas Desktop - Offline TTS Provider
  * Local text-to-speech using Piper (neural TTS) with espeak fallback
  * Provides offline speech synthesis when ElevenLabs is unavailable
+ * Supports speed/pitch customization via native TTS parameters
  */
 
 import { EventEmitter } from 'events';
@@ -18,6 +19,9 @@ import {
   TTSAudioChunk,
   TTSSynthesisResult,
   SpeechQueueItem,
+  VoiceSettings,
+  DEFAULT_VOICE_SETTINGS,
+  validateVoiceSettings,
 } from '../../shared/types/tts';
 
 const logger = createModuleLogger('OfflineTTS');
@@ -97,10 +101,12 @@ export interface OfflineTTSConfig {
   modelsPath?: string;
   /** Output sample rate */
   sampleRate?: number;
-  /** Speaking rate (0.5 - 2.0) */
+  /** Speaking rate (0.5 - 2.0) - deprecated, use voiceSettings.speed */
   speakingRate?: number;
   /** Use espeak as fallback if Piper unavailable */
   useEspeakFallback?: boolean;
+  /** Voice settings (speed/pitch) */
+  voiceSettings?: VoiceSettings;
 }
 
 /**
@@ -111,6 +117,7 @@ const DEFAULT_OFFLINE_TTS_CONFIG: OfflineTTSConfig = {
   sampleRate: 22050,
   speakingRate: 1.0,
   useEspeakFallback: true,
+  voiceSettings: DEFAULT_VOICE_SETTINGS,
 };
 
 /**
@@ -125,7 +132,7 @@ function generateId(): string {
  */
 function getDefaultPaths(): { piperPath: string; modelsPath: string } {
   const userDataPath =
-    app?.getPath?.('userData') || join(process.env.HOME || process.env.USERPROFILE || '.', '.nova');
+    app?.getPath?.('userData') || join(process.env.HOME || process.env.USERPROFILE || '.', '.atlas');
   const modelsPath = join(userDataPath, 'models', 'piper');
 
   // Platform-specific Piper executable
@@ -144,11 +151,13 @@ function getDefaultPaths(): { piperPath: string; modelsPath: string } {
 /**
  * Offline TTS Provider
  * Uses Piper for high-quality local neural TTS with espeak fallback
+ * Supports speed/pitch customization via native TTS parameters and audio processing
  */
 export class OfflineTTS extends EventEmitter implements TTSProvider {
   readonly name = 'offline';
   private _status: TTSStatus = TTSStatus.IDLE;
   private config: OfflineTTSConfig;
+  private voiceSettings: VoiceSettings;
   private speechQueue: SpeechQueueItem[] = [];
   private currentProcess: ChildProcess | null = null;
   private isProcessingQueue = false;
@@ -167,6 +176,16 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
       ...config,
     };
 
+    // Initialize voice settings from config or use defaults
+    this.voiceSettings = validateVoiceSettings(
+      config.voiceSettings || DEFAULT_VOICE_SETTINGS
+    );
+
+    // Sync speakingRate with voice settings speed for backward compatibility
+    if (config.speakingRate && !config.voiceSettings) {
+      this.voiceSettings.speed = Math.max(0.5, Math.min(2.0, config.speakingRate));
+    }
+
     // Ensure models directory exists
     if (this.config.modelsPath && !existsSync(this.config.modelsPath)) {
       mkdirSync(this.config.modelsPath, { recursive: true });
@@ -175,6 +194,7 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
     logger.info('OfflineTTS initialized', {
       voiceId: this.config.voiceId,
       modelsPath: this.config.modelsPath,
+      voiceSettings: this.voiceSettings,
     });
   }
 
@@ -275,6 +295,56 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
   }
 
   /**
+   * Check if Windows SAPI is available (Windows only)
+   */
+  private sapiAvailable: boolean | null = null;
+  async isSapiAvailable(): Promise<boolean> {
+    if (this.sapiAvailable !== null) {
+      return this.sapiAvailable;
+    }
+
+    // Only available on Windows
+    if (process.platform !== 'win32') {
+      this.sapiAvailable = false;
+      return false;
+    }
+
+    try {
+      const result = await new Promise<boolean>((resolve) => {
+        const proc = spawn('powershell', [
+          '-NoProfile',
+          '-Command',
+          'Add-Type -AssemblyName System.Speech; [System.Speech.Synthesis.SpeechSynthesizer]::new() | Out-Null; Write-Output "ok"'
+        ], {
+          timeout: 5000,
+          shell: false,
+        });
+
+        let output = '';
+        proc.stdout?.on('data', (data) => {
+          output += data.toString();
+        });
+
+        proc.on('close', (code) => {
+          resolve(code === 0 && output.includes('ok'));
+        });
+
+        proc.on('error', () => {
+          resolve(false);
+        });
+      });
+
+      this.sapiAvailable = result;
+      logger.info('Windows SAPI availability', { available: result });
+      return result;
+    } catch (error) {
+      logger.debug('Windows SAPI availability check failed', { error: (error as Error).message });
+      this.sapiAvailable = false;
+      return false;
+    }
+  }
+
+  /**
    * Check if voice model is downloaded
    */
   isModelDownloaded(voiceId?: string): boolean {
@@ -364,6 +434,8 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
 
   /**
    * Synthesize text using Piper
+   * Piper supports speed via length_scale parameter (inverted: 0.5 = 2x speed)
+   * Pitch is handled via post-processing audio manipulation
    */
   private async synthesizeWithPiper(text: string): Promise<Buffer> {
     const modelPath = this.getModelPath();
@@ -377,8 +449,16 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
 
       const args = ['--model', modelPath, '--output_raw'];
 
-      if (this.config.speakingRate && this.config.speakingRate !== 1.0) {
-        args.push('--length_scale', String(1 / this.config.speakingRate));
+      // Apply speed via Piper's length_scale parameter
+      // length_scale < 1 = faster, > 1 = slower (inverted from our speed)
+      const effectiveSpeed = this.voiceSettings.speed;
+      if (effectiveSpeed !== 1.0) {
+        const lengthScale = 1 / effectiveSpeed;
+        args.push('--length_scale', String(lengthScale));
+        logger.debug('Piper speed adjustment', {
+          speed: effectiveSpeed,
+          lengthScale,
+        });
       }
 
       const proc = spawn(this.config.piperPath!, args);
@@ -395,7 +475,14 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
       proc.on('close', (code) => {
         this.currentProcess = null;
         if (code === 0) {
-          resolve(Buffer.concat(chunks));
+          let audioBuffer = Buffer.concat(chunks);
+
+          // Apply pitch adjustment via audio processing if needed
+          if (this.voiceSettings.pitch !== 0) {
+            audioBuffer = this.applyPitchShift(audioBuffer, this.voiceSettings.pitch);
+          }
+
+          resolve(audioBuffer);
         } else {
           reject(new Error(`Piper exited with code ${code}`));
         }
@@ -413,21 +500,119 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
   }
 
   /**
+   * Apply pitch shift to PCM audio data
+   * Uses simple resampling for pitch shifting
+   * @param audioData - Raw PCM audio buffer (16-bit signed)
+   * @param semitones - Pitch shift in semitones
+   * @returns Processed audio buffer
+   */
+  private applyPitchShift(audioData: Buffer, semitones: number): Buffer {
+    if (semitones === 0) return audioData;
+
+    const pitchFactor = Math.pow(2, semitones / 12);
+    const numSamples = audioData.length / 2;
+    const resampledLength = Math.floor(numSamples / pitchFactor);
+
+    if (resampledLength <= 0) return audioData;
+
+    const resampled = Buffer.alloc(resampledLength * 2);
+
+    for (let i = 0; i < resampledLength; i++) {
+      const srcIndex = i * pitchFactor;
+      const srcIndexInt = Math.floor(srcIndex);
+      const frac = srcIndex - srcIndexInt;
+
+      const sample1 = audioData.readInt16LE(Math.min(srcIndexInt, numSamples - 1) * 2);
+      const sample2 = audioData.readInt16LE(Math.min(srcIndexInt + 1, numSamples - 1) * 2);
+
+      const interpolated = Math.round(sample1 + frac * (sample2 - sample1));
+      resampled.writeInt16LE(Math.max(-32768, Math.min(32767, interpolated)), i * 2);
+    }
+
+    // Time stretch back to original duration using overlap-add
+    return this.timeStretchToOriginalDuration(resampled, pitchFactor);
+  }
+
+  /**
+   * Time stretch audio to restore original duration after pitch shift
+   */
+  private timeStretchToOriginalDuration(audioData: Buffer, factor: number): Buffer {
+    if (factor === 1.0) return audioData;
+
+    const numSamples = audioData.length / 2;
+    const targetLength = Math.floor(numSamples * factor);
+    const sampleRate = this.config.sampleRate || 22050;
+
+    // Window size for overlap-add (20ms)
+    const windowSize = Math.floor(sampleRate * 0.02);
+    const hopSize = Math.floor(windowSize / 2);
+
+    const output = Buffer.alloc(targetLength * 2);
+    const synthesis = new Float32Array(targetLength);
+
+    let outPos = 0;
+    let inPos = 0;
+
+    while (outPos < targetLength && inPos < numSamples - windowSize) {
+      for (let i = 0; i < windowSize && outPos + i < targetLength; i++) {
+        const window = 0.5 * (1 - Math.cos((2 * Math.PI * i) / windowSize));
+        const sampleIdx = Math.min(inPos + i, numSamples - 1);
+        const sample = audioData.readInt16LE(sampleIdx * 2) / 32768.0;
+        synthesis[outPos + i] += sample * window;
+      }
+
+      outPos += Math.floor(hopSize * factor);
+      inPos += hopSize;
+    }
+
+    for (let i = 0; i < targetLength; i++) {
+      const sample = Math.max(-1, Math.min(1, synthesis[i]));
+      output.writeInt16LE(Math.round(sample * 32767), i * 2);
+    }
+
+    return output;
+  }
+
+  /**
    * Synthesize text using espeak-ng
+   * espeak-ng supports both speed (-s) and pitch (-p) natively
    */
   private async synthesizeWithEspeak(text: string): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
       const espeakCmd = process.platform === 'win32' ? 'espeak-ng' : 'espeak-ng';
 
+      // espeak default speed is 175 words per minute
+      // Our speed multiplier: 1.0 = 175, 2.0 = 350, 0.5 = 87.5
+      const baseSpeed = 175;
+      const effectiveSpeed = Math.round(baseSpeed * this.voiceSettings.speed);
+
+      // espeak pitch: 0-99, default is 50
+      // Our pitch: -12 to +12 semitones, we map it to espeak's range
+      // -12 semitones = pitch 20, +12 semitones = pitch 80
+      const basePitch = 50;
+      const pitchRange = 30; // +/- 30 from base
+      const effectivePitch = Math.round(
+        basePitch + (this.voiceSettings.pitch / 12) * pitchRange
+      );
+
       const args = [
         '--stdout',
         '-v',
         'en-us',
         '-s',
-        String(Math.round(175 * (this.config.speakingRate || 1.0))),
+        String(effectiveSpeed),
+        '-p',
+        String(Math.max(0, Math.min(99, effectivePitch))),
         text,
       ];
+
+      logger.debug('espeak voice settings', {
+        speed: this.voiceSettings.speed,
+        pitch: this.voiceSettings.pitch,
+        espeakSpeed: effectiveSpeed,
+        espeakPitch: effectivePitch,
+      });
 
       const proc = spawn(espeakCmd, args, { shell: true });
       this.currentProcess = proc;
@@ -457,6 +642,79 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
   }
 
   /**
+   * Synthesize text using Windows SAPI (System.Speech)
+   * Provides basic TTS using Windows built-in speech synthesis
+   */
+  private async synthesizeWithSapi(text: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      // Create a temp file path for the WAV output
+      const tempPath = join(
+        app?.getPath?.('temp') || process.env.TEMP || '/tmp',
+        `sapi_${Date.now()}.wav`
+      );
+
+      // SAPI rate: -10 to 10, default is 0
+      // Our speed: 0.5 to 2.0, map to -5 to +5
+      const sapiRate = Math.round((this.voiceSettings.speed - 1.0) * 5);
+
+      // Build PowerShell script for SAPI synthesis
+      const escapedText = text.replace(/'/g, "''").replace(/"/g, '`"');
+      const escapedPath = tempPath.replace(/'/g, "''");
+
+      const psScript = `
+        Add-Type -AssemblyName System.Speech
+        $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+        $synth.Rate = ${Math.max(-10, Math.min(10, sapiRate))}
+        $synth.SetOutputToWaveFile('${escapedPath}')
+        $synth.Speak('${escapedText}')
+        $synth.Dispose()
+        Write-Output 'done'
+      `;
+
+      logger.debug('SAPI voice settings', {
+        speed: this.voiceSettings.speed,
+        sapiRate,
+        tempPath,
+      });
+
+      const proc = spawn('powershell', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        psScript
+      ], { shell: false });
+      this.currentProcess = proc;
+
+      let stderr = '';
+      proc.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      proc.on('close', async (code) => {
+        this.currentProcess = null;
+        if (code === 0 && existsSync(tempPath)) {
+          try {
+            const { readFile, unlink } = await import('fs/promises');
+            const wavData = await readFile(tempPath);
+            // Clean up temp file
+            await unlink(tempPath).catch(() => {});
+            resolve(wavData);
+          } catch (error) {
+            reject(new Error(`Failed to read SAPI output: ${(error as Error).message}`));
+          }
+        } else {
+          reject(new Error(`SAPI failed with code ${code}: ${stderr}`));
+        }
+      });
+
+      proc.on('error', (error) => {
+        this.currentProcess = null;
+        reject(error);
+      });
+    });
+  }
+
+  /**
    * Synthesize text to speech (returns full audio buffer)
    */
   async synthesize(text: string): Promise<TTSSynthesisResult> {
@@ -474,7 +732,7 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
       let audio: Buffer;
       let format: string;
 
-      // Try Piper first, then espeak
+      // Try Piper first, then espeak, then Windows SAPI
       const piperOk = await this.isPiperAvailable();
       if (piperOk && this.isModelDownloaded()) {
         audio = await this.synthesizeWithPiper(text);
@@ -485,7 +743,15 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
           audio = await this.synthesizeWithEspeak(text);
           format = 'wav';
         } else {
-          throw new Error('No TTS engine available. Install Piper or espeak-ng.');
+          // Try Windows SAPI as last resort
+          const sapiOk = await this.isSapiAvailable();
+          if (sapiOk) {
+            logger.info('Using Windows SAPI as fallback TTS');
+            audio = await this.synthesizeWithSapi(text);
+            format = 'wav';
+          } else {
+            throw new Error('No TTS engine available. Install Piper or espeak-ng, or use Windows with SAPI.');
+          }
         }
       } else {
         throw new Error('Piper not available and espeak fallback disabled.');
@@ -797,7 +1063,88 @@ export class OfflineTTS extends EventEmitter implements TTSProvider {
    */
   updateConfig(config: Partial<OfflineTTSConfig>): void {
     this.config = { ...this.config, ...config };
-    logger.info('Configuration updated', { voiceId: this.config.voiceId });
+
+    // Update voice settings if provided
+    if (config.voiceSettings) {
+      this.setVoiceSettings(config.voiceSettings);
+    }
+
+    logger.info('Configuration updated', {
+      voiceId: this.config.voiceId,
+      voiceSettings: this.voiceSettings,
+    });
+  }
+
+  /**
+   * Get current voice settings (speed/pitch)
+   */
+  getVoiceSettings(): VoiceSettings {
+    return { ...this.voiceSettings };
+  }
+
+  /**
+   * Set voice settings (speed/pitch)
+   * @param settings - Partial voice settings to update
+   */
+  setVoiceSettings(settings: Partial<VoiceSettings>): void {
+    const newSettings = validateVoiceSettings({
+      ...this.voiceSettings,
+      ...settings,
+    });
+
+    const changed =
+      newSettings.speed !== this.voiceSettings.speed ||
+      newSettings.pitch !== this.voiceSettings.pitch;
+
+    this.voiceSettings = newSettings;
+
+    // Sync with legacy speakingRate for backward compatibility
+    this.config.speakingRate = newSettings.speed;
+
+    if (changed) {
+      logger.info('Voice settings updated', { settings: this.voiceSettings });
+      this.emit('voiceSettingsChanged', this.voiceSettings);
+    }
+  }
+
+  /**
+   * Reset voice settings to defaults
+   */
+  resetVoiceSettings(): void {
+    this.setVoiceSettings(DEFAULT_VOICE_SETTINGS);
+    logger.info('Voice settings reset to defaults');
+  }
+
+  /**
+   * Preview voice settings with a sample text
+   * @param previewText - Optional text to preview
+   */
+  async previewVoiceSettings(previewText?: string): Promise<void> {
+    const text = previewText || 'This is how I will sound with the current voice settings.';
+    this.emit('voiceSettingsPreview', this.voiceSettings, text);
+    await this.speak(text, 10);
+  }
+
+  /**
+   * Adjust speed incrementally
+   * @param delta - Amount to adjust (positive = faster, negative = slower)
+   */
+  adjustSpeed(delta: number): void {
+    const { min, max, step } = { min: 0.5, max: 2.0, step: 0.1 };
+    const newSpeed = this.voiceSettings.speed + delta * step;
+    const clampedSpeed = Math.max(min, Math.min(max, Math.round(newSpeed * 10) / 10));
+    this.setVoiceSettings({ speed: clampedSpeed });
+  }
+
+  /**
+   * Adjust pitch incrementally
+   * @param delta - Amount to adjust (positive = higher, negative = lower)
+   */
+  adjustPitch(delta: number): void {
+    const { min, max, step } = { min: -12, max: 12, step: 1 };
+    const newPitch = this.voiceSettings.pitch + delta * step;
+    const clampedPitch = Math.max(min, Math.min(max, Math.round(newPitch)));
+    this.setVoiceSettings({ pitch: clampedPitch });
   }
 
   /**

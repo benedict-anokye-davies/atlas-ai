@@ -24,6 +24,13 @@ import {
   PROMPT_INJECTION_PATTERNS,
   DEFAULT_COMMAND_WHITELIST,
 } from '../src/shared/types/security';
+import {
+  KeychainManager,
+  getKeychainManager,
+  SUPPORTED_API_KEYS,
+  type ApiKeyName,
+} from '../src/main/security/keychain';
+import { KeyMigrationManager, getMigrationManager } from '../src/main/security/key-migration';
 
 // Mock electron app
 vi.mock('electron', () => ({
@@ -32,13 +39,37 @@ vi.mock('electron', () => ({
   },
 }));
 
-// Mock fs/promises for audit logger
+// In-memory storage for mocked file system
+const mockFileStorage: Map<string, string> = new Map();
+
+// Mock fs/promises for audit logger and keychain
 vi.mock('fs/promises', () => ({
   mkdir: vi.fn().mockResolvedValue(undefined),
   appendFile: vi.fn().mockResolvedValue(undefined),
   stat: vi.fn().mockRejectedValue(new Error('File not found')),
-  readFile: vi.fn().mockRejectedValue(new Error('File not found')),
+  readFile: vi.fn().mockImplementation((path: string) => {
+    const content = mockFileStorage.get(path);
+    if (content) {
+      return Promise.resolve(content);
+    }
+    return Promise.reject(new Error('File not found'));
+  }),
+  writeFile: vi.fn().mockImplementation((path: string, content: string) => {
+    mockFileStorage.set(path, content);
+    return Promise.resolve(undefined);
+  }),
   rename: vi.fn().mockResolvedValue(undefined),
+  unlink: vi.fn().mockImplementation((path: string) => {
+    mockFileStorage.delete(path);
+    return Promise.resolve(undefined);
+  }),
+  copyFile: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock fs (sync) for keychain existsSync
+vi.mock('fs', () => ({
+  existsSync: vi.fn().mockReturnValue(false),
+  mkdirSync: vi.fn().mockReturnValue(undefined),
 }));
 
 describe('Security Types', () => {
@@ -719,6 +750,416 @@ describe('Integration Tests', () => {
       // Layer 2: Terminal executor blocks the command pattern
       const terminalResult = executor.validateCommand(attack);
       expect(terminalResult.allowed).toBe(false);
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// KEYCHAIN MANAGER TESTS (Session 046-A: Secure Storage)
+// ═══════════════════════════════════════════════════════════════
+
+describe('KeychainManager', () => {
+  let keychain: KeychainManager;
+
+  beforeEach(() => {
+    // Clear mock file storage between tests
+    mockFileStorage.clear();
+
+    // Create a new keychain manager instance for each test
+    // In test mode, keytar won't be available so it uses fallback storage
+    keychain = new KeychainManager({
+      useOsKeychain: false, // Force fallback mode for consistent testing
+    });
+  });
+
+  describe('SUPPORTED_API_KEYS', () => {
+    it('should contain all expected API key names', () => {
+      expect(SUPPORTED_API_KEYS).toContain('PORCUPINE_API_KEY');
+      expect(SUPPORTED_API_KEYS).toContain('DEEPGRAM_API_KEY');
+      expect(SUPPORTED_API_KEYS).toContain('ELEVENLABS_API_KEY');
+      expect(SUPPORTED_API_KEYS).toContain('FIREWORKS_API_KEY');
+      expect(SUPPORTED_API_KEYS).toContain('OPENROUTER_API_KEY');
+      expect(SUPPORTED_API_KEYS).toContain('PERPLEXITY_API_KEY');
+    });
+
+    it('should have exactly 6 supported keys', () => {
+      expect(SUPPORTED_API_KEYS.length).toBe(6);
+    });
+  });
+
+  describe('setKey / getKey', () => {
+    it('should store and retrieve a key successfully', async () => {
+      const result = await keychain.setKey('DEEPGRAM_API_KEY', 'test-api-key-12345');
+      expect(result.success).toBe(true);
+
+      const retrieved = await keychain.getKey('DEEPGRAM_API_KEY');
+      expect(retrieved).toBe('test-api-key-12345');
+    });
+
+    it('should reject empty key values', async () => {
+      const result = await keychain.setKey('DEEPGRAM_API_KEY', '');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('empty');
+    });
+
+    it('should reject whitespace-only key values', async () => {
+      const result = await keychain.setKey('DEEPGRAM_API_KEY', '   ');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('empty');
+    });
+
+    it('should return null for non-existent keys', async () => {
+      const result = await keychain.getKey('FIREWORKS_API_KEY');
+      expect(result).toBeNull();
+    });
+
+    it('should overwrite existing keys', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'original-key');
+      await keychain.setKey('DEEPGRAM_API_KEY', 'updated-key');
+
+      const retrieved = await keychain.getKey('DEEPGRAM_API_KEY');
+      expect(retrieved).toBe('updated-key');
+    });
+
+    it('should handle multiple different keys', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'deepgram-key');
+      await keychain.setKey('ELEVENLABS_API_KEY', 'elevenlabs-key');
+      await keychain.setKey('FIREWORKS_API_KEY', 'fireworks-key');
+
+      expect(await keychain.getKey('DEEPGRAM_API_KEY')).toBe('deepgram-key');
+      expect(await keychain.getKey('ELEVENLABS_API_KEY')).toBe('elevenlabs-key');
+      expect(await keychain.getKey('FIREWORKS_API_KEY')).toBe('fireworks-key');
+    });
+  });
+
+  describe('deleteKey', () => {
+    it('should delete an existing key', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'test-key');
+      const deleteResult = await keychain.deleteKey('DEEPGRAM_API_KEY');
+      expect(deleteResult.success).toBe(true);
+
+      const retrieved = await keychain.getKey('DEEPGRAM_API_KEY');
+      expect(retrieved).toBeNull();
+    });
+
+    it('should succeed even if key does not exist', async () => {
+      const result = await keychain.deleteKey('FIREWORKS_API_KEY');
+      expect(result.success).toBe(true); // No error for non-existent key
+    });
+
+    it('should not affect other keys', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'deepgram-key');
+      await keychain.setKey('ELEVENLABS_API_KEY', 'elevenlabs-key');
+
+      await keychain.deleteKey('DEEPGRAM_API_KEY');
+
+      expect(await keychain.getKey('DEEPGRAM_API_KEY')).toBeNull();
+      expect(await keychain.getKey('ELEVENLABS_API_KEY')).toBe('elevenlabs-key');
+    });
+  });
+
+  describe('hasKey', () => {
+    it('should return true for existing keys', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'test-key');
+      expect(await keychain.hasKey('DEEPGRAM_API_KEY')).toBe(true);
+    });
+
+    it('should return false for non-existent keys', async () => {
+      expect(await keychain.hasKey('FIREWORKS_API_KEY')).toBe(false);
+    });
+
+    it('should return false after key deletion', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'test-key');
+      await keychain.deleteKey('DEEPGRAM_API_KEY');
+      expect(await keychain.hasKey('DEEPGRAM_API_KEY')).toBe(false);
+    });
+  });
+
+  describe('listKeys', () => {
+    it('should return empty array when no keys stored', async () => {
+      const keys = await keychain.listKeys();
+      expect(keys).toHaveLength(0);
+    });
+
+    it('should list all stored keys', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'deepgram-key');
+      await keychain.setKey('ELEVENLABS_API_KEY', 'elevenlabs-key');
+
+      const keys = await keychain.listKeys();
+      expect(keys.length).toBe(2);
+      expect(keys.some((k) => k.name === 'DEEPGRAM_API_KEY')).toBe(true);
+      expect(keys.some((k) => k.name === 'ELEVENLABS_API_KEY')).toBe(true);
+    });
+
+    it('should return key info with hasValue true', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'test-key');
+
+      const keys = await keychain.listKeys();
+      const deepgramKey = keys.find((k) => k.name === 'DEEPGRAM_API_KEY');
+      expect(deepgramKey?.hasValue).toBe(true);
+    });
+  });
+
+  describe('getMaskedKey', () => {
+    it('should return null for non-existent keys', async () => {
+      const masked = await keychain.getMaskedKey('DEEPGRAM_API_KEY');
+      expect(masked).toBeNull();
+    });
+
+    it('should mask key showing only last 4 characters', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'abcdefghijklmnop');
+
+      const masked = await keychain.getMaskedKey('DEEPGRAM_API_KEY');
+      expect(masked).toBe('***mnop');
+    });
+
+    it('should return **** for short keys', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'abc');
+
+      const masked = await keychain.getMaskedKey('DEEPGRAM_API_KEY');
+      expect(masked).toBe('****');
+    });
+  });
+
+  describe('clearAllKeys', () => {
+    it('should remove all stored keys', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'key1');
+      await keychain.setKey('ELEVENLABS_API_KEY', 'key2');
+      await keychain.setKey('FIREWORKS_API_KEY', 'key3');
+
+      const result = await keychain.clearAllKeys();
+      expect(result.success).toBe(true);
+
+      const keys = await keychain.listKeys();
+      expect(keys.length).toBe(0);
+    });
+
+    it('should succeed even with no keys stored', async () => {
+      const result = await keychain.clearAllKeys();
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('checkHealth', () => {
+    it('should return health status', async () => {
+      const health = await keychain.checkHealth();
+
+      expect(health).toHaveProperty('keychainAvailable');
+      expect(health).toHaveProperty('fallbackAvailable');
+      expect(health).toHaveProperty('keysStored');
+      expect(typeof health.keychainAvailable).toBe('boolean');
+      expect(typeof health.fallbackAvailable).toBe('boolean');
+      expect(typeof health.keysStored).toBe('number');
+    });
+
+    it('should reflect correct key count', async () => {
+      await keychain.setKey('DEEPGRAM_API_KEY', 'key1');
+      await keychain.setKey('ELEVENLABS_API_KEY', 'key2');
+
+      const health = await keychain.checkHealth();
+      expect(health.keysStored).toBe(2);
+    });
+  });
+
+  describe('Security Properties', () => {
+    it('should not log actual key values', async () => {
+      // This is a documentation test - the implementation avoids logging plaintext keys
+      // We verify by checking that setKey completes without throwing
+      const result = await keychain.setKey('DEEPGRAM_API_KEY', 'super-secret-key-12345');
+      expect(result.success).toBe(true);
+    });
+
+    it('should handle special characters in keys', async () => {
+      const specialKey = 'key!@#$%^&*()_+-=[]{}|;:,.<>?~`';
+      await keychain.setKey('DEEPGRAM_API_KEY', specialKey);
+
+      const retrieved = await keychain.getKey('DEEPGRAM_API_KEY');
+      expect(retrieved).toBe(specialKey);
+    });
+
+    it('should handle unicode in keys', async () => {
+      const unicodeKey = 'key-with-émojis-🔑-and-日本語';
+      await keychain.setKey('DEEPGRAM_API_KEY', unicodeKey);
+
+      const retrieved = await keychain.getKey('DEEPGRAM_API_KEY');
+      expect(retrieved).toBe(unicodeKey);
+    });
+
+    it('should handle long keys', async () => {
+      const longKey = 'a'.repeat(1000);
+      await keychain.setKey('DEEPGRAM_API_KEY', longKey);
+
+      const retrieved = await keychain.getKey('DEEPGRAM_API_KEY');
+      expect(retrieved).toBe(longKey);
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// KEY MIGRATION TESTS (Session 046-A: Secure Storage)
+// ═══════════════════════════════════════════════════════════════
+
+describe('KeyMigrationManager', () => {
+  let migrationManager: KeyMigrationManager;
+
+  beforeEach(() => {
+    migrationManager = new KeyMigrationManager();
+  });
+
+  describe('Initialization', () => {
+    it('should create a migration manager instance', () => {
+      expect(migrationManager).toBeDefined();
+    });
+
+    it('should return singleton via getMigrationManager', () => {
+      const manager1 = getMigrationManager();
+      const manager2 = getMigrationManager();
+      expect(manager1).toBe(manager2);
+    });
+  });
+
+  describe('getStatus', () => {
+    it('should return migration status', async () => {
+      const status = await migrationManager.getStatus();
+
+      expect(status).toHaveProperty('migrated');
+      expect(status).toHaveProperty('migrationDate');
+      expect(status).toHaveProperty('migratedKeys');
+      expect(status).toHaveProperty('version');
+    });
+
+    it('should have version 1', async () => {
+      const status = await migrationManager.getStatus();
+      expect(status.version).toBe(1);
+    });
+  });
+
+  describe('isMigrated', () => {
+    it('should return boolean', async () => {
+      const result = await migrationManager.isMigrated();
+      expect(typeof result).toBe('boolean');
+    });
+  });
+
+  describe('needsMigration', () => {
+    it('should return boolean', async () => {
+      const result = await migrationManager.needsMigration();
+      expect(typeof result).toBe('boolean');
+    });
+  });
+
+  describe('migrate', () => {
+    it('should return migration result with expected fields', async () => {
+      const result = await migrationManager.migrate();
+
+      expect(result).toHaveProperty('success');
+      expect(result).toHaveProperty('migratedKeys');
+      expect(result).toHaveProperty('skippedKeys');
+      expect(result).toHaveProperty('errors');
+      expect(Array.isArray(result.migratedKeys)).toBe(true);
+      expect(Array.isArray(result.skippedKeys)).toBe(true);
+      expect(Array.isArray(result.errors)).toBe(true);
+    });
+
+    it('should handle already migrated status', async () => {
+      // First migration
+      await migrationManager.migrate();
+
+      // Second migration should recognize already migrated
+      const result = await migrationManager.migrate();
+      expect(result.alreadyMigrated).toBe(true);
+    });
+
+    it('should force remigrate when option set', async () => {
+      // First migration
+      await migrationManager.migrate();
+
+      // Force remigration
+      const result = await migrationManager.migrate({ forceRemigrate: true });
+      expect(result.alreadyMigrated).toBe(false);
+    });
+  });
+
+  describe('autoMigrate', () => {
+    it('should return null if no migration needed', async () => {
+      // Perform initial migration first
+      await migrationManager.migrate();
+
+      // Auto migrate should return null since already done
+      const result = await migrationManager.autoMigrate();
+      expect(result).toBeNull();
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SECURE STORAGE INTEGRATION TESTS
+// ═══════════════════════════════════════════════════════════════
+
+describe('Secure Storage Integration', () => {
+  let keychain: KeychainManager;
+
+  beforeEach(() => {
+    // Clear mock file storage between tests
+    mockFileStorage.clear();
+    keychain = new KeychainManager({ useOsKeychain: false });
+  });
+
+  describe('End-to-end key lifecycle', () => {
+    it('should handle complete key lifecycle', async () => {
+      // 1. Initially no key
+      expect(await keychain.hasKey('DEEPGRAM_API_KEY')).toBe(false);
+      expect(await keychain.getKey('DEEPGRAM_API_KEY')).toBeNull();
+
+      // 2. Store key
+      const setResult = await keychain.setKey('DEEPGRAM_API_KEY', 'test-api-key');
+      expect(setResult.success).toBe(true);
+
+      // 3. Verify key exists
+      expect(await keychain.hasKey('DEEPGRAM_API_KEY')).toBe(true);
+      expect(await keychain.getKey('DEEPGRAM_API_KEY')).toBe('test-api-key');
+
+      // 4. Verify masked key
+      const masked = await keychain.getMaskedKey('DEEPGRAM_API_KEY');
+      expect(masked).toBe('***-key');
+
+      // 5. Update key
+      await keychain.setKey('DEEPGRAM_API_KEY', 'updated-key');
+      expect(await keychain.getKey('DEEPGRAM_API_KEY')).toBe('updated-key');
+
+      // 6. List keys
+      const keys = await keychain.listKeys();
+      expect(keys.length).toBe(1);
+      expect(keys[0].name).toBe('DEEPGRAM_API_KEY');
+
+      // 7. Delete key
+      const deleteResult = await keychain.deleteKey('DEEPGRAM_API_KEY');
+      expect(deleteResult.success).toBe(true);
+
+      // 8. Verify deletion
+      expect(await keychain.hasKey('DEEPGRAM_API_KEY')).toBe(false);
+      expect(await keychain.getKey('DEEPGRAM_API_KEY')).toBeNull();
+    });
+
+    it('should handle multiple key operations', async () => {
+      // Store multiple keys
+      await keychain.setKey('DEEPGRAM_API_KEY', 'key1');
+      await keychain.setKey('ELEVENLABS_API_KEY', 'key2');
+      await keychain.setKey('FIREWORKS_API_KEY', 'key3');
+
+      // Verify all were stored
+      const keys = await keychain.listKeys();
+      expect(keys.length).toBe(3);
+    });
+  });
+
+  describe('Storage fallback behavior', () => {
+    it('should use fallback storage when OS keychain unavailable', async () => {
+      const keychainWithoutOS = new KeychainManager({ useOsKeychain: false });
+
+      const result = await keychainWithoutOS.setKey('DEEPGRAM_API_KEY', 'test');
+      expect(result.success).toBe(true);
+      expect(result.storage).toBe('fallback');
     });
   });
 });

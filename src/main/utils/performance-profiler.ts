@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Performance Profiler
  *
@@ -27,13 +28,7 @@ export const PERFORMANCE_TARGETS = {
 /**
  * Pipeline stages that can be profiled
  */
-export type PipelineStage =
-  | 'wake-word'
-  | 'vad'
-  | 'stt'
-  | 'llm'
-  | 'tts'
-  | 'total';
+export type PipelineStage = 'wake-word' | 'vad' | 'stt' | 'llm' | 'tts' | 'total';
 
 /**
  * Single performance measurement
@@ -78,8 +73,7 @@ export interface PerformanceReport {
  */
 export class PerformanceProfiler extends EventEmitter {
   private measurements: Map<PipelineStage, PerformanceMeasurement[]> = new Map();
-  private activeMeasurements: Map<string, { stage: PipelineStage; startTime: number }> =
-    new Map();
+  private activeMeasurements: Map<string, { stage: PipelineStage; startTime: number }> = new Map();
   private startTime: number;
   private maxMeasurements = 1000; // Per stage
 
@@ -338,11 +332,7 @@ export function createProfiler(): PerformanceProfiler {
  * Convenience decorator for measuring method execution
  */
 export function profileMethod(stage: PipelineStage) {
-  return function (
-    _target: any,
-    _propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
+  return function (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
 
     descriptor.value = async function (...args: any[]) {

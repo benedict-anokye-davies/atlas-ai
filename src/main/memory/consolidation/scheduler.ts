@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Consolidation Scheduler
+ * Atlas Desktop - Consolidation Scheduler
  * Manages automatic memory consolidation and cleanup
  */
 

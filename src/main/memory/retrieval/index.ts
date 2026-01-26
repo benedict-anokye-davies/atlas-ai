@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Memory Retrieval Index
+ * Atlas Desktop - Memory Retrieval Index
  * Main entry point for the retrieval system
  */
 

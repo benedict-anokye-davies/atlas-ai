@@ -1,0 +1,453 @@
+/**
+ * Atlas Desktop - Accessibility Styles
+ * Session 039-A: Keyboard Navigation
+ *
+ * Enhanced focus indicators and accessibility utilities
+ */
+
+/* ========================================
+   Focus Indicators
+   ======================================== */
+
+/* Default focus style for all interactive elements */
+:focus-visible {
+  outline: 2px solid var(--atlas-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* High contrast focus ring for buttons */
+button:focus-visible,
+.footer-button:focus-visible,
+.settings-button:focus-visible,
+.settings-close:focus-visible,
+.shortcuts-close:focus-visible {
+  outline: 2px solid var(--atlas-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25);
+}
+
+/* Focus style for form inputs */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.settings-input:focus-visible,
+.settings-dropdown:focus-visible {
+  outline: 2px solid var(--atlas-accent);
+  outline-offset: 0;
+  border-color: var(--atlas-accent);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+/* Focus style for range inputs (sliders) */
+input[type='range']:focus-visible {
+  outline: 2px solid var(--atlas-accent);
+  outline-offset: 4px;
+}
+
+/* Focus style for toggle switches */
+.toggle-switch:focus-visible {
+  outline: 2px solid var(--atlas-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25);
+}
+
+/* Focus style for links */
+a:focus-visible {
+  outline: 2px solid var(--atlas-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Focus style for the orb (clickable area) */
+.atlas-orb-container:focus-visible,
+.atlas-orb-main:focus-visible {
+  outline: 3px solid var(--atlas-accent);
+  outline-offset: 4px;
+  border-radius: 50%;
+}
+
+/* Focus visible on modal overlays */
+.settings-panel:focus-visible,
+.keyboard-shortcuts-modal:focus-visible,
+.onboarding-wizard:focus-visible {
+  outline: none; /* Container doesn't need outline, children do */
+}
+
+/* ========================================
+   Screen Reader Utilities
+   ======================================== */
+
+/* Visually hidden but accessible to screen readers */
+.sr-only,
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Show on focus (for skip links etc.) */
+.sr-only-focusable:focus,
+.sr-only-focusable:active {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* ========================================
+   Reduced Motion
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Disable orb animations */
+  .atlas-orb-container,
+  .atlas-orb-main {
+    transition: none;
+  }
+
+  /* Disable loading animations */
+  .loading-spinner,
+  .loading-dots,
+  .loading-pulse {
+    animation: none;
+  }
+
+  /* Disable pulse animations */
+  .status-dot {
+    animation: none;
+  }
+}
+
+/* ========================================
+   High Contrast Mode
+   ======================================== */
+
+@media (prefers-contrast: high) {
+  :root {
+    --atlas-bg-secondary: #1a1a1a;
+    --atlas-border: #666666;
+  }
+
+  /* Increase border contrast */
+  .settings-panel,
+  .keyboard-shortcuts-modal,
+  .atlas-conversation {
+    border-width: 2px;
+    border-color: var(--atlas-accent);
+  }
+
+  /* Increase text contrast */
+  .settings-label,
+  .conversation-label,
+  .shortcut-description {
+    color: var(--atlas-text-primary);
+  }
+
+  /* High contrast focus indicators */
+  :focus-visible {
+    outline-width: 3px;
+    outline-color: white;
+  }
+}
+
+/* ========================================
+   Focus Lock (for modals/panels)
+   ======================================== */
+
+/* When a modal is open, prevent background scrolling */
+body.modal-open,
+body.settings-open {
+  overflow: hidden;
+}
+
+/* Inert background when modal is open (visual cue) */
+.atlas-app[data-modal-open='true'] > *:not(.settings-overlay):not(.keyboard-shortcuts-overlay) {
+  pointer-events: none;
+}
+
+/* ========================================
+   Interactive Element States
+   ======================================== */
+
+/* Hover states should not rely solely on color */
+button:hover,
+.footer-button:hover {
+  transform: translateY(-1px);
+}
+
+button:active,
+.footer-button:active {
+  transform: translateY(0);
+}
+
+/* Disabled state indicators */
+button:disabled,
+input:disabled,
+select:disabled,
+.toggle-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ========================================
+   Touch Target Sizes
+   ======================================== */
+
+/* Ensure minimum 44x44px touch targets (WCAG 2.5.5) */
+button,
+.footer-button,
+.toggle-switch,
+.settings-action-button,
+.mic-test-button {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Ensure close buttons are large enough */
+.settings-close,
+.shortcuts-close {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ========================================
+   Text Sizing
+   ======================================== */
+
+/* Support user font size preferences */
+html {
+  font-size: 100%; /* Respect browser/OS settings */
+}
+
+/* Scale based on rem for accessibility */
+.settings-label {
+  font-size: 0.875rem;
+}
+
+.settings-description {
+  font-size: 0.75rem;
+}
+
+/* ========================================
+   Keyboard Navigation Indicators
+   ======================================== */
+
+/* Show keyboard navigation mode indicator */
+body[data-navigation-mode='keyboard'] .footer-button::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  background: var(--atlas-accent);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+body[data-navigation-mode='keyboard'] .footer-button:focus-visible::after {
+  opacity: 1;
+}
+
+/* ========================================
+   ARIA Live Region Styles
+   ======================================== */
+
+/* Live region for status announcements */
+.aria-live-region {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ========================================
+   Manual Accessibility Class Toggles
+   Session 039-C: Visual Accessibility
+   ======================================== */
+
+/**
+ * High Contrast Mode (manual toggle via settings)
+ * Applies when .high-contrast class is on document root
+ */
+:root.high-contrast,
+body.high-contrast {
+  /* High contrast color overrides */
+  --atlas-bg-primary: #000000;
+  --atlas-bg-secondary: #1a1a1a;
+  --atlas-bg-tertiary: #2a2a2a;
+  --atlas-text-primary: #ffffff;
+  --atlas-text-secondary: #e0e0e0;
+  --atlas-text-tertiary: #c0c0c0;
+  --atlas-accent: #00ffff;
+  --atlas-accent-light: #00e5e5;
+  --atlas-border: #ffffff;
+  --atlas-success: #00ff00;
+  --atlas-warning: #ffff00;
+  --atlas-error: #ff6666;
+
+  /* Orb colors in high contrast */
+  --orb-idle: #00ffff;
+  --orb-listening: #00ff00;
+  --orb-thinking: #ffff00;
+  --orb-speaking: #00e5ff;
+  --orb-error: #ff6666;
+}
+
+.high-contrast .settings-panel,
+.high-contrast .keyboard-shortcuts-modal,
+.high-contrast .atlas-conversation {
+  border: 2px solid var(--atlas-accent);
+  box-shadow: 0 0 0 1px var(--atlas-accent);
+}
+
+.high-contrast button,
+.high-contrast input,
+.high-contrast select {
+  border: 2px solid var(--atlas-text-primary);
+}
+
+.high-contrast button:focus-visible,
+.high-contrast input:focus-visible,
+.high-contrast select:focus-visible {
+  outline: 3px solid #ffff00;
+  outline-offset: 2px;
+}
+
+.high-contrast .toggle-switch {
+  border: 2px solid var(--atlas-text-primary);
+}
+
+.high-contrast .toggle-switch.active {
+  background: var(--atlas-success);
+  border-color: var(--atlas-success);
+}
+
+/**
+ * Reduced Motion (manual toggle via settings)
+ * Applies when .reduced-motion class is on document root
+ */
+:root.reduced-motion *,
+:root.reduced-motion *::before,
+:root.reduced-motion *::after,
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+.reduced-motion .atlas-orb-container,
+.reduced-motion .atlas-orb-main {
+  transition: none !important;
+}
+
+.reduced-motion .loading-spinner,
+.reduced-motion .loading-dots,
+.reduced-motion .loading-pulse,
+.reduced-motion .status-dot {
+  animation: none !important;
+}
+
+/**
+ * Enhanced Focus Indicators (manual toggle via settings)
+ * Applies when .enhanced-focus class is on document root
+ */
+:root.enhanced-focus :focus-visible,
+body.enhanced-focus :focus-visible {
+  outline: 3px solid var(--atlas-accent);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.3);
+}
+
+.enhanced-focus button:focus-visible {
+  outline: 3px solid var(--atlas-accent);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.3);
+}
+
+.enhanced-focus .toggle-switch:focus-visible {
+  outline: 3px solid var(--atlas-accent);
+  outline-offset: 3px;
+}
+
+/**
+ * Font Scale Support
+ * Font scale is applied via inline style on html element
+ * All sizes should use rem to respect the scale
+ */
+:root {
+  --a11y-font-scale: 1;
+}
+
+/* Ensure all text respects the font scale */
+.atlas-app {
+  font-size: calc(1rem * var(--a11y-font-scale, 1));
+}
+
+/* Minimum readable sizes with scale */
+.settings-description,
+.budget-stats span,
+.service-item {
+  font-size: max(0.75rem, calc(0.75rem * var(--a11y-font-scale, 1)));
+}
+
+/**
+ * Keyboard Navigation Mode
+ * Applies when .keyboard-navigation class is on document root
+ */
+:root.keyboard-navigation :focus,
+body.keyboard-navigation :focus {
+  outline: 2px solid var(--atlas-accent);
+  outline-offset: 2px;
+}
+
+:root.keyboard-navigation :focus:not(:focus-visible),
+body.keyboard-navigation :focus:not(:focus-visible) {
+  outline: 2px solid var(--atlas-accent);
+  outline-offset: 2px;
+}
+
+/* Visible status for aria-live (optional) */
+.aria-live-region.visible {
+  position: relative;
+  width: auto;
+  height: auto;
+  padding: 0.5rem 1rem;
+  margin: 0.5rem;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  background: var(--atlas-bg-secondary);
+  border: 1px solid var(--atlas-border);
+  border-radius: 4px;
+}

@@ -1,0 +1,86 @@
+{
+  "platform": "windows",
+  "node": "24.12.0",
+  "date": "2026-01-16T17:50:12.282Z",
+  "suites": [
+    {
+      "name": "Environment",
+      "passed": 5,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "Node.js version >= 18",
+          "passed": true,
+          "duration": 0
+        },
+        {
+          "name": "npm is available",
+          "passed": true,
+          "duration": 261
+        },
+        {
+          "name": "Required directories exist",
+          "passed": true,
+          "duration": 0
+        },
+        {
+          "name": "package.json is valid",
+          "passed": true,
+          "duration": 0
+        },
+        {
+          "name": ".env.example exists",
+          "passed": true,
+          "duration": 0
+        }
+      ]
+    },
+    {
+      "name": "Platform: windows",
+      "passed": 1,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "PowerShell available",
+          "passed": true,
+          "duration": 797
+        }
+      ]
+    },
+    {
+      "name": "Build",
+      "passed": 2,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "TypeScript compiles without errors",
+          "passed": true,
+          "duration": 5054
+        },
+        {
+          "name": "Vite build succeeds",
+          "passed": true,
+          "duration": 21738
+        }
+      ]
+    },
+    {
+      "name": "Unit Tests",
+      "passed": 0,
+      "failed": 1,
+      "tests": [
+        {
+          "name": "Unit tests pass",
+          "passed": false,
+          "duration": 30003,
+          "error": "Tests failed"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "passed": 8,
+    "failed": 1
+  }
+}

@@ -1,5 +1,6 @@
+/* eslint-disable no-console */
 /**
- * Nova Desktop - AI Core Particle System
+ * Atlas Desktop - AI Core Particle System
  * Production-quality 2-layer particle visualization with bloom effects
  *
  * Layers:
@@ -23,10 +24,10 @@ import {
 import { particleVertexShader, particleFragmentShader, createShaderUniforms } from './shaders';
 
 // Type definitions
-export type NovaState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+export type AtlasState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
 
-interface NovaParticlesProps {
-  state?: NovaState;
+interface AtlasParticlesProps {
+  state?: AtlasState;
   audioLevel?: number;
   particleCount?: number;
 }
@@ -41,7 +42,7 @@ interface ParticleLayerData {
 }
 
 // State to numeric value for shader
-const STATE_MAP: Record<NovaState, number> = {
+const STATE_MAP: Record<AtlasState, number> = {
   idle: 0,
   listening: 1,
   thinking: 2,
@@ -59,7 +60,7 @@ function ParticleLayer({
   groupRef,
 }: {
   data: ParticleLayerData;
-  state: NovaState;
+  state: AtlasState;
   audioLevel: number;
   groupRef: React.RefObject<THREE.Group>;
 }) {
@@ -188,18 +189,18 @@ function generateLayerData(config: LayerConfig): ParticleLayerData {
 }
 
 /**
- * Nova Particles - The 2-layer AI Core visualization
+ * Atlas Particles - The 2-layer AI Core visualization
  */
-export function NovaParticles({
+export function AtlasParticles({
   state = 'idle',
   audioLevel = 0,
   particleCount = 30000,
-}: NovaParticlesProps) {
+}: AtlasParticlesProps) {
   // Refs for each layer group (for rotation)
   const nucleusGroupRef = useRef<THREE.Group>(null);
   const shellGroupRef = useRef<THREE.Group>(null);
 
-  console.log('[NovaParticles] Rendering with particleCount:', particleCount);
+  console.log('[AtlasParticles] Rendering with particleCount:', particleCount);
 
   // Scale particle counts based on prop (ratio from DEFAULT_LAYERS - only nucleus and shell)
   const getScaledLayers = useCallback((): LayerConfig[] => {
@@ -216,16 +217,16 @@ export function NovaParticles({
 
   // Generate layer data - memoized for performance
   const layers = useMemo(() => {
-    console.log('[NovaParticles] Generating layer data...');
+    console.log('[AtlasParticles] Generating layer data...');
     const scaledLayers = getScaledLayers();
     const result = scaledLayers.map((config) => {
       console.log(
-        `[NovaParticles] Generating layer: ${config.name} with ${config.particleCount} particles`
+        `[AtlasParticles] Generating layer: ${config.name} with ${config.particleCount} particles`
       );
       return generateLayerData(config);
     });
     console.log(
-      '[NovaParticles] All layers generated:',
+      '[AtlasParticles] All layers generated:',
       result.map((l) => l.config.name)
     );
     return result;
@@ -237,8 +238,8 @@ export function NovaParticles({
 
   // Log mount
   useEffect(() => {
-    console.log('[NovaParticles] Component mounted');
-    return () => console.log('[NovaParticles] Component unmounting');
+    console.log('[AtlasParticles] Component mounted');
+    return () => console.log('[AtlasParticles] Component unmounting');
   }, []);
 
   return (
@@ -266,4 +267,4 @@ export function NovaParticles({
   );
 }
 
-export default NovaParticles;
+export default AtlasParticles;

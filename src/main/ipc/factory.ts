@@ -1,10 +1,11 @@
 /**
- * Nova Desktop - IPC Handler Factory
+ * Atlas Desktop - IPC Handler Factory
  * Utility functions to reduce IPC handler boilerplate
  */
 
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { createModuleLogger } from '../utils/logger';
+import { getErrorMessage } from '../../shared/utils';
 
 const logger = createModuleLogger('IPCFactory');
 
@@ -27,8 +28,8 @@ export function success<T>(data?: T): IPCResult<T> {
 /**
  * Creates an error result
  */
-export function failure(error: string | Error): IPCResult {
-  const message = error instanceof Error ? error.message : error;
+export function failure(error: string | Error | unknown): IPCResult {
+  const message = typeof error === 'string' ? error : getErrorMessage(error, 'Unknown error');
   return { success: false, error: message };
 }
 

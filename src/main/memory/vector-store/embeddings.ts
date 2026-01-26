@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Embedding Generation
+ * Atlas Desktop - Embedding Generation
  * Converts text to vector embeddings for semantic search
  */
 

@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Git Tools Index
+ * Atlas Desktop - Git Tools Index
  * Provides git operations as agent tools
  */
 

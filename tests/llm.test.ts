@@ -50,7 +50,7 @@ import { FireworksLLM, createFireworksLLM } from '../src/main/llm/fireworks';
 import {
   LLMStatus,
   DEFAULT_LLM_CONFIG,
-  NOVA_SYSTEM_PROMPT,
+  ATLAS_SYSTEM_PROMPT,
   createConversationContext,
   estimateTokenCount,
 } from '../src/shared/types/llm';
@@ -160,7 +160,7 @@ describe('FireworksLLM', () => {
     });
 
     it('should update context with messages', async () => {
-      const context = createConversationContext(NOVA_SYSTEM_PROMPT, 'TestUser');
+      const context = createConversationContext(ATLAS_SYSTEM_PROMPT, 'TestUser');
 
       mockChatCompletions.create.mockResolvedValue({
         choices: [
@@ -327,7 +327,7 @@ describe('LLM Types and Utilities', () => {
     });
 
     it('should include user name if provided', () => {
-      const context = createConversationContext(NOVA_SYSTEM_PROMPT, 'Bob');
+      const context = createConversationContext(ATLAS_SYSTEM_PROMPT, 'Bob');
       expect(context.userName).toBe('Bob');
     });
   });
@@ -348,16 +348,142 @@ describe('LLM Types and Utilities', () => {
     });
   });
 
-  describe('NOVA_SYSTEM_PROMPT', () => {
+  describe('ATLAS_SYSTEM_PROMPT', () => {
     it('should contain template variables', () => {
-      expect(NOVA_SYSTEM_PROMPT).toContain('{timestamp}');
-      expect(NOVA_SYSTEM_PROMPT).toContain('{userName}');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('{timestamp}');
     });
 
-    it('should define Nova personality', () => {
-      expect(NOVA_SYSTEM_PROMPT).toContain('Nova');
-      expect(NOVA_SYSTEM_PROMPT).toContain('helpful');
-      expect(NOVA_SYSTEM_PROMPT).toContain('friendly');
+    it('should define Atlas personality', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Atlas');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Ben');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('friend');
+    });
+
+    it('should include tool usage guidance', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Tool Usage');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Guidelines');
+    });
+
+    it('should include autonomy instructions', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Autonomy');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Act First');
+    });
+
+    it('should include core identity', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Core Identity');
+    });
+
+    it('should include memory awareness', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Memory');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('past conversations');
+    });
+
+    it('should include voice output guidance', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Voice Output');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('TTS');
+    });
+
+    it('should include capabilities awareness', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Capabilities');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('browser control');
+    });
+
+    it('should include proactive behavior', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Be Proactive');
+    });
+
+    it('should include context-aware behavior', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Read the Room');
+    });
+
+    it('should include emotional intelligence', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Emotional Intelligence');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('EMOTIONAL CONTEXT');
+    });
+
+    it('should include time awareness', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Time Awareness');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Late night');
+    });
+
+    it('should include voice dynamics', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Voice Dynamics');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('interrupt');
+    });
+
+    it('should include recovery patterns', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Recovery Patterns');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('File not found');
+    });
+
+    it('should include conversation flow', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Conversation Flow');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('First message');
+    });
+
+    it('should include user preferences guidance', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('User Preferences');
+    });
+
+    it('should include code quality standards', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Code Quality');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('readable code');
+    });
+
+    it('should include security awareness', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Security');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('API keys');
+    });
+
+    it('should include uncertainty expression', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('When Unsure');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('not certain');
+    });
+
+    it('should include clarification guidance', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Clarification');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('high stakes');
+    });
+
+    it('should include project context adaptation', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Project Context');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('TypeScript');
+    });
+
+    it('should include financial management expertise', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Financial Management');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Cash flow mastery');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('UK Tax intelligence');
+    });
+
+    it('should include trading and investing expertise', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Trading & Investing');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Position size');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('stop loss');
+    });
+
+    it('should include quant-level trading analysis', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Sharpe');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('drawdown');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Backtesting');
+    });
+
+    it('should include trading risk management', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Risk management');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('1-2% account risk');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('revenge');
+    });
+
+    it('should include business building expertise', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Business Building');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Serial Entrepreneur');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('paying customers');
+    });
+
+    it('should include freelance business guidance', () => {
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Client selection');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Pipeline');
+      expect(ATLAS_SYSTEM_PROMPT).toContain('Pricing mastery');
     });
   });
 });

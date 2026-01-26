@@ -1,0 +1,67 @@
+.activity-feed {
+  display: flex;
+  flex-direction: column;
+  background: var(--atlas-bg-elevated);
+  /* borders handled by global tech-card now, but we keep generic here just in case */
+  height: 100%;
+}
+
+/* Header */
+.activity-feed__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--atlas-border-subtle);
+  background: rgba(0,0,0,0.2);
+}
+
+.activity-feed__tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.activity-feed__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid transparent; /* Reserve space for border */
+  border-radius: 0; /* Tech look */
+  color: var(--atlas-text-secondary);
+  font-family: var(--atlas-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all var(--atlas-transition-fast);
+}
+
+.activity-feed__tab:hover {
+  color: var(--atlas-text-primary);
+  background: var(--atlas-bg-hover);
+  border-color: var(--atlas-border-default);
+}
+
+.activity-feed__tab.active {
+  color: var(--atlas-accent-cyan);
+  background: rgba(0, 212, 255, 0.05);
+  border: 1px solid var(--atlas-accent-cyan-dim);
+  border-bottom: 2px solid var(--atlas-accent-cyan); /* Active underline */
+}
+
+.activity-feed__tab-count {
+  font-size: 10px;
+  padding: 0 4px;
+  background: var(--atlas-border-subtle);
+  border-radius: 2px; /* Square tags */
+  color: var(--atlas-text-muted);
+  font-family: var(--atlas-font-mono);
+}
+
+.activity-feed__tab.active .activity-feed__tab-count {
+  background: var(--atlas-accent-cyan);
+  color: #000;
+}

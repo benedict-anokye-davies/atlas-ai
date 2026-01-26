@@ -1,0 +1,490 @@
+/**
+ * WellnessPanel Styles
+ * 
+ * Styles for the wellness dashboard component featuring
+ * modern design with health-focused color scheme.
+ */
+
+/* Overlay */
+.wellness-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Panel */
+.wellness-panel {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Header */
+.wellness-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wellness-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wellness-header h2::before {
+  content: '💚';
+}
+
+.wellness-close {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.wellness-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* Tabs */
+.wellness-tabs {
+  display: flex;
+  padding: 0 24px;
+  gap: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wellness-tab {
+  background: none;
+  border: none;
+  color: #888;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  position: relative;
+  transition: color 0.2s;
+}
+
+.wellness-tab:hover {
+  color: #ccc;
+}
+
+.wellness-tab.active {
+  color: #22c55e;
+}
+
+.wellness-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #22c55e;
+  border-radius: 2px 2px 0 0;
+}
+
+/* Content */
+.wellness-content {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Loading & Error */
+.wellness-loading,
+.wellness-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px;
+  color: #888;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #22c55e;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.wellness-error button {
+  background: #22c55e;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+/* Sections */
+.wellness-section {
+  margin-bottom: 24px;
+}
+
+.wellness-section:last-child {
+  margin-bottom: 0;
+}
+
+.wellness-section h3 {
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Score Rings */
+.scores-grid {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+}
+
+.score-ring-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.score-ring {
+  transform: rotate(-90deg);
+}
+
+.score-ring-background {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+.score-ring-progress {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.score-ring-content {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+}
+
+.score-value {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.score-label {
+  font-size: 12px;
+  color: #888;
+  text-align: center;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: background 0.2s;
+}
+
+.stat-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.stat-icon {
+  font-size: 24px;
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #888;
+}
+
+.stat-subtext {
+  font-size: 11px;
+  color: #666;
+}
+
+/* Break Alert */
+.break-alert {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.break-alert-ok {
+  border-left: 4px solid #22c55e;
+}
+
+.break-alert-low {
+  border-left: 4px solid #eab308;
+}
+
+.break-alert-medium {
+  border-left: 4px solid #f97316;
+}
+
+.break-alert-high {
+  border-left: 4px solid #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.break-icon {
+  font-size: 28px;
+}
+
+.break-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.break-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.break-message,
+.break-next {
+  font-size: 13px;
+  color: #888;
+}
+
+.break-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.break-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.break-btn-primary {
+  background: #22c55e;
+  color: #fff;
+  border: none;
+}
+
+.break-btn-primary:hover {
+  background: #16a34a;
+}
+
+.break-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: none;
+}
+
+.break-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Suggestions */
+.suggestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestion-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggestion-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(4px);
+}
+
+.suggestion-icon {
+  font-size: 24px;
+}
+
+.suggestion-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.suggestion-activity {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.suggestion-meta {
+  font-size: 12px;
+  color: #888;
+}
+
+/* Settings */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.setting-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.setting-item span {
+  font-size: 14px;
+  color: #fff;
+}
+
+.setting-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: #22c55e;
+  cursor: pointer;
+}
+
+/* Placeholder */
+.placeholder-text {
+  color: #666;
+  text-align: center;
+  padding: 32px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .wellness-panel {
+    width: 95%;
+    max-height: 90vh;
+    border-radius: 12px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .scores-grid {
+    gap: 24px;
+  }
+  
+  .break-alert {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .break-actions {
+    width: 100%;
+    justify-content: center;
+  }
+}

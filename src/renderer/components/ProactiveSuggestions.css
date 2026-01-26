@@ -1,0 +1,569 @@
+/**
+ * Atlas Desktop - Proactive Suggestions Styles
+ * Smart suggestion cards with animations
+ */
+
+/* ============================================================================
+   Container & Positioning
+   ============================================================================ */
+
+.proactive-suggestions {
+  position: fixed;
+  z-index: 900;
+}
+
+.proactive-suggestions.bottom-right {
+  bottom: 100px;
+  right: 240px;
+}
+
+.proactive-suggestions.bottom-left {
+  bottom: 100px;
+  left: 240px;
+}
+
+.proactive-suggestions.top-right {
+  top: 60px;
+  right: 240px;
+}
+
+.proactive-suggestions.top-left {
+  top: 60px;
+  left: 240px;
+}
+
+/* ============================================================================
+   Panel - More Compact
+   ============================================================================ */
+
+.suggestions-panel {
+  width: 300px;
+  max-height: 380px;
+  background: linear-gradient(135deg, rgba(12, 14, 20, 0.98), rgba(8, 10, 16, 0.99));
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.4),
+    0 0 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.suggestions-panel.minimized {
+  max-height: 40px;
+}
+
+/* ============================================================================
+   Panel Header - Compact
+   ============================================================================ */
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.panel-header:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-icon {
+  width: 14px;
+  height: 14px;
+  color: #fbbf24;
+}
+
+.header-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.urgent-badge {
+  padding: 1px 6px;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border-radius: 8px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.minimize-btn,
+.close-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.minimize-btn:hover,
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #d1d5db;
+}
+
+.minimize-btn .chevron {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.2s ease;
+}
+
+.minimize-btn .chevron.up {
+  transform: rotate(180deg);
+}
+
+.close-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* ============================================================================
+   Filter Tabs - Compact
+   ============================================================================ */
+
+.filter-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.2);
+  overflow-x: auto;
+}
+
+.filter-tabs::-webkit-scrollbar {
+  height: 2px;
+}
+
+.filter-tabs::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 1px;
+}
+
+.filter-tab {
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.filter-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #9ca3af;
+}
+
+.filter-tab.active {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+}
+
+/* ============================================================================
+   Suggestions List
+   ============================================================================ */
+
+.suggestions-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.suggestions-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.suggestions-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.suggestions-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.no-suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.empty-icon {
+  width: 40px;
+  height: 40px;
+  color: #4b5563;
+  margin-bottom: 12px;
+}
+
+.no-suggestions p {
+  color: #9ca3af;
+  font-size: 0.9rem;
+  margin: 0 0 4px;
+}
+
+.no-suggestions span {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+/* ============================================================================
+   Suggestion Card
+   ============================================================================ */
+
+.suggestion-card {
+  background: linear-gradient(135deg, rgba(40, 42, 54, 0.6), rgba(30, 32, 40, 0.8));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.2s ease;
+  animation: cardSlide 0.3s ease-out;
+}
+
+@keyframes cardSlide {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.suggestion-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(135deg, rgba(45, 47, 60, 0.7), rgba(35, 37, 45, 0.85));
+}
+
+/* Priority Indicators */
+.suggestion-card.priority-urgent {
+  border-left: 3px solid #ef4444;
+}
+
+.suggestion-card.priority-high {
+  border-left: 3px solid #f59e0b;
+}
+
+.suggestion-card.priority-medium {
+  border-left: 3px solid #6366f1;
+}
+
+.suggestion-card.priority-low {
+  border-left: 3px solid #6b7280;
+}
+
+/* ============================================================================
+   Card Header
+   ============================================================================ */
+
+.suggestion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.suggestion-category {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.category-icon {
+  width: 14px;
+  height: 14px;
+  color: #8b5cf6;
+}
+
+.category-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #8b5cf6;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.suggestion-time {
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+/* ============================================================================
+   Card Content
+   ============================================================================ */
+
+.suggestion-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.suggestion-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  margin: 0;
+}
+
+.suggestion-description {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  line-height: 1.5;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.suggestion-description.expanded {
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  display: block;
+}
+
+.expand-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-size: 0.75rem;
+  color: #8b5cf6;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.expand-btn:hover {
+  color: #a78bfa;
+}
+
+.expand-btn .chevron {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.2s ease;
+}
+
+.expand-btn .chevron.up {
+  transform: rotate(180deg);
+}
+
+/* ============================================================================
+   Card Actions
+   ============================================================================ */
+
+.suggestion-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.action-btn.primary {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: #fff;
+}
+
+.action-btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+.action-btn.secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d1d5db;
+}
+
+.action-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.action-btn.secondary.dismiss:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.btn-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.secondary-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.secondary-actions .action-btn {
+  flex: 1;
+}
+
+/* Snooze Menu */
+.snooze-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.snooze-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: rgba(30, 32, 40, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  animation: menuSlide 0.15s ease-out;
+  z-index: 10;
+}
+
+@keyframes menuSlide {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.snooze-menu button {
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #d1d5db;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.snooze-menu button:hover {
+  background: rgba(139, 92, 246, 0.2);
+}
+
+/* Never Show Button */
+.never-show-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  background: transparent;
+  border: none;
+  font-size: 0.7rem;
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.never-show-btn:hover {
+  color: #9ca3af;
+}
+
+.never-show-btn .btn-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* ============================================================================
+   Responsive Design
+   ============================================================================ */
+
+@media (max-width: 480px) {
+  .suggestions-panel {
+    width: calc(100vw - 48px);
+    max-height: 60vh;
+  }
+
+  .proactive-suggestions.bottom-right,
+  .proactive-suggestions.bottom-left {
+    left: 24px;
+    right: 24px;
+  }
+
+  .proactive-suggestions.top-right,
+  .proactive-suggestions.top-left {
+    left: 24px;
+    right: 24px;
+  }
+
+  .filter-tabs {
+    padding: 8px 10px;
+  }
+
+  .filter-tab {
+    padding: 5px 10px;
+    font-size: 0.7rem;
+  }
+}

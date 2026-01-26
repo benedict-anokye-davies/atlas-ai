@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - STT Manager
+ * Atlas Desktop - STT Manager
  *
  * Manages speech-to-text providers with automatic fallback capability.
  * Primary provider: Deepgram (cloud-based, higher accuracy)
@@ -17,6 +17,7 @@
 import { EventEmitter } from 'events';
 import { createModuleLogger } from '../utils/logger';
 import { CircuitBreaker, CircuitState } from '../utils/errors';
+import { getConfig } from '../config';
 import {
   STTProvider,
   STTConfig,
@@ -98,6 +99,7 @@ export class STTManager extends EventEmitter implements STTProvider {
   private lastFallbackTime = 0;
   private _status: STTStatus = STTStatus.IDLE;
   private isOfflineMode = false;
+  private isClosing = false; // Track closing state for event forwarding
 
   constructor(config?: Partial<STTManagerConfig>) {
     super();
@@ -118,6 +120,9 @@ export class STTManager extends EventEmitter implements STTProvider {
         }
       },
     });
+
+    // Initialize providers synchronously
+    this.initializeProvidersSync();
 
     logger.info('STTManager initialized', {
       preferOffline: this.config.preferOffline,
@@ -163,7 +168,55 @@ export class STTManager extends EventEmitter implements STTProvider {
   }
 
   /**
-   * Initialize providers
+   * Initialize providers synchronously (for constructor use)
+   * Creates provider instances and selects a default active provider
+   */
+  private initializeProvidersSync(): void {
+    // Initialize Deepgram if API key provided
+    if (this.config.deepgram.apiKey) {
+      try {
+        this.deepgramSTT = new DeepgramSTT(this.config.deepgram);
+        this.setupProviderListeners(this.deepgramSTT, 'deepgram');
+        logger.info('Deepgram provider initialized');
+      } catch (error) {
+        logger.warn('Failed to initialize Deepgram', { error: (error as Error).message });
+      }
+    }
+
+    // Initialize Vosk (always available as fallback)
+    try {
+      this.voskSTT = new VoskSTT(this.config.vosk);
+      this.setupProviderListeners(this.voskSTT, 'vosk');
+      logger.info('Vosk provider initialized');
+    } catch (error) {
+      logger.warn('Failed to initialize Vosk', { error: (error as Error).message });
+    }
+
+    // Select default provider (for warmup check, actual start() will re-select)
+    this.selectDefaultProvider();
+  }
+
+  /**
+   * Select a default provider based on config and availability
+   * Note: This doesn't start the provider, just marks it as active for status checks
+   */
+  private selectDefaultProvider(): void {
+    if (this.config.preferOffline && this.voskSTT) {
+      this.activeProviderType = 'vosk';
+      logger.info('Selected default STT provider', { provider: 'vosk' });
+    } else if (this.deepgramSTT && this.deepgramBreaker.canAttempt()) {
+      this.activeProviderType = 'deepgram';
+      logger.info('Selected default STT provider', { provider: 'deepgram' });
+    } else if (this.voskSTT) {
+      this.activeProviderType = 'vosk';
+      logger.info('Selected default STT provider', { provider: 'vosk' });
+    } else {
+      logger.warn('No STT provider available');
+    }
+  }
+
+  /**
+   * Initialize providers (async version, kept for backwards compatibility)
    */
   private async initializeProviders(): Promise<void> {
     // Initialize Deepgram if API key provided
@@ -189,60 +242,67 @@ export class STTManager extends EventEmitter implements STTProvider {
 
   /**
    * Set up event listeners for a provider
+   * Note: Events are forwarded if provider is active OR if we're in closing state
+   * This allows final transcription results to come through during graceful shutdown
    */
   private setupProviderListeners(provider: STTProvider, type: STTProviderType): void {
+    // Helper to check if we should forward events from this provider
+    const shouldForwardEvent = () => provider === this.activeProvider || this.isClosing;
+
     provider.on('transcript', (result: TranscriptionResult) => {
-      if (provider === this.activeProvider) {
+      if (shouldForwardEvent()) {
         this.emit('transcript', result);
       }
     });
 
     provider.on('final', (result: TranscriptionResult) => {
-      if (provider === this.activeProvider) {
+      if (shouldForwardEvent()) {
         this.consecutiveErrors = 0; // Reset on successful transcription
         this.emit('final', result);
       }
     });
 
     provider.on('interim', (result: TranscriptionResult) => {
-      if (provider === this.activeProvider) {
+      if (shouldForwardEvent()) {
         this.emit('interim', result);
       }
     });
 
     provider.on('error', (error: Error) => {
-      if (provider === this.activeProvider) {
+      if (shouldForwardEvent()) {
         this.handleProviderError(error, type);
       }
     });
 
     provider.on('status', (status: STTStatus) => {
-      if (provider === this.activeProvider) {
+      if (shouldForwardEvent()) {
         this.setStatus(status);
       }
     });
 
     provider.on('utteranceEnd', () => {
-      if (provider === this.activeProvider) {
+      if (shouldForwardEvent()) {
         this.emit('utteranceEnd');
       }
     });
 
     provider.on('speechStarted', () => {
-      if (provider === this.activeProvider) {
+      if (shouldForwardEvent()) {
         this.emit('speechStarted');
       }
     });
 
     provider.on('open', () => {
-      if (provider === this.activeProvider) {
+      if (shouldForwardEvent()) {
         this.emit('open');
       }
     });
 
     provider.on('close', (code?: number, reason?: string) => {
-      if (provider === this.activeProvider) {
+      if (shouldForwardEvent()) {
         this.emit('close', code, reason);
+        // Clear closing state when connection actually closes
+        this.isClosing = false;
       }
     });
   }
@@ -405,6 +465,7 @@ export class STTManager extends EventEmitter implements STTProvider {
     }
 
     this.setStatus(STTStatus.CONNECTING);
+    this.isClosing = false; // Reset closing flag on new start
 
     // Initialize providers if not done
     if (!this.deepgramSTT && !this.voskSTT) {
@@ -491,6 +552,8 @@ export class STTManager extends EventEmitter implements STTProvider {
    */
   async stop(): Promise<void> {
     if (this.activeProvider) {
+      // Set closing flag BEFORE stopping to allow event forwarding during graceful shutdown
+      this.isClosing = true;
       await this.activeProvider.stop();
       this.activeProvider = null;
       this.activeProviderType = null;
@@ -604,6 +667,8 @@ let sttManager: STTManager | null = null;
 /**
  * Gets or creates the singleton STTManager instance.
  *
+ * If no config is provided, automatically loads API keys from environment config.
+ *
  * @param config - Optional configuration (only used on first call)
  * @returns The STTManager singleton instance
  *
@@ -615,6 +680,16 @@ let sttManager: STTManager | null = null;
  */
 export function getSTTManager(config?: Partial<STTManagerConfig>): STTManager {
   if (!sttManager) {
+    // If no config provided, load API keys from environment config
+    if (!config) {
+      const appConfig = getConfig();
+      config = {
+        deepgram: {
+          apiKey: appConfig.deepgramApiKey,
+        },
+      };
+      logger.debug('STTManager initialized with API keys from environment config');
+    }
     sttManager = new STTManager(config);
   }
   return sttManager;

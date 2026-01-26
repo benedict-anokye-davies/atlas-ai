@@ -1,11 +1,11 @@
 /**
- * Nova Desktop - Main Zustand Store
+ * Atlas Desktop - Main Zustand Store
  * Global state management for the renderer process
  */
 
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { NovaState } from '../components/orb/NovaParticles';
+import type { AtlasState } from '../components/orb/AtlasParticles';
 
 /**
  * Conversation message
@@ -22,6 +22,16 @@ export interface Message {
  * Quality preset types
  */
 export type QualityPreset = 'low' | 'medium' | 'high' | 'ultra' | 'custom';
+
+/**
+ * Attractor type for orb visualization (040-A)
+ */
+export type AttractorType = 'auto' | 'aizawa' | 'lorenz' | 'thomas' | 'halvorsen' | 'arneodo';
+
+/**
+ * Color theme preset for orb visualization (040-A)
+ */
+export type OrbColorTheme = 'auto' | 'cyan' | 'blue' | 'purple' | 'gold' | 'green' | 'pink' | 'custom';
 
 /**
  * Quality preset configuration
@@ -69,13 +79,34 @@ export const QUALITY_PRESETS: Record<Exclude<QualityPreset, 'custom'>, QualityPr
 };
 
 /**
+ * Personality preset types
+ */
+export type PersonalityPreset = 'atlas' | 'professional' | 'playful' | 'minimal' | 'custom';
+
+/**
+ * Personality traits (0-1 scale)
+ */
+export interface PersonalityTraits {
+  friendliness: number;
+  formality: number;
+  humor: number;
+  curiosity: number;
+  energy: number;
+  patience: number;
+}
+
+/**
  * Settings configuration
  */
-export interface NovaSettings {
+export interface AtlasSettings {
   // Audio settings
   inputDevice: string | null;
   outputDevice: string | null;
   audioVolume: number;
+  
+  // Audio feedback settings
+  audioFeedbackEnabled: boolean; // Enable sound cues for state changes
+  audioFeedbackVolume: number; // 0-1 volume level for feedback sounds
 
   // Voice settings
   voiceId: string;
@@ -93,6 +124,13 @@ export interface NovaSettings {
   enablePostProcessing: boolean;
   enableAntialiasing: boolean;
 
+  // Orb visualization settings (040-A)
+  attractorType: AttractorType;
+  orbColorTheme: OrbColorTheme;
+  customOrbHue: number; // 0-1 for custom color theme
+  orbBrightness: number; // 0-1 brightness multiplier
+  orbSaturation: number; // 0-1 saturation multiplier
+
   // Behavior settings
   autoStart: boolean;
   pushToTalk: boolean;
@@ -103,6 +141,10 @@ export interface NovaSettings {
   preferredSttProvider: 'deepgram' | 'vosk' | 'auto';
   maxConversationHistory: number;
 
+  // Personality settings
+  personalityPreset: PersonalityPreset;
+  personalityTraits: PersonalityTraits;
+
   // Debug settings
   showDebug: boolean;
 
@@ -112,11 +154,11 @@ export interface NovaSettings {
 }
 
 /**
- * Nova store state
+ * Atlas store state
  */
-interface NovaStore {
+interface AtlasStore {
   // Voice state
-  state: NovaState;
+  state: AtlasState;
   isReady: boolean;
   isListening: boolean;
   isSpeaking: boolean;
@@ -135,7 +177,7 @@ interface NovaStore {
   currentResponse: string;
 
   // Settings
-  settings: NovaSettings;
+  settings: AtlasSettings;
   isSettingsOpen: boolean;
 
   // Budget/Usage tracking
@@ -153,7 +195,7 @@ interface NovaStore {
   lastError: { message: string; timestamp: number } | null;
 
   // Actions - Voice state
-  setState: (state: NovaState) => void;
+  setState: (state: AtlasState) => void;
   setReady: (ready: boolean) => void;
   setListening: (listening: boolean) => void;
   setSpeaking: (speaking: boolean) => void;
@@ -172,11 +214,11 @@ interface NovaStore {
   appendResponse: (chunk: string) => void;
 
   // Actions - Settings
-  updateSettings: (settings: Partial<NovaSettings>) => void;
+  updateSettings: (settings: Partial<AtlasSettings>) => void;
   toggleSettings: () => void;
 
   // Actions - Budget
-  updateBudgetUsage: (usage: Partial<NovaStore['budgetUsage']>) => void;
+  updateBudgetUsage: (usage: Partial<AtlasStore['budgetUsage']>) => void;
 
   // Actions - Error
   setError: (error: string | null) => void;
@@ -187,13 +229,27 @@ interface NovaStore {
 }
 
 /**
+ * Default personality traits (matches DEFAULT_ATLAS_PERSONALITY)
+ */
+const defaultPersonalityTraits: PersonalityTraits = {
+  friendliness: 0.9,
+  formality: 0.3,
+  humor: 0.7,
+  curiosity: 0.9,
+  energy: 0.8,
+  patience: 0.9,
+};
+
+/**
  * Default settings
  */
-const defaultSettings: NovaSettings = {
+const defaultSettings: AtlasSettings = {
   inputDevice: null,
   outputDevice: null,
   audioVolume: 1.0,
-  voiceId: 'nova',
+  audioFeedbackEnabled: true, // Audio cues on by default
+  audioFeedbackVolume: 0.3, // 30% volume for feedback sounds
+  voiceId: 'atlas',
   voiceSpeed: 1.0,
   voiceStability: 0.5,
   particleCount: 35000,
@@ -205,12 +261,20 @@ const defaultSettings: NovaSettings = {
   enableShadows: true,
   enablePostProcessing: true,
   enableAntialiasing: true,
+  // Orb visualization settings (040-A)
+  attractorType: 'auto', // Use state-based attractor selection
+  orbColorTheme: 'auto', // Use state-based colors
+  customOrbHue: 0.55, // Cyan default for custom
+  orbBrightness: 1.0, // Full brightness
+  orbSaturation: 1.0, // Full saturation
   autoStart: true,
   pushToTalk: false,
-  wakeWord: 'Hey Nova',
+  wakeWord: 'Hey Atlas',
   preferredLlmProvider: 'auto',
   preferredSttProvider: 'auto',
   maxConversationHistory: 50,
+  personalityPreset: 'atlas',
+  personalityTraits: { ...defaultPersonalityTraits },
   showDebug: false, // Debug overlay off by default
   dailyBudget: 5.0, // $5/day default
   budgetWarningThreshold: 0.8, // Warn at 80%
@@ -220,7 +284,7 @@ const defaultSettings: NovaSettings = {
  * Initial state
  */
 const initialState = {
-  state: 'idle' as NovaState,
+  state: 'idle' as AtlasState,
   isReady: false,
   isListening: false,
   isSpeaking: false,
@@ -255,9 +319,9 @@ function generateId(): string {
 }
 
 /**
- * Nova Zustand store
+ * Atlas Zustand store
  */
-export const useNovaStore = create<NovaStore>()(
+export const useAtlasStore = create<AtlasStore>()(
   subscribeWithSelector((set, get) => ({
     ...initialState,
 
@@ -329,9 +393,9 @@ export const useNovaStore = create<NovaStore>()(
       // Persist settings to localStorage
       try {
         const currentSettings = get().settings;
-        localStorage.setItem('nova-settings', JSON.stringify(currentSettings));
+        localStorage.setItem('atlas-settings', JSON.stringify(currentSettings));
       } catch (e) {
-        console.warn('[NovaStore] Failed to persist settings:', e);
+        console.warn('[AtlasStore] Failed to persist settings:', e);
       }
     },
 
@@ -363,23 +427,23 @@ export const useNovaStore = create<NovaStore>()(
 // Load settings from localStorage on initialization
 if (typeof window !== 'undefined') {
   try {
-    const savedSettings = localStorage.getItem('nova-settings');
+    const savedSettings = localStorage.getItem('atlas-settings');
     if (savedSettings) {
-      const parsed = JSON.parse(savedSettings) as Partial<NovaSettings>;
-      useNovaStore.getState().updateSettings(parsed);
+      const parsed = JSON.parse(savedSettings) as Partial<AtlasSettings>;
+      useAtlasStore.getState().updateSettings(parsed);
     }
   } catch (e) {
-    console.warn('[NovaStore] Failed to load saved settings:', e);
+    console.warn('[AtlasStore] Failed to load saved settings:', e);
   }
 }
 
 // Selectors for optimized re-renders
-export const selectState = (state: NovaStore) => state.state;
-export const selectIsReady = (state: NovaStore) => state.isReady;
-export const selectAudioLevel = (state: NovaStore) => state.audioLevel;
-export const selectMessages = (state: NovaStore) => state.messages;
-export const selectSettings = (state: NovaStore) => state.settings;
-export const selectError = (state: NovaStore) => state.error;
-export const selectBudgetUsage = (state: NovaStore) => state.budgetUsage;
+export const selectState = (state: AtlasStore) => state.state;
+export const selectIsReady = (state: AtlasStore) => state.isReady;
+export const selectAudioLevel = (state: AtlasStore) => state.audioLevel;
+export const selectMessages = (state: AtlasStore) => state.messages;
+export const selectSettings = (state: AtlasStore) => state.settings;
+export const selectError = (state: AtlasStore) => state.error;
+export const selectBudgetUsage = (state: AtlasStore) => state.budgetUsage;
 
-export default useNovaStore;
+export default useAtlasStore;

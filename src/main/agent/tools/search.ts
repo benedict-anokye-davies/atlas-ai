@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Web Search Tools
+ * Atlas Desktop - Web Search Tools
  * Search the web using various search engines
  */
 

@@ -1,5 +1,6 @@
+/* eslint-disable no-console */
 /**
- * Nova Desktop - NovaOrb Component
+ * Atlas Desktop - AtlasOrb Component
  * Main wrapper for the 3D AI Core visualization with bloom post-processing
  */
 
@@ -9,10 +10,10 @@ import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 // NOTE: Postprocessing disabled due to Vite "Dynamic require of buffer" error
 // To re-enable: npm install vite-plugin-node-polyfills and update vite.config.ts
 // import { EffectComposer, Bloom, Noise, Vignette } from '@react-three/postprocessing';
-import { NovaParticles, NovaState } from './NovaParticles';
+import { AtlasParticles, AtlasState } from './AtlasParticles';
 
-interface NovaOrbProps {
-  state?: NovaState;
+interface AtlasOrbProps {
+  state?: AtlasState;
   audioLevel?: number;
   particleCount?: number;
   interactive?: boolean;
@@ -68,7 +69,7 @@ class WebGLErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('[NovaOrb] WebGL Error:', error, errorInfo);
+    console.error('[AtlasOrb] WebGL Error:', error, errorInfo);
   }
 
   render() {
@@ -98,28 +99,24 @@ class WebGLErrorBoundary extends React.Component<
 }
 
 /**
- * NovaOrb - The main visual component for Nova
+ * AtlasOrb - The main visual component for Atlas
  * Renders a 3D AI Core particle system that responds to AI state
  */
-export function NovaOrb({
+export function AtlasOrb({
   state = 'idle',
   audioLevel = 0,
   particleCount = 30000,
   interactive = true,
   onStateClick,
   className = '',
-  disablePostProcessing = false, // Enabled by default for full visual effect
-}: NovaOrbProps) {
+  disablePostProcessing: _disablePostProcessing = false, // Enabled by default for full visual effect
+}: AtlasOrbProps) {
+  // Suppress unused variable warning - reserved for future post-processing toggle
+  void _disablePostProcessing;
   const [isHovered, setIsHovered] = useState(false);
 
-  console.log(
-    '[NovaOrb] Rendering with state:',
-    state,
-    'particleCount:',
-    particleCount,
-    'disablePostProcessing:',
-    disablePostProcessing
-  );
+  // Debug logging removed - use React DevTools for component inspection
+  // This console.log was firing 60+ times per second, degrading performance
 
   const handleClick = useCallback(() => {
     if (onStateClick) {
@@ -137,14 +134,14 @@ export function NovaOrb({
 
   return (
     <div
-      className={`nova-orb-container ${className} ${isHovered ? 'hovered' : ''}`}
+      className={`atlas-orb-container ${className} ${isHovered ? 'hovered' : ''}`}
       onClick={handleClick}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && handleClick()}
-      aria-label={`Nova orb - ${state} state. Click to interact.`}
+      aria-label={`Atlas orb - ${state} state. Click to interact.`}
     >
       <WebGLErrorBoundary>
         <Canvas
@@ -161,7 +158,7 @@ export function NovaOrb({
             cursor: interactive ? 'pointer' : 'default',
           }}
           onCreated={({ gl }) => {
-            console.log('[NovaOrb] Canvas created, WebGL context:', gl.getContext());
+            console.log('[AtlasOrb] Canvas created, WebGL context:', gl.getContext());
           }}
         >
           {/* Camera positioned for optimal view of the AI Core */}
@@ -172,7 +169,7 @@ export function NovaOrb({
 
           {/* Suspense boundary for async loading */}
           <Suspense fallback={<OrbLoader />}>
-            <NovaParticles state={state} audioLevel={audioLevel} particleCount={particleCount} />
+            <AtlasParticles state={state} audioLevel={audioLevel} particleCount={particleCount} />
 
             {/* Post-processing effects disabled - see note above */}
             {/* {!disablePostProcessing && <PostProcessing />} */}
@@ -198,4 +195,4 @@ export function NovaOrb({
   );
 }
 
-export default NovaOrb;
+export default AtlasOrb;

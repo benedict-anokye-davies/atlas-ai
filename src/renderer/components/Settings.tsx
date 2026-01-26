@@ -1,10 +1,25 @@
 /**
- * Nova Desktop - Settings Panel Component
- * UI for configuring Nova settings
+ * Atlas Desktop - Settings Panel Component
+ * UI for configuring Atlas settings
+ *
+ * Session 039-A: Added focus management for keyboard navigation
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNovaStore, type NovaSettings, type QualityPreset, QUALITY_PRESETS } from '../stores';
+import {
+  useNovaStore,
+  type NovaSettings,
+  type QualityPreset,
+  QUALITY_PRESETS,
+  type PersonalityPreset,
+  type AttractorType,
+  type OrbColorTheme,
+} from '../stores';
+import { useModalFocus } from '../hooks';
+import { useAccessibility } from './accessibility';
+import { LoadingIndicator } from './common';
+import { ShortcutSettings } from './ShortcutSettings';
+import { SETTINGS_VALIDATION } from '../utils/validation-constants';
 import './Settings.css';
 
 /**
@@ -106,21 +121,77 @@ const Toggle: React.FC<ToggleProps> = ({ label, checked, onChange }) => (
   </div>
 );
 
+interface TextInputProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  description?: string;
+}
+
+const TextInput: React.FC<TextInputProps> = ({
+  label,
+  value,
+  onChange,
+  placeholder,
+  description,
+}) => (
+  <div className="settings-text-input">
+    <label className="settings-label">{label}</label>
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="settings-input"
+    />
+    {description && <span className="settings-description">{description}</span>}
+  </div>
+);
+
 /**
  * Settings Panel Component
  */
+/**
+ * Audio device type from main process (PvRecorder)
+ */
+interface AudioDeviceInfo {
+  index: number;
+  name: string;
+  isDefault: boolean;
+}
+
 export const Settings: React.FC = () => {
   const { settings, updateSettings, isSettingsOpen, toggleSettings } = useNovaStore();
-  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [inputDevices, setInputDevices] = useState<AudioDeviceInfo[]>([]);
+  const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
   const [budgetStats, setBudgetStats] = useState<BudgetStats | null>(null);
   const [budgetLoading, setBudgetLoading] = useState(false);
 
-  // Fetch available audio devices
+  // Focus trap for keyboard navigation (Session 039-A)
+  const panelRef = useModalFocus<HTMLDivElement>(isSettingsOpen);
+
+  // Accessibility settings (Session 039-C)
+  const { preferences: a11yPrefs, updatePreferences: updateA11yPrefs } = useAccessibility();
+
+  // Mic test state (040-B)
+  const [isMicTesting, setIsMicTesting] = useState(false);
+  const [micLevel, setMicLevel] = useState(0);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
+
+  // Fetch available audio devices from main process (PvRecorder)
   useEffect(() => {
     const fetchDevices = async () => {
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        setAudioDevices(devices);
+        // Get input devices from main process (PvRecorder compatible)
+        const mainDevices = await window.atlas?.voice.getAudioDevices();
+        if (mainDevices) {
+          setInputDevices(mainDevices);
+        }
+
+        // Get output devices from browser (for audio playback)
+        const browserDevices = await navigator.mediaDevices.enumerateDevices();
+        setOutputDevices(browserDevices.filter((d) => d.kind === 'audiooutput'));
       } catch (e) {
         console.warn('[Settings] Failed to enumerate devices:', e);
       }
@@ -128,8 +199,29 @@ export const Settings: React.FC = () => {
 
     if (isSettingsOpen) {
       fetchDevices();
+      // Start device monitoring
+      window.atlas?.voice.startDeviceMonitoring();
     }
+
+    return () => {
+      // Stop monitoring when settings close
+      if (isSettingsOpen) {
+        window.atlas?.voice.stopDeviceMonitoring();
+      }
+    };
   }, [isSettingsOpen]);
+
+  // Listen for device changes from main process
+  useEffect(() => {
+    const unsubscribe = window.atlas?.on('atlas:audio-devices-changed', (event: unknown) => {
+      const deviceEvent = event as { devices: AudioDeviceInfo[] };
+      if (deviceEvent.devices) {
+        setInputDevices(deviceEvent.devices);
+      }
+    });
+
+    return () => unsubscribe?.();
+  }, []);
 
   // Fetch budget stats when settings open
   useEffect(() => {
@@ -137,7 +229,7 @@ export const Settings: React.FC = () => {
       if (!isSettingsOpen) return;
       setBudgetLoading(true);
       try {
-        const result = await window.nova?.nova.getBudgetStats();
+        const result = await window.atlas?.atlas.getBudgetStats();
         if (result?.success && result.data) {
           setBudgetStats(result.data as BudgetStats);
         }
@@ -164,9 +256,9 @@ export const Settings: React.FC = () => {
     async (budget: number) => {
       handleUpdate('dailyBudget', budget);
       try {
-        await window.nova?.nova.setDailyBudget(budget);
+        await window.atlas?.atlas.setDailyBudget(budget);
         // Refresh stats
-        const result = await window.nova?.nova.getBudgetStats();
+        const result = await window.atlas?.atlas.getBudgetStats();
         if (result?.success && result.data) {
           setBudgetStats(result.data as BudgetStats);
         }
@@ -191,14 +283,97 @@ export const Settings: React.FC = () => {
 
   if (!isSettingsOpen) return null;
 
-  const inputDevices = audioDevices.filter((d) => d.kind === 'audioinput');
-  const outputDevices = audioDevices.filter((d) => d.kind === 'audiooutput');
+  // Handle input device change (sends to main process)
+  const handleInputDeviceChange = async (deviceIndex: number) => {
+    handleUpdate('inputDevice', deviceIndex === -1 ? null : String(deviceIndex));
+    try {
+      await window.atlas?.voice.setAudioDevice(deviceIndex);
+    } catch (e) {
+      console.warn('[Settings] Failed to set audio device:', e);
+    }
+  };
+
+  // Handle wake word sensitivity change (040-B)
+  const handleSensitivityChange = async (sensitivity: number) => {
+    handleUpdate('wakeWordSensitivity', sensitivity);
+    try {
+      await window.atlas?.voice.setSensitivity(sensitivity);
+    } catch (e) {
+      console.warn('[Settings] Failed to set wake word sensitivity:', e);
+    }
+  };
+
+  // Handle microphone test (040-B)
+  const startMicTest = async () => {
+    setIsMicTesting(true);
+    setMicLevel(0);
+    setDeviceError(null);
+
+    try {
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Microphone access is not supported in this browser');
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let animationId: number;
+
+      const updateLevel = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const avg = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
+        setMicLevel(avg / 255);
+        animationId = requestAnimationFrame(updateLevel);
+      };
+      updateLevel();
+
+      // Auto-stop after test duration
+      setTimeout(() => {
+        cancelAnimationFrame(animationId);
+        stream.getTracks().forEach((track) => track.stop());
+        audioContext.close();
+        setIsMicTesting(false);
+      }, SETTINGS_VALIDATION.MIC_TEST_DURATION_MS);
+    } catch (e) {
+      console.warn('[Settings] Microphone test failed:', e);
+
+      // Set user-friendly error message
+      let errorMsg = 'Failed to access microphone';
+      if (e instanceof Error) {
+        if (e.name === 'NotAllowedError') {
+          errorMsg = 'Microphone access denied. Please grant permission and try again.';
+        } else if (e.name === 'NotFoundError') {
+          errorMsg = 'No microphone found. Please connect a microphone and try again.';
+        } else if (e.name === 'NotReadableError') {
+          errorMsg = 'Microphone is already in use by another application.';
+        } else if (e.message) {
+          errorMsg = e.message;
+        }
+      }
+
+      setDeviceError(errorMsg);
+      setIsMicTesting(false);
+    }
+  };
 
   return (
-    <div className="settings-overlay" onClick={toggleSettings}>
-      <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
+    <div className="settings-overlay" onClick={toggleSettings} role="presentation">
+      <div
+        ref={panelRef}
+        className="settings-panel"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+      >
         <div className="settings-header">
-          <h2>Settings</h2>
+          <h2 id="settings-title">Settings</h2>
           <button className="settings-close" onClick={toggleSettings} aria-label="Close settings">
             ×
           </button>
@@ -208,20 +383,40 @@ export const Settings: React.FC = () => {
           {/* Audio Settings */}
           <SettingsSection title="Audio">
             <Select
-              label="Input Device"
-              value={settings.inputDevice || 'default'}
-              options={[
-                { value: 'default', label: 'System Default' },
-                ...inputDevices.map((d) => ({
-                  value: d.deviceId,
-                  label: d.label || `Microphone ${d.deviceId.slice(0, 8)}`,
-                })),
-              ]}
-              onChange={(v) => handleUpdate('inputDevice', v === 'default' ? null : v)}
+              label="Input Device (Microphone)"
+              value={settings.inputDevice || '-1'}
+              options={inputDevices.map((d) => ({
+                value: String(d.index),
+                label: d.name,
+              }))}
+              onChange={(v) => handleInputDeviceChange(parseInt(v, 10))}
             />
 
+            {/* Microphone Test (040-B) */}
+            <div className="settings-mic-test">
+              <div className="mic-test-header">
+                <label className="settings-label">Microphone Test</label>
+                <button
+                  className={`mic-test-button ${isMicTesting ? 'testing' : ''}`}
+                  onClick={startMicTest}
+                  disabled={isMicTesting}
+                >
+                  {isMicTesting ? 'Testing...' : 'Test Mic'}
+                </button>
+              </div>
+              <div className="mic-level-bar">
+                <div className="mic-level-fill" style={{ width: `${micLevel * 100}%` }} />
+              </div>
+              {isMicTesting && <span className="mic-test-hint">Speak into your microphone</span>}
+              {deviceError && (
+                <div className="device-error" role="alert">
+                  {deviceError}
+                </div>
+              )}
+            </div>
+
             <Select
-              label="Output Device"
+              label="Output Device (Speaker)"
               value={settings.outputDevice || 'default'}
               options={[
                 { value: 'default', label: 'System Default' },
@@ -242,6 +437,45 @@ export const Settings: React.FC = () => {
               onChange={(v) => handleUpdate('audioVolume', v)}
               formatValue={(v) => `${Math.round(v * 100)}%`}
             />
+
+            <Slider
+              label="Wake Word Sensitivity"
+              value={settings.wakeWordSensitivity}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={handleSensitivityChange}
+              formatValue={(v) => `${Math.round(v * 100)}%`}
+            />
+
+            {/* Audio Feedback Toggle */}
+            <div className="settings-toggle">
+              <label className="settings-label">
+                Audio Feedback
+                <span className="settings-description">
+                  Play sound cues when listening, thinking, or speaking
+                </span>
+              </label>
+              <button
+                className={`toggle-button ${settings.audioFeedbackEnabled ? 'active' : ''}`}
+                onClick={() => handleUpdate('audioFeedbackEnabled', !settings.audioFeedbackEnabled)}
+                aria-pressed={settings.audioFeedbackEnabled}
+              >
+                {settings.audioFeedbackEnabled ? 'On' : 'Off'}
+              </button>
+            </div>
+
+            {settings.audioFeedbackEnabled && (
+              <Slider
+                label="Feedback Volume"
+                value={settings.audioFeedbackVolume ?? 0.3}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={(v) => handleUpdate('audioFeedbackVolume', v)}
+                formatValue={(v) => `${Math.round(v * 100)}%`}
+              />
+            )}
           </SettingsSection>
 
           {/* Voice Settings */}
@@ -365,8 +599,140 @@ export const Settings: React.FC = () => {
             />
           </SettingsSection>
 
+          {/* Accessibility Settings (039-C) */}
+          <SettingsSection title="Accessibility">
+            <Toggle
+              label="Use System Preferences"
+              checked={a11yPrefs.useSystemPreferences}
+              onChange={(v) => updateA11yPrefs({ useSystemPreferences: v })}
+            />
+            <span className="settings-description">
+              Automatically detect OS high contrast and reduced motion settings
+            </span>
+
+            <Toggle
+              label="High Contrast Mode"
+              checked={a11yPrefs.highContrastMode}
+              onChange={(v) => updateA11yPrefs({ highContrastMode: v })}
+            />
+            <span className="settings-description">
+              Increase color contrast for better visibility
+            </span>
+
+            <Toggle
+              label="Reduced Motion"
+              checked={a11yPrefs.reducedMotion}
+              onChange={(v) => updateA11yPrefs({ reducedMotion: v })}
+            />
+            <span className="settings-description">Minimize animations and particle effects</span>
+
+            <Toggle
+              label="Enhanced Focus Indicators"
+              checked={a11yPrefs.enhancedFocusIndicators}
+              onChange={(v) => updateA11yPrefs({ enhancedFocusIndicators: v })}
+            />
+            <span className="settings-description">
+              Show larger, more visible focus rings for keyboard navigation
+            </span>
+
+            <Toggle
+              label="Screen Reader Support"
+              checked={a11yPrefs.screenReaderEnabled}
+              onChange={(v) => updateA11yPrefs({ screenReaderEnabled: v })}
+            />
+            <span className="settings-description">
+              Enable ARIA live region announcements for assistive technology
+            </span>
+
+            <Slider
+              label="Font Scale"
+              value={a11yPrefs.fontScale}
+              min={0.75}
+              max={2.0}
+              step={0.05}
+              onChange={(v) => updateA11yPrefs({ fontScale: v })}
+              formatValue={(v) => `${Math.round(v * 100)}%`}
+            />
+            <span className="settings-description">
+              Adjust text size throughout the application
+            </span>
+          </SettingsSection>
+
+          {/* Orb Visualization Settings (040-A) */}
+          <SettingsSection title="Orb Visualization">
+            <Select
+              label="Attractor Type"
+              value={settings.attractorType}
+              options={[
+                { value: 'auto', label: 'Auto (State-Based)' },
+                { value: 'aizawa', label: 'Aizawa (Ribbon)' },
+                { value: 'lorenz', label: 'Lorenz (Butterfly)' },
+                { value: 'thomas', label: 'Thomas (Spiral)' },
+                { value: 'halvorsen', label: 'Halvorsen (Complex)' },
+                { value: 'arneodo', label: 'Arneodo (Chaotic)' },
+              ]}
+              onChange={(v) => handleUpdate('attractorType', v as AttractorType)}
+            />
+
+            <Select
+              label="Color Theme"
+              value={settings.orbColorTheme}
+              options={[
+                { value: 'auto', label: 'Auto (State-Based)' },
+                { value: 'cyan', label: 'Cyan (Default)' },
+                { value: 'blue', label: 'Blue' },
+                { value: 'purple', label: 'Purple' },
+                { value: 'gold', label: 'Gold' },
+                { value: 'green', label: 'Green' },
+                { value: 'pink', label: 'Pink' },
+                { value: 'custom', label: 'Custom' },
+              ]}
+              onChange={(v) => handleUpdate('orbColorTheme', v as OrbColorTheme)}
+            />
+
+            {settings.orbColorTheme === 'custom' && (
+              <Slider
+                label="Custom Hue"
+                value={settings.customOrbHue}
+                min={0}
+                max={1}
+                step={0.01}
+                onChange={(v) => handleUpdate('customOrbHue', v)}
+                formatValue={(v) => `${Math.round(v * 360)}°`}
+              />
+            )}
+
+            <Slider
+              label="Brightness"
+              value={settings.orbBrightness}
+              min={0.3}
+              max={1.5}
+              step={0.05}
+              onChange={(v) => handleUpdate('orbBrightness', v)}
+              formatValue={(v) => `${Math.round(v * 100)}%`}
+            />
+
+            <Slider
+              label="Saturation"
+              value={settings.orbSaturation}
+              min={0}
+              max={1.5}
+              step={0.05}
+              onChange={(v) => handleUpdate('orbSaturation', v)}
+              formatValue={(v) => `${Math.round(v * 100)}%`}
+            />
+          </SettingsSection>
+
           {/* Behavior Settings */}
           <SettingsSection title="Behavior">
+            <TextInput
+              label="Wake Word"
+              value={settings.wakeWord}
+              onChange={(v) => handleUpdate('wakeWord', v)}
+              placeholder="Hey Atlas"
+              description="The phrase Atlas listens for to activate"
+            />
+
             <Toggle
               label="Auto Start"
               checked={settings.autoStart}
@@ -378,6 +744,48 @@ export const Settings: React.FC = () => {
               checked={settings.pushToTalk}
               onChange={(v) => handleUpdate('pushToTalk', v)}
             />
+
+            <Toggle
+              label="Minimize to Tray"
+              checked={settings.minimizeToTray}
+              onChange={(v) => handleUpdate('minimizeToTray', v)}
+            />
+
+            <Toggle
+              label="Start Minimized"
+              checked={settings.startMinimized}
+              onChange={(v) => handleUpdate('startMinimized', v)}
+            />
+          </SettingsSection>
+
+          {/* Keyboard Shortcuts (047-B) */}
+          <SettingsSection title="Keyboard Shortcuts">
+            <ShortcutSettings />
+          </SettingsSection>
+
+          {/* Privacy Settings (040-C) */}
+          <SettingsSection title="Privacy">
+            <Toggle
+              label="Privacy Mode"
+              checked={settings.enablePrivacyMode}
+              onChange={(v) => handleUpdate('enablePrivacyMode', v)}
+            />
+            <span className="settings-description">
+              When enabled, conversations are not logged to disk
+            </span>
+
+            <div className="settings-actions">
+              <button
+                className="settings-action-button danger"
+                onClick={async () => {
+                  if (window.confirm('This will delete all conversation history. Are you sure?')) {
+                    await window.atlas?.atlas.clearMemory();
+                  }
+                }}
+              >
+                Clear Conversation History
+              </button>
+            </div>
           </SettingsSection>
 
           {/* Provider Settings */}
@@ -419,6 +827,127 @@ export const Settings: React.FC = () => {
             />
           </SettingsSection>
 
+          {/* Personality Settings */}
+          <SettingsSection title="Personality">
+            <Select
+              label="Personality Preset"
+              value={settings.personalityPreset}
+              options={[
+                { value: 'atlas', label: 'Atlas (Default)' },
+                { value: 'professional', label: 'Professional' },
+                { value: 'playful', label: 'Playful' },
+                { value: 'minimal', label: 'Minimal' },
+                { value: 'custom', label: 'Custom' },
+              ]}
+              onChange={(v) => {
+                const preset = v as PersonalityPreset;
+                handleUpdate('personalityPreset', preset);
+                // Also update main process
+                window.atlas?.atlas.setPersonalityPreset(preset);
+              }}
+            />
+
+            {settings.personalityPreset === 'custom' && (
+              <>
+                <Slider
+                  label="Friendliness"
+                  value={settings.personalityTraits.friendliness}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  onChange={(v) => {
+                    handleUpdate('personalityTraits', {
+                      ...settings.personalityTraits,
+                      friendliness: v,
+                    });
+                    window.atlas?.atlas.setPersonalityTrait('friendliness', v);
+                  }}
+                  formatValue={(v) => (v >= 0.7 ? 'Warm' : v >= 0.4 ? 'Neutral' : 'Reserved')}
+                />
+
+                <Slider
+                  label="Formality"
+                  value={settings.personalityTraits.formality}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  onChange={(v) => {
+                    handleUpdate('personalityTraits', {
+                      ...settings.personalityTraits,
+                      formality: v,
+                    });
+                    window.atlas?.atlas.setPersonalityTrait('formality', v);
+                  }}
+                  formatValue={(v) => (v >= 0.7 ? 'Formal' : v >= 0.4 ? 'Balanced' : 'Casual')}
+                />
+
+                <Slider
+                  label="Humor"
+                  value={settings.personalityTraits.humor}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  onChange={(v) => {
+                    handleUpdate('personalityTraits', {
+                      ...settings.personalityTraits,
+                      humor: v,
+                    });
+                    window.atlas?.atlas.setPersonalityTrait('humor', v);
+                  }}
+                  formatValue={(v) => (v >= 0.7 ? 'Playful' : v >= 0.4 ? 'Light' : 'Serious')}
+                />
+
+                <Slider
+                  label="Curiosity"
+                  value={settings.personalityTraits.curiosity}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  onChange={(v) => {
+                    handleUpdate('personalityTraits', {
+                      ...settings.personalityTraits,
+                      curiosity: v,
+                    });
+                    window.atlas?.atlas.setPersonalityTrait('curiosity', v);
+                  }}
+                  formatValue={(v) => (v >= 0.7 ? 'Inquisitive' : v >= 0.4 ? 'Moderate' : 'Direct')}
+                />
+
+                <Slider
+                  label="Energy"
+                  value={settings.personalityTraits.energy}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  onChange={(v) => {
+                    handleUpdate('personalityTraits', {
+                      ...settings.personalityTraits,
+                      energy: v,
+                    });
+                    window.atlas?.atlas.setPersonalityTrait('energy', v);
+                  }}
+                  formatValue={(v) => (v >= 0.7 ? 'Enthusiastic' : v >= 0.4 ? 'Balanced' : 'Calm')}
+                />
+
+                <Slider
+                  label="Patience"
+                  value={settings.personalityTraits.patience}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  onChange={(v) => {
+                    handleUpdate('personalityTraits', {
+                      ...settings.personalityTraits,
+                      patience: v,
+                    });
+                    window.atlas?.atlas.setPersonalityTrait('patience', v);
+                  }}
+                  formatValue={(v) => (v >= 0.7 ? 'Thorough' : v >= 0.4 ? 'Moderate' : 'Brief')}
+                />
+              </>
+            )}
+          </SettingsSection>
+
           {/* Budget & Usage Settings */}
           <SettingsSection title="Budget & Usage">
             <Slider
@@ -433,7 +962,7 @@ export const Settings: React.FC = () => {
 
             {/* Budget Progress Bar */}
             <div className="budget-usage">
-              <label className="settings-label">Today's Usage</label>
+              <label className="settings-label">Today&apos;s Usage</label>
               <div className="budget-bar-container">
                 <div
                   className={`budget-bar ${
@@ -450,7 +979,7 @@ export const Settings: React.FC = () => {
               </div>
               <div className="budget-stats">
                 {budgetLoading ? (
-                  <span className="budget-loading">Loading...</span>
+                  <LoadingIndicator size="small" variant="dots" inline text="Loading..." />
                 ) : budgetStats ? (
                   <>
                     <span className="budget-spent">${budgetStats.todaySpend.toFixed(3)} spent</span>
@@ -505,7 +1034,7 @@ export const Settings: React.FC = () => {
                   inputDevice: null,
                   outputDevice: null,
                   audioVolume: 1.0,
-                  voiceId: 'nova',
+                  voiceId: 'atlas',
                   voiceSpeed: 1.0,
                   voiceStability: 0.5,
                   particleCount: 35000,
@@ -517,14 +1046,31 @@ export const Settings: React.FC = () => {
                   enableShadows: true,
                   enablePostProcessing: true,
                   enableAntialiasing: true,
+                  // Orb visualization defaults (040-A)
+                  attractorType: 'auto',
+                  orbColorTheme: 'auto',
+                  customOrbHue: 0.55,
+                  orbBrightness: 1.0,
+                  orbSaturation: 1.0,
                   autoStart: true,
                   pushToTalk: false,
-                  wakeWord: 'Hey Nova',
+                  wakeWord: 'Hey Atlas',
                   preferredLlmProvider: 'auto',
                   preferredSttProvider: 'auto',
                   maxConversationHistory: 50,
+                  personalityPreset: 'atlas',
+                  personalityTraits: {
+                    friendliness: 0.9,
+                    formality: 0.3,
+                    humor: 0.7,
+                    curiosity: 0.9,
+                    energy: 0.8,
+                    patience: 0.9,
+                  },
                   showDebug: false,
                 });
+                // Reset personality in main process too
+                window.atlas?.atlas.setPersonalityPreset('atlas');
               }
             }}
           >

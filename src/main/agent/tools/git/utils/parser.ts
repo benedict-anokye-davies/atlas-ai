@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Git Output Parser
+ * Atlas Desktop - Git Output Parser
  * Parses git command output into structured data
  */
 

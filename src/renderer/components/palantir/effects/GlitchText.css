@@ -1,0 +1,79 @@
+/**
+ * GlitchText Styles - Cyberpunk text effects
+ */
+
+.glitch-text {
+  position: relative;
+  display: inline-block;
+  font-family: var(--atlas-font-mono);
+  cursor: default;
+}
+
+/* Intensity variants */
+.glitch-intensity-low.glitching {
+  animation: glitch-skew 0.5s ease;
+}
+
+.glitch-intensity-medium.glitching {
+  animation: glitch-skew 0.3s ease;
+  text-shadow: 
+    2px 0 var(--atlas-accent-cyan),
+    -2px 0 var(--atlas-accent-red);
+}
+
+.glitch-intensity-high.glitching {
+  animation: glitch-skew 0.2s ease infinite;
+  text-shadow: 
+    3px 0 var(--atlas-accent-cyan),
+    -3px 0 var(--atlas-accent-red),
+    0 3px var(--atlas-accent-green);
+}
+
+/* Pseudo-element layers for advanced glitch */
+.glitch-intensity-high::before,
+.glitch-intensity-high::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+
+.glitch-intensity-high.glitching::before {
+  opacity: 0.8;
+  color: var(--atlas-accent-cyan);
+  animation: glitch-clip-1 0.3s infinite linear alternate-reverse;
+  clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+  transform: translate(-2px, -1px);
+}
+
+.glitch-intensity-high.glitching::after {
+  opacity: 0.8;
+  color: var(--atlas-accent-red);
+  animation: glitch-clip-2 0.3s infinite linear alternate-reverse;
+  clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+  transform: translate(2px, 1px);
+}
+
+@keyframes glitch-skew {
+  0% { transform: skew(0deg); }
+  20% { transform: skew(-2deg); }
+  40% { transform: skew(2deg); }
+  60% { transform: skew(-1deg); }
+  80% { transform: skew(1deg); }
+  100% { transform: skew(0deg); }
+}
+
+@keyframes glitch-clip-1 {
+  0% { clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%); }
+  50% { clip-path: polygon(0 15%, 100% 15%, 100% 55%, 0 55%); }
+  100% { clip-path: polygon(0 30%, 100% 30%, 100% 70%, 0 70%); }
+}
+
+@keyframes glitch-clip-2 {
+  0% { clip-path: polygon(0 60%, 100% 60%, 100% 100%, 0 100%); }
+  50% { clip-path: polygon(0 45%, 100% 45%, 100% 85%, 0 85%); }
+  100% { clip-path: polygon(0 50%, 100% 50%, 100% 90%, 0 90%); }
+}

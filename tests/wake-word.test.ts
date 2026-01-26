@@ -4,6 +4,15 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+// Mock fs module for custom wake word model detection
+vi.mock('fs', () => {
+  return {
+    default: {},
+    existsSync: vi.fn(() => false),
+    statSync: vi.fn(() => ({ isFile: () => true, size: 2048 })),
+  };
+});
+
 // Mock Porcupine and PvRecorder before importing
 vi.mock('@picovoice/porcupine-node', () => ({
   Porcupine: vi.fn().mockImplementation(() => ({

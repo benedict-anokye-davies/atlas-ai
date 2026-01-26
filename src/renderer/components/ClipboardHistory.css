@@ -1,0 +1,558 @@
+/**
+ * Atlas Desktop - Clipboard History Styles
+ */
+
+/* ========================================
+   Overlay & Panel
+   ======================================== */
+
+.clipboard-history-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  animation: fadeIn 0.15s ease;
+}
+
+.clipboard-history-panel {
+  display: flex;
+  flex-direction: column;
+  width: 90%;
+  max-width: 560px;
+  max-height: 80vh;
+  background: var(--atlas-bg-primary);
+  border: 1px solid var(--atlas-border);
+  border-radius: 12px;
+  overflow: hidden;
+  animation: slideUp 0.2s ease;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================
+   Header
+   ======================================== */
+
+.clipboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--atlas-border);
+  background: var(--atlas-bg-secondary);
+}
+
+.clipboard-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--atlas-text-primary);
+}
+
+.clipboard-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--atlas-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clipboard-close:hover {
+  background: var(--atlas-bg-tertiary);
+  color: var(--atlas-text-primary);
+}
+
+/* ========================================
+   Toolbar (Search & Filters)
+   ======================================== */
+
+.clipboard-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--atlas-border);
+}
+
+.clipboard-search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--atlas-bg-secondary);
+  border: 1px solid var(--atlas-border);
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+}
+
+.clipboard-search:focus-within {
+  border-color: var(--atlas-accent);
+}
+
+.search-icon {
+  color: var(--atlas-text-tertiary);
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+  color: var(--atlas-text-primary);
+}
+
+.search-input::placeholder {
+  color: var(--atlas-text-tertiary);
+}
+
+.search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: var(--atlas-bg-tertiary);
+  border: none;
+  border-radius: 4px;
+  color: var(--atlas-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.search-clear:hover {
+  background: var(--atlas-accent);
+  color: white;
+}
+
+.clipboard-filters {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.filter-btn {
+  padding: 0.375rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--atlas-border);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--atlas-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-btn:hover {
+  background: var(--atlas-bg-secondary);
+  color: var(--atlas-text-primary);
+}
+
+.filter-btn.active {
+  background: var(--atlas-accent);
+  border-color: var(--atlas-accent);
+  color: white;
+}
+
+/* ========================================
+   Stats Bar
+   ======================================== */
+
+.clipboard-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  color: var(--atlas-text-tertiary);
+  background: var(--atlas-bg-secondary);
+  border-bottom: 1px solid var(--atlas-border);
+}
+
+.stat-separator {
+  opacity: 0.3;
+}
+
+/* ========================================
+   Content Area
+   ======================================== */
+
+.clipboard-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+/* Loading state */
+.clipboard-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem;
+  color: var(--atlas-text-secondary);
+}
+
+.clipboard-loading .loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--atlas-bg-tertiary);
+  border-top-color: var(--atlas-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error state */
+.clipboard-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  color: var(--atlas-text-secondary);
+}
+
+.clipboard-error .error-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 50%;
+  color: #ef4444;
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+
+.clipboard-error button {
+  padding: 0.5rem 1rem;
+  background: var(--atlas-accent);
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: white;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.clipboard-error button:hover {
+  opacity: 0.9;
+}
+
+/* Empty state */
+.clipboard-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem;
+  color: var(--atlas-text-secondary);
+  text-align: center;
+}
+
+.clipboard-empty svg {
+  opacity: 0.3;
+}
+
+.clipboard-empty p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.clipboard-empty .empty-hint {
+  font-size: 0.75rem;
+  color: var(--atlas-text-tertiary);
+}
+
+/* ========================================
+   Entry Item
+   ======================================== */
+
+.clipboard-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  margin-bottom: 0.25rem;
+  background: var(--atlas-bg-secondary);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clipboard-entry:hover {
+  background: var(--atlas-bg-tertiary);
+}
+
+.clipboard-entry.selected {
+  border-color: var(--atlas-accent);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.clipboard-entry.pinned {
+  border-left: 3px solid var(--atlas-accent);
+}
+
+.clipboard-entry:focus {
+  outline: none;
+  border-color: var(--atlas-accent);
+}
+
+/* Index badge */
+.entry-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--atlas-bg-primary);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--atlas-text-tertiary);
+  flex-shrink: 0;
+}
+
+.clipboard-entry.selected .entry-index {
+  background: var(--atlas-accent);
+  color: white;
+}
+
+/* Content preview */
+.entry-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.entry-text-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.entry-type-icon {
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.entry-preview-text {
+  font-size: 0.875rem;
+  color: var(--atlas-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entry-image-preview {
+  width: 80px;
+  height: 50px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--atlas-bg-primary);
+}
+
+.entry-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Metadata */
+.entry-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.125rem;
+  flex-shrink: 0;
+}
+
+.entry-time {
+  font-size: 0.7rem;
+  color: var(--atlas-text-tertiary);
+}
+
+.entry-size {
+  font-size: 0.65rem;
+  color: var(--atlas-text-tertiary);
+  opacity: 0.7;
+}
+
+/* Actions */
+.entry-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.clipboard-entry:hover .entry-actions,
+.clipboard-entry.selected .entry-actions {
+  opacity: 1;
+}
+
+.entry-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--atlas-border);
+  border-radius: 6px;
+  color: var(--atlas-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.entry-action-btn:hover {
+  background: var(--atlas-bg-primary);
+  color: var(--atlas-text-primary);
+}
+
+.entry-action-btn.pin-btn.active {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: var(--atlas-accent);
+  color: var(--atlas-accent);
+}
+
+.entry-action-btn.paste-btn:hover {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.entry-action-btn.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* ========================================
+   Footer
+   ======================================== */
+
+.clipboard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--atlas-border);
+  background: var(--atlas-bg-secondary);
+}
+
+.footer-shortcuts {
+  display: flex;
+  gap: 1rem;
+}
+
+.shortcut {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--atlas-text-tertiary);
+}
+
+.shortcut kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: var(--atlas-bg-primary);
+  border: 1px solid var(--atlas-border);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--atlas-text-secondary);
+}
+
+.clear-all-btn {
+  padding: 0.375rem 0.75rem;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #ef4444;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clear-all-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+}
+
+.clear-all-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ========================================
+   Responsive
+   ======================================== */
+
+@media (max-width: 640px) {
+  .clipboard-history-panel {
+    width: 95%;
+    max-height: 90vh;
+  }
+
+  .clipboard-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .clipboard-search {
+    width: 100%;
+  }
+
+  .footer-shortcuts {
+    display: none;
+  }
+
+  .entry-meta {
+    display: none;
+  }
+}

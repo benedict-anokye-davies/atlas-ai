@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Git Command Validator
+ * Atlas Desktop - Git Command Validator
  * Validates git operations for safety
  */
 

@@ -1,0 +1,262 @@
+/**
+ * Atlas Desktop - Metric Card Tech Styles
+ * Enhanced with animations, sparklines, and accent variants
+ */
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  padding-top: 20px;
+  background: var(--atlas-bg-elevated);
+  border: 1px solid var(--atlas-border-subtle);
+  border-radius: 0;
+  position: relative;
+  clip-path: polygon(
+    0 0, 
+    100% 0, 
+    100% calc(100% - 10px), 
+    calc(100% - 10px) 100%, 
+    0 100%
+  );
+  overflow: hidden;
+  transition: all var(--atlas-transition-medium);
+}
+
+/* Accent bar at top */
+.metric-card__accent-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  opacity: 0.8;
+}
+
+/* Corner Brackets */
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid var(--atlas-cyan);
+  border-left: 2px solid var(--atlas-cyan);
+  pointer-events: none;
+  transition: all var(--atlas-transition-fast);
+}
+
+.metric-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-bottom: 2px solid var(--atlas-cyan);
+  border-right: 2px solid var(--atlas-cyan);
+  pointer-events: none;
+  transition: all var(--atlas-transition-fast);
+}
+
+/* Color variants */
+.metric-card--green::before,
+.metric-card--green::after {
+  border-color: var(--atlas-green);
+}
+
+.metric-card--amber::before,
+.metric-card--amber::after {
+  border-color: var(--atlas-accent-amber);
+}
+
+.metric-card--red::before,
+.metric-card--red::after {
+  border-color: var(--atlas-accent-red);
+}
+
+/* Hover glow overlay */
+.metric-card__hover-glow {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--atlas-transition-medium);
+}
+
+.metric-card:hover .metric-card__hover-glow {
+  opacity: 0.03;
+}
+
+.metric-card:hover {
+  border-color: var(--atlas-border-focus);
+  background: var(--atlas-bg-hover);
+}
+
+.metric-card:hover::before,
+.metric-card:hover::after {
+  width: 14px;
+  height: 14px;
+}
+
+.metric-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--atlas-border-subtle);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.metric-card__label {
+  font-family: var(--atlas-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--atlas-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+.metric-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--atlas-cyan);
+  opacity: 0.7;
+  transition: opacity var(--atlas-transition-fast);
+}
+
+.metric-card:hover .metric-card__icon {
+  opacity: 1;
+}
+
+.metric-card__value {
+  font-family: var(--atlas-font-mono);
+  font-size: 28px;
+  font-weight: 400;
+  color: var(--atlas-text-primary);
+  font-feature-settings: "tnum" on, "zero" on;
+  line-height: 1.2;
+}
+
+.metric-card__value-text {
+  background: linear-gradient(135deg, var(--atlas-text-primary) 0%, var(--atlas-cyan) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Sparkline section */
+.metric-card__sparkline {
+  margin: 8px -16px;
+  padding: 0 16px;
+  opacity: 0.9;
+}
+
+/* Footer with change indicator */
+.metric-card__footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--atlas-border-subtle);
+}
+
+.metric-card__change {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--atlas-font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--atlas-radius-sm);
+}
+
+.metric-card__change-arrow {
+  font-size: 10px;
+}
+
+.metric-card__change.positive {
+  color: var(--atlas-green);
+  background: rgba(0, 255, 136, 0.1);
+}
+
+.metric-card__change.negative {
+  color: var(--atlas-accent-red);
+  background: rgba(255, 85, 85, 0.1);
+}
+
+.metric-card__change-label {
+  font-family: var(--atlas-font-mono);
+  font-size: 11px;
+  color: var(--atlas-text-muted);
+}
+
+/* Compact variant */
+.metric-card--compact {
+  padding: 12px;
+  padding-top: 14px;
+  gap: 4px;
+}
+
+.metric-card--compact .metric-card__header {
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+}
+
+.metric-card--compact .metric-card__value {
+  font-size: 20px;
+}
+
+.metric-card--compact .metric-card__sparkline {
+  margin: 4px -12px;
+  padding: 0 12px;
+}
+
+/* Hero variant - larger for primary metrics */
+.metric-card--hero {
+  padding: 24px;
+  padding-top: 28px;
+}
+
+.metric-card--hero .metric-card__label {
+  font-size: 12px;
+}
+
+.metric-card--hero .metric-card__value {
+  font-size: 40px;
+}
+
+.metric-card--hero .metric-card__change {
+  font-size: 14px;
+  padding: 4px 12px;
+}
+
+/* Scan line animation on hover */
+.metric-card::selection {
+  background: var(--atlas-cyan);
+}
+
+@keyframes metric-scan {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.1;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+.metric-card:hover::selection {
+  animation: metric-scan 2s ease-in-out infinite;
+}
+

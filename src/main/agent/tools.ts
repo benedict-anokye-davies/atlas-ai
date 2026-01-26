@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Agent Tools
+ * Atlas Desktop - Agent Tools
  * Built-in tools for the Nova agent
  */
 
@@ -7,6 +7,89 @@ import { AgentTool, ActionResult } from './index';
 import { createModuleLogger } from '../utils/logger';
 
 const logger = createModuleLogger('AgentTools');
+
+/**
+ * Safely evaluate a mathematical expression without using eval or Function
+ * Supports basic arithmetic and Math functions
+ */
+function evaluateMathExpression(expr: string): number {
+  // This is a simplified implementation
+  // For production, consider using a library like math.js or expr-eval
+  // For now, we'll use a basic implementation that supports common operations
+
+  // Replace Math constants
+  let expression = expr
+    .replace(/Math\.PI/g, String(Math.PI))
+    .replace(/Math\.E/g, String(Math.E));
+
+  // Handle Math functions by evaluating them safely
+  const mathFunctions: Record<string, (n: number) => number> = {
+    'Math.sqrt': Math.sqrt,
+    'Math.sin': Math.sin,
+    'Math.cos': Math.cos,
+    'Math.tan': Math.tan,
+    'Math.log': Math.log,
+    'Math.abs': Math.abs,
+    'Math.floor': Math.floor,
+    'Math.ceil': Math.ceil,
+    'Math.round': Math.round,
+  };
+
+  // Replace Math functions with their results
+  for (const [funcName, func] of Object.entries(mathFunctions)) {
+    const regex = new RegExp(`${funcName}\\(([^)]+)\\)`, 'g');
+    expression = expression.replace(regex, (_, arg) => {
+      const argValue = evaluateMathExpression(arg);
+      return String(func(argValue));
+    });
+  }
+
+  // Handle parentheses recursively
+  while (expression.includes('(')) {
+    expression = expression.replace(/\(([^()]+)\)/g, (_, inner) => {
+      return String(evaluateMathExpression(inner));
+    });
+  }
+
+  // Now evaluate basic arithmetic (no parentheses or functions left)
+  return evaluateBasicArithmetic(expression);
+}
+
+/**
+ * Evaluate basic arithmetic expression without parentheses
+ */
+function evaluateBasicArithmetic(expr: string): number {
+  // Remove spaces
+  let expression = expr.replace(/\s+/g, '');
+
+  // Handle exponentiation first (right-to-left associativity)
+  while (expression.includes('**')) {
+    expression = expression.replace(/(-?\d+\.?\d*)\*\*(-?\d+\.?\d*)/, (_, base, exp) => {
+      return String(Math.pow(parseFloat(base), parseFloat(exp)));
+    });
+  }
+
+  // Handle multiplication and division (left-to-right)
+  while (/[*/]/.test(expression)) {
+    expression = expression.replace(/(-?\d+\.?\d*)([*/])(-?\d+\.?\d*)/, (_, a, op, b) => {
+      const left = parseFloat(a);
+      const right = parseFloat(b);
+      return String(op === '*' ? left * right : left / right);
+    });
+  }
+
+  // Handle addition and subtraction (left-to-right)
+  while (/[+-]/.test(expression.slice(1))) {
+    // slice(1) to avoid matching leading negative sign
+    expression = expression.replace(/(-?\d+\.?\d*)([+-])(-?\d+\.?\d*)/, (_, a, op, b) => {
+      const left = parseFloat(a);
+      const right = parseFloat(b);
+      return String(op === '+' ? left + right : left - right);
+    });
+  }
+
+  return parseFloat(expression);
+}
 
 /**
  * Current time tool - Get current date and time
@@ -149,9 +232,8 @@ export const calculatorTool: AgentTool = {
         };
       }
 
-      // Evaluate in a controlled way
-      // eslint-disable-next-line no-new-func
-      const result = new Function(`"use strict"; return (${safeExpression})`)();
+      // Evaluate using safe math parser
+      const result = evaluateMathExpression(safeExpression);
 
       logger.debug('Calculation performed', { expression, result });
       return {
@@ -174,9 +256,25 @@ export function getBuiltInTools(): AgentTool[] {
   return [currentTimeTool, systemInfoTool, calculatorTool];
 }
 
+/**
+ * Get all registered tools (alias for getBuiltInTools)
+ */
+export function getAllTools(): AgentTool[] {
+  return getBuiltInTools();
+}
+
+/**
+ * Get a tool by name
+ */
+export function getToolByName(name: string): AgentTool | undefined {
+  return getBuiltInTools().find(tool => tool.name === name);
+}
+
 export default {
   currentTimeTool,
   systemInfoTool,
   calculatorTool,
   getBuiltInTools,
+  getAllTools,
+  getToolByName,
 };

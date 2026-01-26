@@ -1,6 +1,7 @@
 /**
- * Nova Desktop - ElevenLabs TTS Provider
+ * Atlas Desktop - ElevenLabs TTS Provider
  * Text-to-Speech integration using ElevenLabs API with streaming support
+ * Includes speed/pitch control via audio processing
  */
 
 import { EventEmitter } from 'events';
@@ -15,7 +16,11 @@ import {
   TTSSynthesisResult,
   SpeechQueueItem,
   DEFAULT_TTS_CONFIG,
+  VoiceSettings,
+  DEFAULT_VOICE_SETTINGS,
+  validateVoiceSettings,
 } from '../../shared/types/tts';
+import type { DynamicVoiceSettings } from '../voice/emotion-to-voice-mapper';
 
 const logger = createModuleLogger('ElevenLabsTTS');
 const perfTimer = new PerformanceTimer('ElevenLabsTTS');
@@ -45,22 +50,171 @@ function generateId(): string {
 }
 
 /**
+ * Audio processor for speed and pitch adjustment
+ * Uses simple time-domain processing suitable for real-time audio
+ */
+class AudioProcessor {
+  /**
+   * Apply speed change to PCM audio data
+   * Uses linear interpolation for time stretching/compression
+   * @param audioData - Raw PCM audio buffer (16-bit signed)
+   * @param speed - Speed multiplier (0.5 to 2.0)
+   * @param sampleRate - Audio sample rate
+   * @returns Processed audio buffer
+   */
+  static applySpeed(audioData: Buffer, speed: number, _sampleRate: number): Buffer {
+    if (speed === 1.0) return audioData;
+
+    const numSamples = audioData.length / 2; // 16-bit = 2 bytes per sample
+    const newLength = Math.floor(numSamples / speed);
+    const output = Buffer.alloc(newLength * 2);
+
+    for (let i = 0; i < newLength; i++) {
+      const srcIndex = i * speed;
+      const srcIndexInt = Math.floor(srcIndex);
+      const frac = srcIndex - srcIndexInt;
+
+      // Linear interpolation
+      const sample1 = audioData.readInt16LE(srcIndexInt * 2);
+      const sample2Index = Math.min(srcIndexInt + 1, numSamples - 1);
+      const sample2 = audioData.readInt16LE(sample2Index * 2);
+
+      const interpolated = Math.round(sample1 + frac * (sample2 - sample1));
+      output.writeInt16LE(Math.max(-32768, Math.min(32767, interpolated)), i * 2);
+    }
+
+    return output;
+  }
+
+  /**
+   * Apply pitch shift to PCM audio data
+   * Uses a simple resampling approach combined with speed adjustment
+   * to maintain original duration while changing pitch
+   * @param audioData - Raw PCM audio buffer (16-bit signed)
+   * @param semitones - Pitch shift in semitones (-12 to +12)
+   * @param sampleRate - Audio sample rate
+   * @returns Processed audio buffer
+   */
+  static applyPitch(audioData: Buffer, semitones: number, sampleRate: number): Buffer {
+    if (semitones === 0) return audioData;
+
+    // Pitch shift factor: 2^(semitones/12)
+    const pitchFactor = Math.pow(2, semitones / 12);
+
+    // Step 1: Resample to change pitch (this also changes speed)
+    const numSamples = audioData.length / 2;
+    const resampledLength = Math.floor(numSamples / pitchFactor);
+    const resampled = Buffer.alloc(resampledLength * 2);
+
+    for (let i = 0; i < resampledLength; i++) {
+      const srcIndex = i * pitchFactor;
+      const srcIndexInt = Math.floor(srcIndex);
+      const frac = srcIndex - srcIndexInt;
+
+      const sample1 = audioData.readInt16LE(Math.min(srcIndexInt, numSamples - 1) * 2);
+      const sample2 = audioData.readInt16LE(Math.min(srcIndexInt + 1, numSamples - 1) * 2);
+
+      const interpolated = Math.round(sample1 + frac * (sample2 - sample1));
+      resampled.writeInt16LE(Math.max(-32768, Math.min(32767, interpolated)), i * 2);
+    }
+
+    // Step 2: Time stretch back to original duration
+    // This uses WSOLA-lite (overlap-add without pitch preservation)
+    return this.timeStretch(resampled, pitchFactor, sampleRate);
+  }
+
+  /**
+   * Time stretch audio to restore original duration after pitch shift
+   * Uses simple overlap-add for efficiency
+   */
+  private static timeStretch(audioData: Buffer, factor: number, sampleRate: number): Buffer {
+    if (factor === 1.0) return audioData;
+
+    const numSamples = audioData.length / 2;
+    const targetLength = Math.floor(numSamples * factor);
+    const output = Buffer.alloc(targetLength * 2);
+
+    // Window size for overlap-add (20ms)
+    const windowSize = Math.floor(sampleRate * 0.02);
+    const hopSize = Math.floor(windowSize / 2);
+
+    let outPos = 0;
+    let inPos = 0;
+    const synthesis = new Float32Array(targetLength);
+
+    while (outPos < targetLength && inPos < numSamples - windowSize) {
+      // Apply Hanning window and overlap-add
+      for (let i = 0; i < windowSize && outPos + i < targetLength; i++) {
+        const window = 0.5 * (1 - Math.cos((2 * Math.PI * i) / windowSize));
+        const sampleIdx = Math.min(inPos + i, numSamples - 1);
+        const sample = audioData.readInt16LE(sampleIdx * 2) / 32768.0;
+        synthesis[outPos + i] += sample * window;
+      }
+
+      outPos += Math.floor(hopSize * factor);
+      inPos += hopSize;
+    }
+
+    // Convert back to 16-bit PCM
+    for (let i = 0; i < targetLength; i++) {
+      const sample = Math.max(-1, Math.min(1, synthesis[i]));
+      output.writeInt16LE(Math.round(sample * 32767), i * 2);
+    }
+
+    return output;
+  }
+
+  /**
+   * Apply both speed and pitch adjustments
+   * @param audioData - Raw PCM audio buffer
+   * @param settings - Voice settings with speed and pitch
+   * @param sampleRate - Audio sample rate
+   * @returns Processed audio buffer
+   */
+  static applyVoiceSettings(
+    audioData: Buffer,
+    settings: VoiceSettings,
+    sampleRate: number
+  ): Buffer {
+    let processed = audioData;
+
+    // Apply pitch first (affects duration, then compensated)
+    if (settings.pitch !== 0) {
+      processed = this.applyPitch(processed, settings.pitch, sampleRate);
+    }
+
+    // Apply speed (simple time stretch/compress)
+    if (settings.speed !== 1.0) {
+      processed = this.applySpeed(processed, settings.speed, sampleRate);
+    }
+
+    return processed;
+  }
+}
+
+/**
  * ElevenLabs TTS Provider
  * Implements streaming text-to-speech with speech queue and barge-in support
+ * Supports speed/pitch customization via audio post-processing
  */
 export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
   readonly name = 'elevenlabs';
   private _status: TTSStatus = TTSStatus.IDLE;
   private config: TTSConfig;
+  private voiceSettings: VoiceSettings;
+  private dynamicSettings: DynamicVoiceSettings | null = null; // For emotion-based voice
   private speechQueue: SpeechQueueItem[] = [];
   private abortController: AbortController | null = null;
   private isProcessingQueue = false;
   private isPaused = false;
   private currentSpeechId: string | null = null;
+  private isStopping = false; // Prevent race conditions during stop
 
   constructor(config: Partial<TTSConfig> = {}) {
     super();
+    this.setMaxListeners(20); // Prevent memory leak warnings
     this.config = { ...DEFAULT_TTS_CONFIG, ...config } as TTSConfig;
+    this.voiceSettings = validateVoiceSettings(config.voiceSettings || DEFAULT_VOICE_SETTINGS);
 
     if (!this.config.apiKey) {
       throw new Error(
@@ -71,6 +225,7 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
     logger.info('ElevenLabsTTS initialized', {
       voiceId: this.config.voiceId,
       modelId: this.config.modelId,
+      voiceSettings: this.voiceSettings,
     });
   }
 
@@ -115,18 +270,34 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
 
   /**
    * Build request body
+   * @param text - Text to synthesize
+   * @param optimizeLatency - When true, optimizes for faster first chunk delivery
    */
-  private buildBody(text: string): Record<string, unknown> {
-    return {
+  private buildBody(text: string, optimizeLatency = false): Record<string, unknown> {
+    // Use dynamic settings if available, otherwise fall back to config
+    const stability = this.dynamicSettings?.stability ?? this.config.stability;
+    const similarityBoost = this.dynamicSettings?.similarityBoost ?? this.config.similarityBoost;
+    const style = this.dynamicSettings?.style ?? this.config.style;
+    const useSpeakerBoost = this.dynamicSettings?.useSpeakerBoost ?? this.config.useSpeakerBoost;
+
+    const body: Record<string, unknown> = {
       text,
       model_id: this.config.modelId,
       voice_settings: {
-        stability: this.config.stability,
-        similarity_boost: this.config.similarityBoost,
-        style: this.config.style,
-        use_speaker_boost: this.config.useSpeakerBoost,
+        stability,
+        similarity_boost: similarityBoost,
+        style,
+        use_speaker_boost: useSpeakerBoost,
       },
     };
+
+    // For low-latency streaming, use optimize_streaming_latency option
+    // This tells ElevenLabs to prioritize speed over quality for first chunks
+    if (optimizeLatency) {
+      body.optimize_streaming_latency = 3; // Max latency optimization (0-4 scale)
+    }
+
+    return body;
   }
 
   /**
@@ -194,7 +365,11 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
       );
 
       const arrayBuffer = await response.arrayBuffer();
-      const audio = Buffer.from(arrayBuffer);
+      let audio = Buffer.from(arrayBuffer);
+
+      // Apply voice settings (speed/pitch) if needed
+      const processedAudio = this.processAudioWithSettings(audio, this.config.outputFormat!);
+      audio = processedAudio;
 
       const latency = Date.now() - startTime;
       perfTimer.end('synthesize');
@@ -211,6 +386,7 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
         latency,
         audioSize: audio.length,
         duration: result.duration,
+        voiceSettings: this.voiceSettings,
       });
 
       this.setStatus(TTSStatus.IDLE);
@@ -237,8 +413,10 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
 
   /**
    * Synthesize text with streaming (returns async generator)
+   * @param text - Text to synthesize
+   * @param optimizeLatency - When true, prioritizes first chunk speed over quality
    */
-  async *synthesizeStream(text: string): AsyncGenerator<TTSAudioChunk> {
+  async *synthesizeStream(text: string, optimizeLatency = true): AsyncGenerator<TTSAudioChunk> {
     this.setStatus(TTSStatus.SYNTHESIZING);
     perfTimer.start('synthesizeStream');
 
@@ -251,6 +429,7 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
       logger.debug('Starting streaming synthesis', {
         length: text.length,
         voiceId: this.config.voiceId,
+        optimizeLatency,
       });
 
       this.abortController = new AbortController();
@@ -262,7 +441,7 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
       const response = await fetch(this.buildUrl(true), {
         method: 'POST',
         headers: this.buildHeaders(),
-        body: JSON.stringify(this.buildBody(text)),
+        body: JSON.stringify(this.buildBody(text, optimizeLatency)),
         signal: this.abortController.signal,
       });
 
@@ -369,6 +548,12 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
    * Adds to speech queue with priority
    */
   async speak(text: string, priority = 0): Promise<void> {
+    // Don't queue new speech while stopping
+    if (this.isStopping) {
+      logger.debug('Ignoring speak request - currently stopping');
+      return;
+    }
+
     const item: SpeechQueueItem = {
       id: generateId(),
       text,
@@ -394,7 +579,7 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
     this.emit('queueUpdate', [...this.speechQueue]);
 
     // Start processing queue if not already
-    if (!this.isProcessingQueue) {
+    if (!this.isProcessingQueue && !this.isStopping) {
       await this.processQueue();
     }
   }
@@ -403,13 +588,13 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
    * Process the speech queue
    */
   private async processQueue(): Promise<void> {
-    if (this.isProcessingQueue || this.isPaused) {
+    if (this.isProcessingQueue || this.isPaused || this.isStopping) {
       return;
     }
 
     this.isProcessingQueue = true;
 
-    while (this.speechQueue.length > 0 && !this.isPaused) {
+    while (this.speechQueue.length > 0 && !this.isPaused && !this.isStopping) {
       const item = this.speechQueue[0];
 
       if (item.status === 'cancelled') {
@@ -480,6 +665,9 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
   stop(): void {
     logger.info('Stopping speech');
 
+    // Set stopping flag FIRST to prevent race conditions
+    this.isStopping = true;
+
     // Cancel current synthesis
     if (this.abortController) {
       this.abortController.abort();
@@ -503,6 +691,9 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
     this.setStatus(TTSStatus.IDLE);
     this.emit('interrupted');
     this.emit('queueUpdate', []);
+
+    // Reset stopping flag after cleanup
+    this.isStopping = false;
   }
 
   /**
@@ -570,10 +761,176 @@ export class ElevenLabsTTS extends EventEmitter implements TTSProvider {
    */
   updateConfig(config: Partial<TTSConfig>): void {
     this.config = { ...this.config, ...config };
+
+    // Update voice settings if provided
+    if (config.voiceSettings) {
+      this.setVoiceSettings(config.voiceSettings);
+    }
+
     logger.info('Configuration updated', {
       voiceId: this.config.voiceId,
       modelId: this.config.modelId,
+      voiceSettings: this.voiceSettings,
     });
+  }
+
+  /**
+   * Get current voice settings (speed/pitch)
+   */
+  getVoiceSettings(): VoiceSettings {
+    return { ...this.voiceSettings };
+  }
+
+  /**
+   * Set voice settings (speed/pitch)
+   * @param settings - Partial voice settings to update
+   */
+  setVoiceSettings(settings: Partial<VoiceSettings>): void {
+    const newSettings = validateVoiceSettings({
+      ...this.voiceSettings,
+      ...settings,
+    });
+
+    const changed =
+      newSettings.speed !== this.voiceSettings.speed ||
+      newSettings.pitch !== this.voiceSettings.pitch;
+
+    this.voiceSettings = newSettings;
+
+    if (changed) {
+      logger.info('Voice settings updated', { settings: this.voiceSettings });
+      this.emit('voiceSettingsChanged', this.voiceSettings);
+    }
+  }
+
+  /**
+   * Reset voice settings to defaults
+   */
+  resetVoiceSettings(): void {
+    this.setVoiceSettings(DEFAULT_VOICE_SETTINGS);
+    logger.info('Voice settings reset to defaults');
+  }
+
+  /**
+   * Set dynamic voice settings for emotion-based synthesis
+   * These settings override the base config for the next synthesis calls
+   * @param settings - Dynamic voice settings from EmotionToVoiceMapper
+   */
+  setDynamicVoiceSettings(settings: DynamicVoiceSettings | null): void {
+    this.dynamicSettings = settings;
+    
+    // Also apply speed/pitch to voice settings for post-processing
+    if (settings) {
+      this.setVoiceSettings({
+        speed: settings.speed,
+        pitch: settings.pitch * 10, // Convert from -0.3..0.3 to semitones -3..3
+      });
+      
+      logger.debug('Dynamic voice settings applied', {
+        stability: settings.stability.toFixed(2),
+        style: settings.style.toFixed(2),
+        speed: settings.speed.toFixed(2),
+      });
+    } else {
+      logger.debug('Dynamic voice settings cleared');
+    }
+  }
+
+  /**
+   * Get current dynamic voice settings
+   */
+  getDynamicVoiceSettings(): DynamicVoiceSettings | null {
+    return this.dynamicSettings;
+  }
+
+  /**
+   * Clear dynamic voice settings (revert to config defaults)
+   */
+  clearDynamicVoiceSettings(): void {
+    this.dynamicSettings = null;
+    this.resetVoiceSettings();
+  }
+
+  /**
+   * Preview voice settings with a sample text
+   * Speaks the text with current settings for user feedback
+   * @param previewText - Optional text to preview (defaults to standard phrase)
+   */
+  async previewVoiceSettings(previewText?: string): Promise<void> {
+    const text = previewText || 'This is how I will sound with the current voice settings.';
+    this.emit('voiceSettingsPreview', this.voiceSettings, text);
+    await this.speak(text, 10); // High priority for preview
+  }
+
+  /**
+   * Adjust speed incrementally
+   * @param delta - Amount to adjust (positive = faster, negative = slower)
+   */
+  adjustSpeed(delta: number): void {
+    const { min, max, step } = { min: 0.5, max: 2.0, step: 0.1 };
+    const newSpeed = this.voiceSettings.speed + delta * step;
+    const clampedSpeed = Math.max(min, Math.min(max, Math.round(newSpeed * 10) / 10));
+    this.setVoiceSettings({ speed: clampedSpeed });
+  }
+
+  /**
+   * Adjust pitch incrementally
+   * @param delta - Amount to adjust (positive = higher, negative = lower)
+   */
+  adjustPitch(delta: number): void {
+    const { min, max, step } = { min: -12, max: 12, step: 1 };
+    const newPitch = this.voiceSettings.pitch + delta * step;
+    const clampedPitch = Math.max(min, Math.min(max, Math.round(newPitch)));
+    this.setVoiceSettings({ pitch: clampedPitch });
+  }
+
+  /**
+   * Check if voice settings need audio processing
+   * (i.e., not at default values)
+   */
+  private needsAudioProcessing(): boolean {
+    return this.voiceSettings.speed !== 1.0 || this.voiceSettings.pitch !== 0;
+  }
+
+  /**
+   * Process audio buffer with current voice settings
+   * Only applies processing for PCM formats; MP3 requires decoding first
+   * @param audioBuffer - Raw audio buffer
+   * @param format - Audio format string
+   * @returns Processed audio buffer
+   */
+  private processAudioWithSettings(audioBuffer: Buffer, format: string): Buffer {
+    if (!this.needsAudioProcessing()) {
+      return audioBuffer;
+    }
+
+    // Only process PCM formats directly
+    // MP3 would need decoding which is more complex
+    if (!format.startsWith('pcm_')) {
+      logger.debug('Skipping audio processing for non-PCM format', { format });
+      return audioBuffer;
+    }
+
+    const sampleRate = AUDIO_FORMATS[format as keyof typeof AUDIO_FORMATS]?.sampleRate || 44100;
+
+    try {
+      const processed = AudioProcessor.applyVoiceSettings(
+        audioBuffer,
+        this.voiceSettings,
+        sampleRate
+      );
+      logger.debug('Audio processed with voice settings', {
+        originalSize: audioBuffer.length,
+        processedSize: processed.length,
+        settings: this.voiceSettings,
+      });
+      return processed;
+    } catch (error) {
+      logger.warn('Audio processing failed, returning original', {
+        error: (error as Error).message,
+      });
+      return audioBuffer;
+    }
   }
 
   /**

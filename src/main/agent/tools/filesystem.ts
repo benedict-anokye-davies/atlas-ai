@@ -1,6 +1,19 @@
 /**
- * Nova Desktop - Filesystem Tool
- * Provides file system operations for the agent
+ * Atlas Desktop - Filesystem Tool
+ *
+ * Provides secure file system operations for the AI agent with comprehensive
+ * safety validation to prevent access to sensitive files and directories.
+ *
+ * Security Model:
+ * - All paths are validated against a blocklist before access
+ * - Path traversal attempts (../) are detected and flagged
+ * - System directories require user confirmation
+ * - Sensitive file patterns (*.pem, *.key, etc.) are blocked
+ * - File size limits prevent memory exhaustion
+ *
+ * @module agent/tools/filesystem
+ * @security This module implements defense-in-depth for filesystem access.
+ *           All operations should be considered potentially dangerous.
  */
 
 import * as fs from 'fs/promises';
@@ -20,13 +33,148 @@ import {
 
 const logger = createModuleLogger('FilesystemTool');
 
-// Configuration
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB max read
-const MAX_LIST_ENTRIES = 1000;
-const MAX_SEARCH_RESULTS = 100;
+// =============================================================================
+// Error Handling
+// =============================================================================
 
 /**
- * Validate path safety - prevent access to sensitive files
+ * Error codes for filesystem operations.
+ * Used for programmatic error handling and logging.
+ */
+export type FilesystemErrorCode =
+  | 'ACCESS_DENIED'
+  | 'FILE_NOT_FOUND'
+  | 'IS_DIRECTORY'
+  | 'FILE_TOO_LARGE'
+  | 'PATH_TRAVERSAL'
+  | 'WRITE_FAILED'
+  | 'DELETE_FAILED'
+  | 'SEARCH_FAILED'
+  | 'INVALID_PATH'
+  | 'UNKNOWN';
+
+/**
+ * Typed error class for filesystem operations.
+ *
+ * Provides structured error information for logging, metrics, and
+ * programmatic error handling.
+ *
+ * @example
+ * ```typescript
+ * throw new FilesystemError(
+ *   'Access to /etc/passwd blocked',
+ *   'ACCESS_DENIED',
+ *   '/etc/passwd'
+ * );
+ * ```
+ */
+export class FilesystemError extends Error {
+  /**
+   * Create a new FilesystemError.
+   *
+   * @param message - Human-readable error description
+   * @param code - Machine-readable error code for programmatic handling
+   * @param path - The path that caused the error (for logging)
+   * @param cause - The underlying error, if any
+   */
+  constructor(
+    message: string,
+    public readonly code: FilesystemErrorCode,
+    public readonly path?: string,
+    public readonly cause?: Error,
+  ) {
+    super(message);
+    this.name = 'FilesystemError';
+  }
+
+  /**
+   * Create a structured log object for this error.
+   * Useful for structured logging systems.
+   */
+  toLogObject(): Record<string, unknown> {
+    return {
+      name: this.name,
+      code: this.code,
+      message: this.message,
+      path: this.path,
+      cause: this.cause?.message,
+    };
+  }
+}
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+/**
+ * Filesystem operation limits.
+ *
+ * These limits are designed to prevent:
+ * - Memory exhaustion from reading large files
+ * - UI freezes from listing huge directories
+ * - Unbounded search results overwhelming the LLM context
+ */
+export const FILESYSTEM_LIMITS = {
+  /**
+   * Maximum file size that can be read in bytes (10MB).
+   * Larger files should be read in chunks or streamed.
+   */
+  MAX_FILE_SIZE_BYTES: 10 * 1024 * 1024,
+
+  /**
+   * Maximum entries returned from directory listing.
+   * Prevents UI freezes on very large directories.
+   */
+  MAX_LIST_ENTRIES: 1000,
+
+  /**
+   * Maximum results returned from file search.
+   * Prevents LLM context overflow.
+   */
+  MAX_SEARCH_RESULTS: 100,
+
+  /**
+   * Default file encoding for text operations.
+   */
+  DEFAULT_ENCODING: 'utf-8' as BufferEncoding,
+} as const;
+
+/**
+ * System paths that require user confirmation before access.
+ * These are not blocked, but flagged as medium risk.
+ *
+ * @security Access to these paths may expose system configuration.
+ */
+const SYSTEM_PATHS_REQUIRING_CONFIRMATION = [
+  '/etc',
+  '/var',
+  '/usr',
+  'c:/windows',
+  'c:/program files',
+  'c:/program files (x86)',
+] as const;
+
+/**
+ * Validate path safety - prevent access to sensitive files.
+ *
+ * Security validation includes:
+ * 1. Blocked path patterns (credentials, keys, system files)
+ * 2. Path traversal detection (..)
+ * 3. System directory flagging
+ *
+ * @param targetPath - The path to validate
+ * @returns Validation result with risk level and required confirmations
+ *
+ * @security This is a critical security function. Changes require security review.
+ *
+ * @example
+ * ```typescript
+ * const validation = validatePathSafety('/home/user/.ssh/id_rsa');
+ * // Returns: { allowed: false, reason: 'Access to .ssh files is blocked', riskLevel: 'blocked' }
+ *
+ * const validation2 = validatePathSafety('/etc/hosts');
+ * // Returns: { allowed: true, riskLevel: 'medium', requiresConfirmation: true }
+ * ```
  */
 function validatePathSafety(targetPath: string): SafetyValidation {
   // Normalize path separators and convert to lowercase for comparison
@@ -76,8 +224,7 @@ function validatePathSafety(targetPath: string): SafetyValidation {
   }
 
   // System directories require confirmation (normalize for comparison)
-  const systemPaths = ['/etc', '/var', '/usr', 'c:/windows', 'c:/program files'];
-  for (const sysPath of systemPaths) {
+  for (const sysPath of SYSTEM_PATHS_REQUIRING_CONFIRMATION) {
     if (normalizedPath.startsWith(sysPath)) {
       return {
         allowed: true,
@@ -160,10 +307,12 @@ export const readFileTool: AgentTool = {
       }
 
       // Check file size
-      if (stats.size > MAX_FILE_SIZE) {
+      if (stats.size > FILESYSTEM_LIMITS.MAX_FILE_SIZE_BYTES) {
+        const sizeMB = Math.round(stats.size / 1024 / 1024);
+        const limitMB = FILESYSTEM_LIMITS.MAX_FILE_SIZE_BYTES / 1024 / 1024;
         return {
           success: false,
-          error: `File too large (${Math.round(stats.size / 1024 / 1024)}MB). Maximum is ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+          error: `File too large (${sizeMB}MB). Maximum is ${limitMB}MB`,
         };
       }
 

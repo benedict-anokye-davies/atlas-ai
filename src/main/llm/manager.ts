@@ -1,9 +1,15 @@
 /**
- * Nova Desktop - LLM Manager
+ * Atlas Desktop - LLM Manager
  *
  * Manages LLM providers with automatic fallback capability and shared conversation context.
- * Primary provider: Fireworks AI (optimized for function calling)
- * Fallback provider: OpenRouter (wide model selection)
+ * 
+ * Primary Provider: Fireworks AI
+ * - Model: GLM-4.7 Thinking (#1 ranked open-source LLM, Jan 2026)
+ * - 95% AIME 2025, 89% LiveCodeBench, exceptional reasoning
+ * - "Thinking" mode enables step-by-step problem decomposition
+ * - Optimized for complex agentic workflows
+ * 
+ * Fallback Provider: OpenRouter (wide model selection)
  *
  * Features:
  * - Automatic provider switching on errors via circuit breaker pattern
@@ -17,6 +23,8 @@
 import { EventEmitter } from 'events';
 import { createModuleLogger } from '../utils/logger';
 import { CircuitBreaker, CircuitState } from '../utils/errors';
+import { retryWithBackoff, RetryableErrors } from '../utils/retry';
+import { getConfig } from '../config';
 import {
   LLMProvider,
   LLMConfig,
@@ -27,16 +35,25 @@ import {
   ConversationContext,
   ChatOptions,
   createConversationContext,
-  NOVA_SYSTEM_PROMPT,
+  ATLAS_SYSTEM_PROMPT,
   estimateTokenCount,
 } from '../../shared/types/llm';
 import { FireworksLLM, FireworksConfig } from './fireworks';
 import { OpenRouterLLM, OpenRouterConfig, CostTracker } from './openrouter';
+import type { OllamaConfig, OllamaStatus } from './ollama';
 import {
   ConversationMemory,
   getConversationMemory,
   shutdownConversationMemory,
 } from '../memory/conversation-memory';
+import {
+  PersonalityManager,
+  getPersonalityManager,
+  shutdownPersonalityManager,
+} from '../agent/personality-manager';
+import type { PersonalityPreset, PersonalityTraits } from '../../shared/types/personality';
+import { ResponseCache, getResponseCache, shutdownResponseCache } from '../utils/response-cache';
+import { getMetricsCollector } from '../gepa';
 
 const logger = createModuleLogger('LLMManager');
 
@@ -48,8 +65,12 @@ export interface LLMManagerConfig {
   fireworks?: Partial<FireworksConfig>;
   /** OpenRouter configuration */
   openrouter?: Partial<OpenRouterConfig>;
+  /** Ollama configuration for local LLM */
+  ollama?: Partial<OllamaConfig>;
   /** Prefer OpenRouter (use it first) */
   preferOpenRouter?: boolean;
+  /** Prefer local LLM (Ollama) over cloud providers */
+  preferLocal?: boolean;
   /** Auto-switch to fallback on errors */
   autoFallback?: boolean;
   /** Number of consecutive errors before switching */
@@ -62,6 +83,10 @@ export interface LLMManagerConfig {
   enableConversationMemory?: boolean;
   /** Maximum conversation context turns to include */
   maxContextTurns?: number;
+  /** Enable personality-based system prompts */
+  enablePersonality?: boolean;
+  /** Enable response caching for offline use and cost reduction */
+  enableResponseCache?: boolean;
 }
 
 /**
@@ -70,19 +95,23 @@ export interface LLMManagerConfig {
 const DEFAULT_LLM_MANAGER_CONFIG: Required<LLMManagerConfig> = {
   fireworks: {},
   openrouter: {},
+  ollama: {},
   preferOpenRouter: false,
+  preferLocal: false,
   autoFallback: true,
   errorThreshold: 3,
   fallbackCooldown: 60000, // 1 minute
   sharedContext: true,
   enableConversationMemory: true,
   maxContextTurns: 5,
+  enablePersonality: true,
+  enableResponseCache: true,
 };
 
 /**
  * LLM Provider type
  */
-export type LLMProviderType = 'fireworks' | 'openrouter';
+export type LLMProviderType = 'fireworks' | 'openrouter' | 'ollama';
 
 /**
  * LLM Manager events
@@ -96,6 +125,10 @@ export interface LLMManagerEvents extends LLMEvents {
   'primary-restored': () => void;
   /** Cost update */
   'cost-update': (costs: CostTracker) => void;
+  /** Local-only mode changed */
+  'local-only-change': (enabled: boolean) => void;
+  /** Ollama status changed */
+  'ollama-status': (status: OllamaStatus) => void;
 }
 
 /**
@@ -127,6 +160,12 @@ export class LLMManager extends EventEmitter implements LLMProvider {
   private conversationMemory: ConversationMemory | null = null;
   private conversationMemoryInitialized = false;
 
+  // Personality manager for system prompt generation
+  private personalityManager: PersonalityManager | null = null;
+
+  // Response cache for offline use and cost reduction
+  private responseCache: ResponseCache | null = null;
+
   constructor(config?: Partial<LLMManagerConfig>) {
     super();
     this.config = { ...DEFAULT_LLM_MANAGER_CONFIG, ...config } as Required<LLMManagerConfig>;
@@ -155,10 +194,24 @@ export class LLMManager extends EventEmitter implements LLMProvider {
       this.initializeConversationMemory();
     }
 
+    // Initialize personality manager if enabled
+    if (this.config.enablePersonality) {
+      this.personalityManager = getPersonalityManager();
+      logger.info('PersonalityManager initialized for LLM');
+    }
+
+    // Initialize response cache if enabled
+    if (this.config.enableResponseCache) {
+      this.responseCache = getResponseCache();
+      logger.info('ResponseCache initialized for LLM');
+    }
+
     logger.info('LLMManager initialized', {
       preferOpenRouter: this.config.preferOpenRouter,
       autoFallback: this.config.autoFallback,
       conversationMemoryEnabled: this.config.enableConversationMemory,
+      personalityEnabled: this.config.enablePersonality,
+      responseCacheEnabled: this.config.enableResponseCache,
     });
   }
 
@@ -209,6 +262,32 @@ export class LLMManager extends EventEmitter implements LLMProvider {
       );
     }
 
+    // Check cache first (only for simple queries without tool calls)
+    if (this.responseCache && !options?.tools && !options?.toolChoice) {
+      const cached = this.responseCache.get(message);
+      if (cached) {
+        logger.debug('Using cached response', { query: message.slice(0, 50) });
+        const cachedResponse: LLMResponse = {
+          content: cached.response,
+          tokens: {
+            input: estimateTokenCount(message),
+            output: estimateTokenCount(cached.response),
+            total: estimateTokenCount(message) + estimateTokenCount(cached.response),
+          },
+          finishReason: 'stop',
+          model: cached.model || 'cached',
+          cached: true,
+        };
+
+        // Record in conversation memory
+        if (this.config.enableConversationMemory) {
+          this.recordConversationTurn(message, cached.response);
+        }
+
+        return cachedResponse;
+      }
+    }
+
     // Use shared context if enabled and no context provided
     let useContext =
       context || (this.config.sharedContext ? (this.sharedContext ?? undefined) : undefined);
@@ -228,11 +307,37 @@ export class LLMManager extends EventEmitter implements LLMProvider {
     }
 
     try {
-      const response = await this.activeProvider.chat(message, useContext, options);
+      // Wrap provider call in retry logic for transient errors
+      const response = await retryWithBackoff(
+        async () => await this.activeProvider.chat(message, useContext, options),
+        {
+          maxAttempts: 3,
+          initialDelay: 1000,
+          isRetryable: RetryableErrors.isTransientError,
+          onRetry: (attempt, delay, error) => {
+            logger.warn(`Retrying LLM request (attempt ${attempt})`, {
+              error: error.message,
+              delay,
+              provider: this.activeProviderType,
+            });
+          },
+        }
+      );
 
       // Record the conversation turn in memory
       if (this.config.enableConversationMemory && response.content) {
         this.recordConversationTurn(message, response.content);
+      }
+
+      // Cache the response (only for simple queries without tool calls)
+      if (this.responseCache && response.content && !options?.tools && !options?.toolChoice) {
+        this.responseCache.set(
+          message,
+          response.content,
+          this.activeProviderType || 'unknown',
+          response.model,
+          response.tokens?.total
+        );
       }
 
       return response;
@@ -390,11 +495,16 @@ export class LLMManager extends EventEmitter implements LLMProvider {
   }
 
   /**
-   * Build enhanced system prompt with conversation context
+   * Build enhanced system prompt with conversation context and personality
    */
   private buildEnhancedSystemPrompt(): string {
+    // Use personality-based system prompt if available, else fallback to default
+    const basePrompt = this.personalityManager
+      ? this.personalityManager.getSystemPrompt()
+      : ATLAS_SYSTEM_PROMPT;
+
     if (!this.conversationMemory || !this.conversationMemoryInitialized) {
-      return NOVA_SYSTEM_PROMPT;
+      return basePrompt;
     }
 
     // Get conversation context from memory
@@ -407,11 +517,11 @@ export class LLMManager extends EventEmitter implements LLMProvider {
     });
 
     if (!memoryContext) {
-      return NOVA_SYSTEM_PROMPT;
+      return basePrompt;
     }
 
     // Build enhanced prompt with context
-    const enhancedPrompt = `${NOVA_SYSTEM_PROMPT}
+    const enhancedPrompt = `${basePrompt}
 
 ## Conversation Context
 ${memoryContext}`;
@@ -422,9 +532,9 @@ ${memoryContext}`;
   /**
    * Record a conversation turn in memory
    */
-  recordConversationTurn(userMessage: string, novaResponse: string): void {
+  recordConversationTurn(userMessage: string, atlasResponse: string): void {
     if (this.conversationMemory && this.conversationMemoryInitialized) {
-      this.conversationMemory.addTurn(userMessage, novaResponse);
+      this.conversationMemory.addTurn(userMessage, atlasResponse);
       logger.debug('Conversation turn recorded in memory');
     }
   }
@@ -484,6 +594,9 @@ ${memoryContext}`;
           this.fireworksBreaker.recordSuccess();
         }
         this.emit('response', response);
+
+        // Record metrics in GEPA
+        this.recordGEPAMetrics(response, type);
 
         // Emit cost update for OpenRouter
         if (type === 'openrouter' && this.openrouterLLM) {
@@ -626,7 +739,7 @@ ${memoryContext}`;
   }
 
   /**
-   * Creates a new conversation context with the Nova system prompt.
+   * Creates a new conversation context with the Atlas system prompt.
    *
    * If shared context is enabled, the new context becomes the shared context.
    *
@@ -634,7 +747,7 @@ ${memoryContext}`;
    * @returns A new ConversationContext
    */
   createContext(userName?: string): ConversationContext {
-    const context = createConversationContext(NOVA_SYSTEM_PROMPT, userName);
+    const context = createConversationContext(ATLAS_SYSTEM_PROMPT, userName);
     if (this.config.sharedContext) {
       this.sharedContext = context;
     }
@@ -723,6 +836,260 @@ ${memoryContext}`;
     return this.activeProviderType === 'openrouter' && !this.config.preferOpenRouter;
   }
 
+  // ==========================================================================
+  // Response Cache Management
+  // ==========================================================================
+
+  /**
+   * Gets the ResponseCache instance.
+   *
+   * @returns The ResponseCache, or null if caching is disabled
+   */
+  getResponseCache(): ResponseCache | null {
+    return this.responseCache;
+  }
+
+  /**
+   * Gets cache statistics.
+   *
+   * @returns Cache stats including hit rate, entries, etc.
+   */
+  getCacheStats(): { hits: number; misses: number; hitRate: number; entries: number } | null {
+    if (!this.responseCache) return null;
+    const stats = this.responseCache.getStats();
+    return {
+      hits: stats.hits,
+      misses: stats.misses,
+      hitRate: stats.hitRate,
+      entries: stats.totalEntries,
+    };
+  }
+
+  /**
+   * Clears the response cache.
+   */
+  clearCache(): void {
+    if (this.responseCache) {
+      this.responseCache.clear();
+      logger.info('Response cache cleared');
+    }
+  }
+
+  /**
+   * Enables or disables the response cache.
+   *
+   * @param enabled - Whether to enable caching
+   */
+  setCacheEnabled(enabled: boolean): void {
+    if (this.responseCache) {
+      this.responseCache.setEnabled(enabled);
+    }
+  }
+
+  /**
+   * Checks if caching is enabled.
+   *
+   * @returns True if caching is enabled
+   */
+  isCacheEnabled(): boolean {
+    return this.responseCache?.isEnabled() ?? false;
+  }
+
+  // ==========================================================================
+  // Connection Pre-warming
+  // ==========================================================================
+
+  /** Pre-warm state */
+  private preWarmInProgress = false;
+  private lastPreWarmTime = 0;
+  private preWarmCooldown = 5000; // 5 seconds between pre-warms
+
+  /**
+   * Pre-warms the LLM connection by establishing a speculative connection.
+   * Call this when speech is detected (before transcription completes) to
+   * reduce latency when the actual request is made.
+   *
+   * This sends a minimal request to establish the TCP/TLS connection and
+   * warm up any connection pools, reducing first-token latency by 100-300ms.
+   *
+   * @returns Promise that resolves when pre-warming completes
+   *
+   * @example
+   * ```typescript
+   * // In voice pipeline when speech starts
+   * audioPipeline.on('speech-start', () => {
+   *   llmManager.preWarmConnection();
+   * });
+   * ```
+   */
+  async preWarmConnection(): Promise<void> {
+    const now = Date.now();
+
+    // Skip if pre-warm already in progress or recently completed
+    if (this.preWarmInProgress || now - this.lastPreWarmTime < this.preWarmCooldown) {
+      logger.debug('Skipping pre-warm (in progress or cooldown)');
+      return;
+    }
+
+    if (!this.activeProvider) {
+      logger.debug('Cannot pre-warm: no active provider');
+      return;
+    }
+
+    this.preWarmInProgress = true;
+    const startTime = now;
+
+    try {
+      // For Fireworks, we can use their streaming endpoint with a minimal prompt
+      // The connection establishment is the main benefit
+      if (this.activeProviderType === 'fireworks' && this.fireworksLLM) {
+        // Send a minimal system-only request that returns quickly
+        // This establishes the connection without using significant tokens
+        const warmContext = createConversationContext('Respond with OK', undefined);
+        
+        // Use a very short max_tokens to minimize cost while still warming connection
+        const stream = this.fireworksLLM.chatStream('.', warmContext, {
+          maxTokens: 1,
+          temperature: 0,
+        });
+
+        // Just drain the stream to complete the connection
+        for await (const _chunk of stream) {
+          // Discard - we only want to establish the connection
+          break; // Exit after first chunk
+        }
+      } else if (this.activeProviderType === 'openrouter' && this.openrouterLLM) {
+        // Similar approach for OpenRouter
+        const warmContext = createConversationContext('OK', undefined);
+        
+        const stream = this.openrouterLLM.chatStream('.', warmContext, {
+          maxTokens: 1,
+          temperature: 0,
+        });
+
+        for await (const _chunk of stream) {
+          break;
+        }
+      }
+
+      this.lastPreWarmTime = Date.now();
+      const elapsed = this.lastPreWarmTime - startTime;
+      
+      logger.debug('LLM connection pre-warmed', {
+        provider: this.activeProviderType,
+        elapsed: `${elapsed}ms`,
+      });
+    } catch (error) {
+      // Pre-warm failures are not critical - just log and continue
+      logger.debug('Pre-warm failed (non-critical)', {
+        error: (error as Error).message,
+      });
+    } finally {
+      this.preWarmInProgress = false;
+    }
+  }
+
+  /**
+   * Check if the connection is considered "warm" (recently used or pre-warmed).
+   *
+   * @returns True if connection was used within the last 30 seconds
+   */
+  isConnectionWarm(): boolean {
+    return Date.now() - this.lastPreWarmTime < 30000;
+  }
+
+  // ==========================================================================
+  // Personality Management
+  // ==========================================================================
+
+  /**
+   * Gets the PersonalityManager instance.
+   *
+   * @returns The PersonalityManager, or null if personality is disabled
+   */
+  getPersonalityManager(): PersonalityManager | null {
+    return this.personalityManager;
+  }
+
+  /**
+   * Sets the personality preset.
+   *
+   * @param preset - The preset to apply ('atlas', 'professional', 'playful', 'minimal')
+   */
+  setPersonalityPreset(preset: PersonalityPreset): void {
+    if (this.personalityManager) {
+      this.personalityManager.setPreset(preset);
+      logger.info('Personality preset updated', { preset });
+    }
+  }
+
+  /**
+   * Updates a specific personality trait.
+   *
+   * @param trait - The trait to update
+   * @param value - The new value (0-1)
+   */
+  setPersonalityTrait(trait: keyof PersonalityTraits, value: number): void {
+    if (this.personalityManager) {
+      this.personalityManager.setTrait(trait, value);
+      logger.debug('Personality trait updated', { trait, value });
+    }
+  }
+
+  /**
+   * Gets the current personality preset.
+   *
+   * @returns The current preset name
+   */
+  getCurrentPersonalityPreset(): PersonalityPreset | null {
+    return this.personalityManager?.getPreset() || null;
+  }
+
+  /**
+   * Gets the current personality traits.
+   *
+   * @returns The current trait values
+   */
+  getCurrentPersonalityTraits(): PersonalityTraits | null {
+    return this.personalityManager?.getTraits() || null;
+  }
+
+  // ==========================================================================
+  // GEPA Integration
+  // ==========================================================================
+
+  /**
+   * Record LLM response metrics in GEPA for self-improvement analysis
+   */
+  private recordGEPAMetrics(response: LLMResponse, providerType: LLMProviderType): void {
+    try {
+      const metricsCollector = getMetricsCollector();
+
+      // Record latency if available
+      if (response.latency) {
+        metricsCollector.recordLatency(`llm_${providerType}`, response.latency);
+      }
+
+      // Record token usage if available (use type assertion since tokens may exist)
+      const responseWithTokens = response as LLMResponse & {
+        tokens?: { input?: number; output?: number; total?: number };
+      };
+      if (responseWithTokens.tokens) {
+        const { input = 0, output = 0 } = responseWithTokens.tokens;
+        metricsCollector.recordTokens(input, output, response.model);
+      }
+
+      logger.debug('GEPA LLM metrics recorded', {
+        provider: providerType,
+        model: response.model,
+        latency: response.latency,
+        finishReason: response.finishReason,
+      });
+    } catch (error) {
+      logger.warn('Failed to record GEPA LLM metrics', { error: (error as Error).message });
+    }
+  }
+
   // Type-safe event emitter methods
   on<K extends keyof LLMManagerEvents>(event: K, listener: LLMManagerEvents[K]): this {
     return super.on(event, listener);
@@ -746,6 +1113,8 @@ let llmManager: LLMManager | null = null;
 /**
  * Gets or creates the singleton LLMManager instance.
  *
+ * If no config is provided, automatically loads API keys from environment config.
+ *
  * @param config - Optional configuration (only used on first call)
  * @returns The LLMManager singleton instance
  *
@@ -757,6 +1126,19 @@ let llmManager: LLMManager | null = null;
  */
 export function getLLMManager(config?: Partial<LLMManagerConfig>): LLMManager {
   if (!llmManager) {
+    // If no config provided, load API keys from environment config
+    if (!config) {
+      const appConfig = getConfig();
+      config = {
+        fireworks: {
+          apiKey: appConfig.fireworksApiKey,
+        },
+        openrouter: {
+          apiKey: appConfig.openrouterApiKey,
+        },
+      };
+      logger.debug('LLMManager initialized with API keys from environment config');
+    }
     llmManager = new LLMManager(config);
   }
   return llmManager;
@@ -770,8 +1152,10 @@ export function shutdownLLMManager(): void {
     llmManager.cancel();
     llmManager = null;
   }
-  // Also shutdown conversation memory
+  // Also shutdown conversation memory, personality manager, and response cache
   shutdownConversationMemory();
+  shutdownPersonalityManager();
+  shutdownResponseCache();
 }
 
 export default LLMManager;

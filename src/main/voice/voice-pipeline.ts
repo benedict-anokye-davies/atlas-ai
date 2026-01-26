@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Voice Pipeline Integration
+ * Atlas Desktop - Voice Pipeline Integration
  * Complete voice interaction orchestrator that connects:
  * AudioPipeline (Wake Word + VAD) → STT → LLM → TTS
  *
@@ -21,11 +21,18 @@ import { LLMManager, LLMManagerConfig, LLMProviderType } from '../llm/manager';
 import { TTSManager, getTTSManager } from '../tts/manager';
 import { getConfig } from '../config';
 import { MemoryManager, getMemoryManager } from '../memory';
+import { getConversationMemory, ConversationMemory } from '../memory/conversation-memory';
+import { JarvisBrain, getJarvisBrain } from '../cognitive';
 import {
   VoicePipelineState,
   VoicePipelineStatus,
   WakeWordEvent,
   SpeechSegment,
+  ContinuousListeningMode,
+  ContinuousListeningConfig,
+  ContinuousListeningState,
+  VoiceCommandResult,
+  DEFAULT_CONTINUOUS_LISTENING_CONFIG,
 } from '../../shared/types/voice';
 import { TranscriptionResult, STTStatus } from '../../shared/types/stt';
 import {
@@ -33,7 +40,7 @@ import {
   LLMStreamChunk,
   ConversationContext,
   createConversationContext,
-  NOVA_SYSTEM_PROMPT,
+  ATLAS_SYSTEM_PROMPT,
   ToolCall,
   ChatMessage,
 } from '../../shared/types/llm';
@@ -49,6 +56,13 @@ import {
 } from '../agent/llm-tools';
 import { getInputValidator, InputValidator } from '../security/input-validator';
 import { getAuditLogger, AuditLogger } from '../security/audit-logger';
+import { recordInteraction, getMetricsCollector } from '../gepa';
+import { getEmotionDetector, EmotionDetector, EmotionState } from '../intelligence/emotion-detector';
+import { getTradingContextForLLM } from '../trading';
+import { getToolPrewarmer, type ConversationContext as PrewarmerContext } from '../ml/tool-prewarmer';
+import { getBrowserVoiceIntegrator } from '../agent/browser-agent/voice-integration';
+import { getNaturalVoiceIntegration, NaturalVoiceIntegration } from './natural-voice-integration';
+import { getProsodyAnalyzer, ProsodyAnalyzer, ProsodyEmotionSignal } from './prosody';
 
 const logger = createModuleLogger('VoicePipeline');
 const perfTimer = new PerformanceTimer('VoicePipeline');
@@ -81,6 +95,27 @@ export interface VoicePipelineConfig {
   enableInputValidation?: boolean;
   /** Block input on detected threats (vs just log) */
   blockOnThreat?: boolean;
+  /**
+   * Enable early LLM processing with partial transcripts (experimental)
+   * When enabled, starts LLM processing with interim transcripts for lower latency
+   * May result in incomplete understanding if speech continues
+   */
+  enablePartialTranscriptProcessing?: boolean;
+  /**
+   * Minimum confidence for partial transcript processing
+   * Only used when enablePartialTranscriptProcessing is true
+   */
+  partialTranscriptMinConfidence?: number;
+  /**
+   * Minimum word count before processing partial transcript
+   * Prevents processing very short phrases that may be incomplete
+   */
+  partialTranscriptMinWords?: number;
+  /**
+   * Continuous listening mode configuration
+   * Enables hands-free conversation by auto-listening after responses
+   */
+  continuousListening?: Partial<ContinuousListeningConfig>;
 }
 
 /**
@@ -91,7 +126,7 @@ const DEFAULT_VOICE_PIPELINE_CONFIG: Required<VoicePipelineConfig> = {
   stt: {},
   llm: {},
   streamToTTS: true,
-  ttsBufferSize: 50, // ~1 sentence
+  ttsBufferSize: 15, // Ultra-low latency - start TTS on short phrases
   userName: 'User',
   enableHistory: true,
   maxHistoryTurns: 10,
@@ -99,6 +134,10 @@ const DEFAULT_VOICE_PIPELINE_CONFIG: Required<VoicePipelineConfig> = {
   maxToolIterations: 5,
   enableInputValidation: true,
   blockOnThreat: true,
+  enablePartialTranscriptProcessing: false, // Experimental - disabled by default
+  partialTranscriptMinConfidence: 0.8, // High confidence required
+  partialTranscriptMinWords: 5, // Minimum words before processing partial
+  continuousListening: DEFAULT_CONTINUOUS_LISTENING_CONFIG,
 };
 
 /**
@@ -153,6 +192,29 @@ export interface VoicePipelineEvents {
   'security-threat': (threats: Array<{ type: string; description: string }>) => void;
   /** Input blocked due to security threat */
   'input-blocked': (reason: string, originalInput: string) => void;
+  /** User emotion detected from transcript */
+  'emotion-detected': (emotion: EmotionState) => void;
+  /** Streaming metrics available after interaction */
+  'streaming-metrics': (metrics: StreamingMetrics) => void;
+  /** Sentence chunk sent to TTS */
+  'sentence-chunk': (text: string, latencyMs: number) => void;
+  /** Continuous listening mode changed */
+  'continuous-mode-change': (
+    mode: ContinuousListeningMode,
+    previousMode: ContinuousListeningMode
+  ) => void;
+  /** Continuous listening activated */
+  'continuous-activated': (reason: 'voice_command' | 'api' | 'config') => void;
+  /** Continuous listening deactivated */
+  'continuous-deactivated': (reason: 'voice_command' | 'api' | 'timeout' | 'auto_disable') => void;
+  /** Continuous mode timeout warning */
+  'continuous-timeout-warning': (timeRemainingMs: number) => void;
+  /** Continuous mode timeout occurred */
+  'continuous-timeout': (consecutiveCount: number) => void;
+  /** Continuous mode state update */
+  'continuous-state-update': (state: ContinuousListeningState) => void;
+  /** Voice command detected in transcript */
+  'voice-command-detected': (result: VoiceCommandResult) => void;
 }
 
 /**
@@ -178,6 +240,221 @@ export interface InteractionMetrics {
 }
 
 /**
+ * Pipeline streaming metrics for latency optimization
+ * Target: <500ms to first audio output after speech ends
+ */
+export interface StreamingMetrics {
+  /** Time from speech end to first LLM token (ms) */
+  speechEndToFirstToken: number;
+  /** Time from first LLM token to first TTS audio (ms) */
+  firstTokenToFirstAudio: number;
+  /** Time from speech end to first TTS audio (ms) - primary metric */
+  timeToFirstByte: number;
+  /** End-to-end latency from speech end to response complete (ms) */
+  endToEndLatency: number;
+  /** Number of sentence chunks streamed to TTS */
+  sentenceChunks: number;
+  /** Average sentence chunk latency (ms) */
+  avgChunkLatency: number;
+  /** Whether target latency was met (<500ms TTFB) */
+  targetMet: boolean;
+}
+
+/**
+ * Sentence boundary detector for streaming LLM-to-TTS
+ * Detects natural sentence and clause boundaries for optimal TTS chunking
+ * 
+ * Enhanced with adaptive chunking:
+ * - Early flush for first response (faster TTFB)
+ * - Clause-based boundaries for natural speech rhythm
+ * - Dynamic thresholds based on speaking state
+ */
+export class SentenceBoundaryDetector {
+  private buffer = '';
+  private isFirstChunk = true;
+  private chunkCount = 0;
+  
+  // Adaptive thresholds
+  private readonly firstChunkMinLength = 5; // Very short for fast first audio
+  private readonly minChunkLength = 8; // Allows short phrases after first
+  private readonly maxChunkLength = 150; // Force flush sooner for streaming
+  private readonly clauseMinLength = 12; // Minimum for clause-based chunking
+
+  // Sentence-ending patterns (ordered by priority)
+  private readonly sentenceEndings = [
+    /([.!?])\s*$/, // Standard sentence endings with optional trailing space
+    /([.!?])["')\]]*\s*$/, // Sentence endings with closing quotes/brackets
+    /([;:])\s*$/, // Semi-colon/colon as natural pause points
+    /(,)\s+(?=[A-Z])/, // Comma followed by capital letter (likely new clause)
+  ];
+
+  // Clause boundaries for more natural speech chunking
+  private readonly clauseBoundaries = [
+    /,\s+(?:and|but|or|so|because|although|however|therefore|meanwhile)\s+/i,
+    /,\s+(?:which|who|that|where|when)\s+/i, // Relative clauses
+    /\s+-\s+/, // Dash as pause
+    /\s+—\s+/, // Em-dash
+  ];
+
+  // Phrase-ending patterns for early flush on first chunk
+  private readonly phraseEndings = [
+    /,\s*$/, // Any comma
+    /:\s*$/, // Colon
+    /\s+and\s*$/i, // "and" at end
+    /\s+but\s*$/i, // "but" at end
+    /\s+or\s*$/i, // "or" at end
+  ];
+
+  /**
+   * Add text to buffer and return any complete sentences/clauses
+   * @param text - New text to add
+   * @returns Array of complete chunks ready for TTS
+   */
+  addText(text: string): string[] {
+    this.buffer += text;
+    const chunks: string[] = [];
+
+    // Adaptive minimum based on whether this is the first chunk
+    const effectiveMin = this.isFirstChunk ? this.firstChunkMinLength : this.minChunkLength;
+
+    // Keep extracting while we have enough text
+    while (this.buffer.length >= effectiveMin) {
+      let boundary = 0;
+
+      // For first chunk, be more aggressive about early flush
+      if (this.isFirstChunk && this.buffer.length >= this.firstChunkMinLength) {
+        // Look for phrase endings first for fast TTFB
+        boundary = this.findPhraseBoundary();
+        
+        // If we have a reasonable amount of text, just send it
+        if (boundary === 0 && this.buffer.length >= 15) {
+          boundary = this.findWordBoundary(15);
+        }
+      }
+
+      // Standard boundary detection
+      if (boundary === 0) {
+        boundary = this.findSentenceBoundary();
+      }
+
+      // Try clause boundaries for natural rhythm
+      if (boundary === 0 && this.buffer.length >= this.clauseMinLength) {
+        boundary = this.findClauseBoundary();
+      }
+
+      // Force flush at word boundary if buffer is too long
+      if (boundary === 0 && this.buffer.length >= this.maxChunkLength) {
+        boundary = this.findWordBoundary(this.maxChunkLength);
+      }
+
+      if (boundary > 0) {
+        const chunk = this.buffer.substring(0, boundary).trim();
+        this.buffer = this.buffer.substring(boundary).trimStart();
+
+        if (chunk.length > 0) {
+          chunks.push(chunk);
+          this.chunkCount++;
+          this.isFirstChunk = false;
+        }
+      } else {
+        // Not enough text for a complete chunk yet
+        break;
+      }
+    }
+
+    return chunks;
+  }
+
+  /**
+   * Find phrase boundary for fast first audio
+   */
+  private findPhraseBoundary(): number {
+    for (const pattern of this.phraseEndings) {
+      const match = this.buffer.match(pattern);
+      if (match && match.index !== undefined) {
+        return match.index + match[0].length;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Find sentence boundary
+   */
+  private findSentenceBoundary(): number {
+    for (const pattern of this.sentenceEndings) {
+      const match = this.buffer.match(pattern);
+      if (match && match.index !== undefined) {
+        return match.index + match[0].length;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Find clause boundary for natural speech rhythm
+   */
+  private findClauseBoundary(): number {
+    for (const pattern of this.clauseBoundaries) {
+      const match = this.buffer.match(pattern);
+      if (match && match.index !== undefined && match.index >= this.clauseMinLength) {
+        // Include the conjunction/relative pronoun with the next clause
+        return match.index + 1; // Just after the comma
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Find the nearest word boundary before maxPos
+   * @param maxPos - Maximum position to look for boundary
+   * @returns Position of word boundary
+   */
+  private findWordBoundary(maxPos: number): number {
+    const searchArea = this.buffer.substring(0, maxPos);
+    const lastSpace = searchArea.lastIndexOf(' ');
+    return lastSpace > 0 ? lastSpace + 1 : maxPos;
+  }
+
+  /**
+   * Flush any remaining text in the buffer
+   * @returns Remaining text or empty string
+   */
+  flush(): string {
+    const remaining = this.buffer.trim();
+    this.buffer = '';
+    return remaining;
+  }
+
+  /**
+   * Reset the detector state
+   */
+  reset(): void {
+    this.buffer = '';
+    this.isFirstChunk = true;
+    this.chunkCount = 0;
+  }
+
+  /**
+   * Get current buffer contents (for debugging)
+   */
+  getBuffer(): string {
+    return this.buffer;
+  }
+
+  /**
+   * Get chunking statistics
+   */
+  getStats(): { chunkCount: number; isFirstChunk: boolean; bufferLength: number } {
+    return {
+      chunkCount: this.chunkCount,
+      isFirstChunk: this.isFirstChunk,
+      bufferLength: this.buffer.length,
+    };
+  }
+}
+
+/**
  * Voice Pipeline
  * Complete voice interaction orchestrator
  */
@@ -193,12 +470,19 @@ export class VoicePipeline extends EventEmitter {
   private agent: Agent | null = null;
   private inputValidator: InputValidator | null = null;
   private auditLogger: AuditLogger | null = null;
+  private conversationMemory: ConversationMemory | null = null;
+  private jarvisBrain: JarvisBrain | null = null;
+  private emotionDetector: EmotionDetector | null = null;
+  private naturalVoice: NaturalVoiceIntegration | null = null;
+  private prosodyAnalyzer: ProsodyAnalyzer | null = null;
+  private currentVoiceEmotion: ProsodyEmotionSignal | null = null;
 
   // State
   private isRunning = false;
   private currentState: VoicePipelineState = 'idle';
   private conversationContext: ConversationContext | null = null;
   private sessionId: string = '';
+  private currentUserEmotion: EmotionState | null = null;
 
   // Current interaction tracking
   private currentTranscript = '';
@@ -207,9 +491,39 @@ export class VoicePipeline extends EventEmitter {
   private interactionStartTime = 0;
   private metrics: Partial<InteractionMetrics> = {};
 
+  // Streaming optimization state
+  private streamingMetrics: Partial<StreamingMetrics> = {};
+  private sentenceDetector: SentenceBoundaryDetector = new SentenceBoundaryDetector();
+  private speechEndTime = 0;
+  private firstTokenTime = 0;
+  private firstAudioTime = 0;
+  private chunkLatencies: number[] = [];
+  private sentenceChunkCount = 0;
+
+  // Tool tracking for pre-warming
+  private recentToolCalls: string[] = [];
+  private readonly maxRecentToolCalls = 10;
+
+  // Continuous listening state
+  private continuousMode: ContinuousListeningMode = 'disabled';
+  private continuousConfig: ContinuousListeningConfig;
+  private continuousSilenceTimer: NodeJS.Timeout | null = null;
+  private continuousWarningTimer: NodeJS.Timeout | null = null;
+  private continuousActivatedAt = 0;
+  private continuousInteractionCount = 0;
+  private consecutiveTimeouts = 0;
+  private continuousSilenceStartTime = 0;
+
   constructor(config?: Partial<VoicePipelineConfig>) {
     super();
+    this.setMaxListeners(20); // Prevent memory leak warnings
     this.config = { ...DEFAULT_VOICE_PIPELINE_CONFIG, ...config } as Required<VoicePipelineConfig>;
+
+    // Merge continuous listening config with defaults
+    this.continuousConfig = {
+      ...DEFAULT_CONTINUOUS_LISTENING_CONFIG,
+      ...(config?.continuousListening || {}),
+    };
 
     // Generate a unique session ID
     this.sessionId = `voice-${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -218,6 +532,7 @@ export class VoicePipeline extends EventEmitter {
       streamToTTS: this.config.streamToTTS,
       enableHistory: this.config.enableHistory,
       enableInputValidation: this.config.enableInputValidation,
+      continuousListening: this.continuousConfig.enabled,
       sessionId: this.sessionId,
     });
   }
@@ -258,6 +573,7 @@ export class VoicePipeline extends EventEmitter {
     isTTSSpeaking: boolean;
     currentTranscript: string;
     currentResponse: string;
+    currentEmotion: EmotionState | null;
   } {
     return {
       state: this.currentState,
@@ -269,7 +585,16 @@ export class VoicePipeline extends EventEmitter {
       isTTSSpeaking: this.tts?.isSpeaking() ?? false,
       currentTranscript: this.currentTranscript,
       currentResponse: this.currentResponse,
+      currentEmotion: this.currentUserEmotion,
     };
+  }
+
+  /**
+   * Gets the current detected user emotion.
+   * @returns The current emotion state or null if no emotion has been detected
+   */
+  getCurrentEmotion(): EmotionState | null {
+    return this.currentUserEmotion;
   }
 
   /**
@@ -351,25 +676,31 @@ export class VoicePipeline extends EventEmitter {
       });
       this.setupLLMHandlers();
 
-      // Initialize TTS Manager (handles ElevenLabs with offline fallback)
-      if (appConfig.elevenlabsApiKey) {
-        this.tts = getTTSManager({
-          elevenlabs: {
-            apiKey: appConfig.elevenlabsApiKey,
-            voiceId: appConfig.elevenlabsVoiceId,
-          },
-        });
-        this.setupTTSHandlers();
-      } else {
-        logger.warn(
-          'ElevenLabs API key not configured. Text-to-speech is disabled. Add ELEVENLABS_API_KEY to your environment to enable voice responses.'
-        );
-      }
+      // Initialize TTS Manager - Using Cartesia (fastest ~90ms) with ElevenLabs and offline fallback
+      this.tts = getTTSManager({
+        cartesia: {
+          apiKey: appConfig.cartesiaApiKey,
+          voiceId: appConfig.cartesiaVoiceId,
+        },
+        elevenlabs: {
+          apiKey: appConfig.elevenlabsApiKey,
+        },
+        preferredProvider: appConfig.cartesiaApiKey ? 'cartesia' : 'elevenlabs',
+        preferOffline: false, // Use online providers when available
+        autoFallback: true,   // Fall back to offline if all providers fail
+      });
+      this.setupTTSHandlers();
+
+      logger.info('TTS initialized', {
+        provider: this.tts.getCurrentProvider(),
+        hasCartesiaKey: !!appConfig.cartesiaApiKey,
+        hasElevenLabsKey: !!appConfig.elevenlabsApiKey,
+      });
 
       // Initialize conversation context
       if (this.config.enableHistory) {
         this.conversationContext = createConversationContext(
-          NOVA_SYSTEM_PROMPT,
+          ATLAS_SYSTEM_PROMPT,
           this.config.userName
         );
       }
@@ -380,6 +711,24 @@ export class VoicePipeline extends EventEmitter {
       logger.info('Memory session started', {
         sessionId: this.memoryManager.getCurrentSessionId(),
       });
+
+      // Initialize Conversation Memory for Obsidian vault storage
+      this.conversationMemory = await getConversationMemory();
+      logger.info('Conversation memory initialized for vault storage');
+
+      // Initialize JARVIS Brain for cognitive learning and associations
+      try {
+        this.jarvisBrain = getJarvisBrain({ userFirstName: this.config.userName || 'Ben' });
+        await this.jarvisBrain.initialize();
+        logger.info('JARVIS Brain initialized', {
+          stats: await this.jarvisBrain.getStats(),
+        });
+      } catch (brainError) {
+        logger.warn('JARVIS Brain initialization failed, continuing without cognitive features', {
+          error: (brainError as Error).message,
+        });
+        this.jarvisBrain = null;
+      }
 
       // Initialize Agent for tool execution (if enabled)
       if (this.config.enableTools) {
@@ -400,6 +749,32 @@ export class VoicePipeline extends EventEmitter {
           blockOnThreat: this.config.blockOnThreat,
         });
       }
+
+      // Initialize emotion detector for empathetic responses
+      this.emotionDetector = getEmotionDetector();
+      logger.info('Emotion detector initialized');
+
+      // Initialize prosody analyzer for voice-based emotion detection
+      this.prosodyAnalyzer = getProsodyAnalyzer();
+      this.prosodyAnalyzer.on('emotion', (signal: ProsodyEmotionSignal) => {
+        this.currentVoiceEmotion = signal;
+        logger.debug('Voice prosody emotion detected', {
+          type: signal.type,
+          confidence: signal.confidence.toFixed(2),
+          intensity: signal.intensity,
+        });
+      });
+      this.prosodyAnalyzer.on('baseline-established', () => {
+        logger.info('Prosody baseline established - voice emotion detection now calibrated');
+      });
+      logger.info('Prosody analyzer initialized', {
+        baselineEstablished: this.prosodyAnalyzer.isBaselineEstablished(),
+        baselineProgress: this.prosodyAnalyzer.getBaselineProgress().toFixed(0) + '%',
+      });
+
+      // Initialize natural voice integration for human-like speech
+      this.naturalVoice = getNaturalVoiceIntegration(this.tts);
+      logger.info('Natural voice integration initialized');
 
       // Connect audio pipeline to STT
       this.audioPipeline.setOnSpeechSegment((segment) => this.handleSpeechSegment(segment));
@@ -438,6 +813,31 @@ export class VoicePipeline extends EventEmitter {
     if (!this.isRunning) return;
 
     logger.info('Stopping voice pipeline...');
+
+    // Store conversation to Obsidian vault before shutdown
+    if (this.conversationMemory) {
+      try {
+        const notePath = await this.conversationMemory.storeToVault();
+        if (notePath) {
+          logger.info('Conversation stored to Obsidian vault on stop', { notePath });
+        }
+      } catch (error) {
+        logger.error('Failed to store conversation to vault on stop', {
+          error: (error as Error).message,
+        });
+      }
+    }
+
+    // Shutdown JARVIS Brain gracefully
+    if (this.jarvisBrain) {
+      try {
+        await this.jarvisBrain.shutdown();
+        logger.info('JARVIS Brain shut down');
+      } catch (error) {
+        logger.error('Failed to shutdown JARVIS Brain', { error: (error as Error).message });
+      }
+      this.jarvisBrain = null;
+    }
 
     // Save memory before shutdown
     if (this.memoryManager) {
@@ -504,6 +904,15 @@ export class VoicePipeline extends EventEmitter {
 
     this.audioPipeline.on('speech-start', () => {
       this.emit('speech-start');
+      
+      // Pre-warm LLM connection when speech starts
+      // This establishes TCP/TLS connection speculatively, saving 100-300ms
+      // when the actual LLM request is made after transcription completes
+      if (this.llmManager) {
+        this.llmManager.preWarmConnection().catch((err) => {
+          logger.debug('LLM pre-warm failed (non-critical)', { error: err.message });
+        });
+      }
     });
 
     this.audioPipeline.on('audio-level', (level) => {
@@ -537,11 +946,41 @@ export class VoicePipeline extends EventEmitter {
       this.metrics.sttTime = Date.now() - this.interactionStartTime;
       this.metrics.wordsTranscribed = result.text.split(/\s+/).length;
 
+      // Record speech end time for streaming metrics
+      this.speechEndTime = Date.now();
+
       logger.info('Final transcription', {
         text: result.text,
         confidence: result.confidence,
         sttTime: this.metrics.sttTime,
       });
+
+      // Detect user emotion from transcript for empathetic responses
+      if (this.emotionDetector && result.text.trim()) {
+        this.currentUserEmotion = this.emotionDetector.detectEmotion(result.text);
+        logger.info('User emotion detected', {
+          emotion: this.currentUserEmotion.primary.type,
+          intensity: this.currentUserEmotion.primary.intensity,
+          confidence: this.currentUserEmotion.primary.confidence,
+        });
+        this.emit('emotion-detected', this.currentUserEmotion);
+      }
+
+      // Speak a quick acknowledgment backchannel while processing
+      if (this.naturalVoice && this.tts && result.text.trim()) {
+        const context = {
+          emotion: this.currentUserEmotion || undefined,
+          formality: 'casual' as const,
+          timeOfDay: this.getTimeOfDay(),
+        };
+        
+        // Only backchannel for longer requests that will take time to process
+        if (result.text.split(/\s+/).length > 5) {
+          this.naturalVoice.speakBackchannel('thinking', context).catch((err) => {
+            logger.debug('Backchannel skipped', { error: (err as Error).message });
+          });
+        }
+      }
 
       // Save user message to memory
       if (this.memoryManager && result.text.trim()) {
@@ -591,6 +1030,11 @@ export class VoicePipeline extends EventEmitter {
     if (!this.tts) return;
 
     this.tts.on('chunk', (chunk: TTSAudioChunk) => {
+      logger.debug('[VoicePipeline] Received TTS chunk', {
+        dataLength: chunk.data?.length ?? 0,
+        format: chunk.format,
+        isFinal: chunk.isFinal,
+      });
       if (!this.metrics.ttsFirstAudioTime && chunk.data.length > 0) {
         this.metrics.ttsFirstAudioTime = Date.now() - this.interactionStartTime;
       }
@@ -622,6 +1066,44 @@ export class VoicePipeline extends EventEmitter {
   }
 
   /**
+   * Connect trading system proactive messages to voice output.
+   * Call this after the trading system is initialized.
+   */
+  connectTradingProactive(): void {
+    try {
+      // Import dynamically to avoid circular dependencies
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { getTradingSystem } = require('../trading');
+      const tradingSystem = getTradingSystem();
+
+      if (!tradingSystem.isReady()) {
+        logger.debug('Trading system not ready, skipping proactive connection');
+        return;
+      }
+
+      // Listen for proactive messages from trading system
+      tradingSystem.on('proactive-message', async (message: { message: string; shouldSpeak: boolean; priority: string }) => {
+        if (message.shouldSpeak) {
+          const isHighPriority = ['urgent', 'high'].includes(message.priority);
+          logger.info('Speaking trading proactive message', {
+            priority: message.priority,
+            messagePreview: message.message.substring(0, 50),
+          });
+          await this.speakProactive(message.message, {
+            priority: isHighPriority ? 'high' : 'normal',
+            interruptCurrent: message.priority === 'urgent',
+          });
+        }
+      });
+
+      logger.info('Connected trading proactive handler to voice pipeline');
+    } catch (error) {
+      // Trading system may not be available - that's fine
+      logger.debug('Could not connect trading proactive handler', { error });
+    }
+  }
+
+  /**
    * Handle speech segment from audio pipeline
    */
   private async handleSpeechSegment(segment: SpeechSegment): Promise<void> {
@@ -637,6 +1119,20 @@ export class VoicePipeline extends EventEmitter {
       // Convert Float32Array to Int16Array for STT
       const pcm16 = float32ToInt16(segment.audio);
 
+      // Analyze prosody for voice-based emotion detection
+      if (this.prosodyAnalyzer && pcm16.length > 0) {
+        const voiceEmotion = this.prosodyAnalyzer.analyze(Buffer.from(pcm16.buffer));
+        if (voiceEmotion) {
+          this.currentVoiceEmotion = voiceEmotion;
+          logger.debug('Voice prosody analyzed', {
+            emotion: voiceEmotion.type,
+            confidence: voiceEmotion.confidence.toFixed(2),
+            intensity: voiceEmotion.intensity,
+            baselineProgress: this.prosodyAnalyzer.getBaselineProgress().toFixed(0) + '%',
+          });
+        }
+      }
+
       // Start STT if not already running
       if (this.sttManager && this.sttManager.status === STTStatus.IDLE) {
         await this.sttManager.start();
@@ -646,8 +1142,17 @@ export class VoicePipeline extends EventEmitter {
       if (this.sttManager) {
         this.sttManager.sendAudio(pcm16);
 
-        // Signal end of audio
-        await this.sttManager.stop();
+        // DON'T call stop() immediately - wait for the transcript to arrive
+        // through the 'final' event handler, which will then call processWithLLM.
+        // The STT connection will be closed after processing completes in resetInteraction().
+        // Set a timeout to handle cases where no transcript is received
+        setTimeout(() => {
+          if (this.state === 'processing' && this.sttManager) {
+            logger.warn('STT transcript timeout - no response received');
+            this.sttManager.stop().catch(() => {});
+            this.resetInteraction();
+          }
+        }, 10000); // 10 second timeout for transcript
       }
     } catch (error) {
       perfTimer.end('stt');
@@ -737,6 +1242,86 @@ export class VoicePipeline extends EventEmitter {
       // Prepare context with memory history
       let contextToUse = this.conversationContext ?? undefined;
 
+      // Build combined emotion context from text and voice prosody
+      if (contextToUse && (this.currentUserEmotion || this.currentVoiceEmotion)) {
+        let emotionContext = '\n\n[EMOTIONAL CONTEXT]';
+        
+        // Add text-based emotion detection
+        if (this.emotionDetector && this.currentUserEmotion) {
+          const emotionModifier = this.emotionDetector.getSystemPromptModifier();
+          emotionContext += `\nText analysis: The user appears to be feeling ${this.currentUserEmotion.primary.type} (${this.currentUserEmotion.primary.intensity} intensity, ${Math.round(this.currentUserEmotion.primary.confidence * 100)}% confidence).\n${emotionModifier}`;
+        }
+        
+        // Add voice prosody emotion detection
+        if (this.prosodyAnalyzer && this.currentVoiceEmotion && this.currentVoiceEmotion.confidence > 0.5) {
+          const prosodyModifier = this.prosodyAnalyzer.getSystemPromptModifier();
+          emotionContext += `\nVoice prosody: ${this.currentVoiceEmotion.type} detected in speech patterns (${(this.currentVoiceEmotion.confidence * 100).toFixed(0)}% confidence, ${this.currentVoiceEmotion.intensity} intensity).`;
+          emotionContext += `\nVoice indicators: ${this.currentVoiceEmotion.indicators.slice(0, 3).join(', ')}.`;
+          if (prosodyModifier) {
+            emotionContext += `\n${prosodyModifier}`;
+          }
+          emotionContext += `\nSuggested tone: ${this.currentVoiceEmotion.suggestedTone}.`;
+        }
+        
+        // Combined guidance if both sources detected emotion
+        if (this.currentUserEmotion && this.currentVoiceEmotion && this.currentVoiceEmotion.confidence > 0.5) {
+          const textEmotion = this.currentUserEmotion.primary.type;
+          const voiceEmotion = this.currentVoiceEmotion.type;
+          if (textEmotion === voiceEmotion) {
+            emotionContext += `\n[HIGH CONFIDENCE] Both text and voice indicate ${textEmotion}. Respond accordingly.`;
+          } else if (textEmotion !== 'neutral' && voiceEmotion !== 'neutral') {
+            emotionContext += `\n[MIXED SIGNALS] Text suggests ${textEmotion} but voice suggests ${voiceEmotion}. Trust voice prosody more for emotional state.`;
+          }
+        }
+        
+        contextToUse = {
+          ...contextToUse,
+          systemPrompt: contextToUse.systemPrompt + emotionContext,
+        };
+        logger.debug('Combined emotion context added to system prompt', {
+          textEmotion: this.currentUserEmotion?.primary.type,
+          voiceEmotion: this.currentVoiceEmotion?.type,
+          voiceConfidence: this.currentVoiceEmotion?.confidence,
+        });
+      }
+
+      // Inject trading context so Atlas knows its current trading state
+      if (contextToUse) {
+        try {
+          const tradingContext = await getTradingContextForLLM();
+          if (tradingContext) {
+            contextToUse = {
+              ...contextToUse,
+              systemPrompt: contextToUse.systemPrompt + tradingContext,
+            };
+            logger.debug('Trading context added to system prompt');
+          }
+        } catch (error) {
+          // Non-fatal - trading system may not be initialized
+          logger.debug('Failed to get trading context', { error });
+        }
+      }
+
+      // Inject browser context if browser agent is active
+      if (contextToUse) {
+        try {
+          const browserIntegrator = getBrowserVoiceIntegrator();
+          if (browserIntegrator.isActive()) {
+            const browserContext = browserIntegrator.getBrowserContextForLLM();
+            if (browserContext) {
+              contextToUse = {
+                ...contextToUse,
+                systemPrompt: contextToUse.systemPrompt + browserContext,
+              };
+              logger.debug('Browser context added to system prompt');
+            }
+          }
+        } catch (error) {
+          // Non-fatal - browser system may not be initialized
+          logger.debug('Failed to get browser context', { error });
+        }
+      }
+
       // Load recent messages from memory and inject into context
       if (this.memoryManager && this.config.enableHistory) {
         const recentMessages = this.memoryManager.getRecentMessages(this.config.maxHistoryTurns);
@@ -760,6 +1345,29 @@ export class VoicePipeline extends EventEmitter {
       const tools = this.config.enableTools && this.agent ? getVoiceToolDefinitions() : undefined;
       const chatOptions = tools ? { tools, tool_choice: 'auto' as const } : undefined;
 
+      // Pre-warm likely tools based on conversation context (async, non-blocking)
+      if (this.config.enableTools && contextToUse) {
+        try {
+          const prewarmer = getToolPrewarmer();
+          const prewarmerContext: PrewarmerContext = {
+            recentMessages: contextToUse.messages.slice(-5).map(m => ({
+              role: m.role as 'user' | 'assistant',
+              content: typeof m.content === 'string' ? m.content : '',
+              timestamp: Date.now(),
+            })),
+            lastToolCalls: this.recentToolCalls || [],
+            currentState: this.detectUserState(processedText),
+          };
+          // Fire and forget - don't await to avoid adding latency
+          prewarmer.processContext(prewarmerContext).catch(err => {
+            logger.debug('Tool pre-warming failed (non-fatal)', { error: err });
+          });
+        } catch (error) {
+          // Tool prewarmer not available, continue without it
+          logger.debug('Tool prewarmer not available');
+        }
+      }
+
       // Tool execution loop - allows multiple rounds of tool calls
       let iterations = 0;
       let currentMessage = processedText;
@@ -771,7 +1379,7 @@ export class VoicePipeline extends EventEmitter {
         let firstChunk = true;
         let accumulatedToolCalls: ToolCall[] = [];
 
-        // Stream LLM response
+        // Stream LLM response with optimized sentence-by-sentence TTS
         for await (const chunk of this.llmManager.chatStream(
           currentMessage,
           contextToUse,
@@ -784,8 +1392,21 @@ export class VoicePipeline extends EventEmitter {
           }
 
           if (firstChunk) {
-            this.metrics.llmFirstTokenTime = Date.now() - this.interactionStartTime;
+            // Track first token time for streaming metrics
+            this.firstTokenTime = Date.now();
+            this.metrics.llmFirstTokenTime = this.firstTokenTime - this.interactionStartTime;
+
+            // Track speech-end to first-token latency
+            if (this.speechEndTime > 0) {
+              this.streamingMetrics.speechEndToFirstToken =
+                this.firstTokenTime - this.speechEndTime;
+            }
+
             firstChunk = false;
+            logger.debug('First LLM token received', {
+              llmFirstTokenTime: this.metrics.llmFirstTokenTime,
+              speechEndToFirstToken: this.streamingMetrics.speechEndToFirstToken,
+            });
           }
 
           // Accumulate text response
@@ -795,15 +1416,63 @@ export class VoicePipeline extends EventEmitter {
 
             // Stream to TTS if enabled (only for text content, not tool calls)
             if (this.config.streamToTTS && this.tts && !chunk.toolCalls?.length) {
-              this.ttsBuffer += chunk.delta;
+              // Use sentence boundary detector for optimal TTS chunking
+              const sentences = this.sentenceDetector.addText(chunk.delta);
 
-              // Send to TTS when we have enough text (sentence boundary)
-              if (this.shouldFlushTTSBuffer(this.ttsBuffer)) {
-                const textToSpeak = this.ttsBuffer.trim();
-                this.ttsBuffer = '';
+              // Stream each complete sentence to TTS immediately
+              for (const sentence of sentences) {
+                if (sentence.trim()) {
+                  const chunkStartTime = Date.now();
 
-                if (textToSpeak) {
-                  this.tts.speakWithAudioStream(textToSpeak);
+                  // Track first audio time
+                  if (this.firstAudioTime === 0) {
+                    this.firstAudioTime = chunkStartTime;
+
+                    // Calculate time-to-first-byte (primary latency metric)
+                    if (this.speechEndTime > 0) {
+                      this.streamingMetrics.timeToFirstByte =
+                        this.firstAudioTime - this.speechEndTime;
+                      this.streamingMetrics.firstTokenToFirstAudio =
+                        this.firstTokenTime > 0 ? this.firstAudioTime - this.firstTokenTime : 0;
+
+                      logger.info('Time to first audio', {
+                        timeToFirstByte: this.streamingMetrics.timeToFirstByte,
+                        firstTokenToFirstAudio: this.streamingMetrics.firstTokenToFirstAudio,
+                        targetMet: this.streamingMetrics.timeToFirstByte < 500,
+                      });
+                    }
+                  }
+
+                  // Apply natural voice settings based on emotion and content
+                  // Combine text and voice prosody emotion for TTS adaptation
+                  let processedSentence = sentence;
+                  if (this.naturalVoice) {
+                    // Use prosody emotion if high confidence, otherwise fall back to text emotion
+                    const emotionForTTS = this.currentVoiceEmotion && this.currentVoiceEmotion.confidence > 0.6
+                      ? this.createEmotionStateFromProsody(this.currentVoiceEmotion)
+                      : this.currentUserEmotion;
+                    
+                    const prepared = this.naturalVoice.prepareSpeech(
+                      sentence,
+                      emotionForTTS || undefined
+                    );
+                    processedSentence = prepared.text;
+                    // Voice settings are auto-applied to TTS manager by prepareSpeech()
+                  }
+
+                  // Send sentence to TTS with minimal latency
+                  this.sentenceChunkCount++;
+                  this.emit('sentence-chunk', processedSentence, Date.now() - chunkStartTime);
+
+                  // Use streaming sentence method for lowest latency
+                  this.tts
+                    .streamSentenceChunk(processedSentence)
+                    .then((latency) => {
+                      this.chunkLatencies.push(latency);
+                    })
+                    .catch((err) => {
+                      logger.warn('Sentence chunk TTS error', { error: (err as Error).message });
+                    });
                 }
               }
             }
@@ -848,6 +1517,9 @@ export class VoicePipeline extends EventEmitter {
           try {
             const result = await this.executeToolCall(toolCall);
             toolResults.push(formatToolResult(toolCall.id, result));
+
+            // Track tool call for pre-warming predictions
+            this.trackToolCall(toolCall.name);
 
             this.emit('tool-complete', toolCall.name, result);
 
@@ -926,12 +1598,53 @@ export class VoicePipeline extends EventEmitter {
         logger.debug('Assistant response saved to memory');
       }
 
+      // Add turn to conversation memory for Obsidian vault storage
+      if (this.conversationMemory && this.currentTranscript.trim() && this.currentResponse.trim()) {
+        this.conversationMemory.addTurn(this.currentTranscript, this.currentResponse);
+        logger.debug('Turn added to conversation memory');
+      }
+
       this.emit('response-complete', response);
 
-      // Flush remaining TTS buffer
-      if (this.tts && this.ttsBuffer.trim()) {
-        this.tts.speakWithAudioStream(this.ttsBuffer.trim());
-        this.ttsBuffer = '';
+      // Flush remaining text from sentence detector
+      if (this.tts) {
+        const remainingText = this.sentenceDetector.flush();
+        if (remainingText.trim()) {
+          this.sentenceChunkCount++;
+          this.tts
+            .streamSentenceChunk(remainingText)
+            .then((latency) => {
+              this.chunkLatencies.push(latency);
+            })
+            .catch((err) => {
+              logger.warn('Final sentence chunk TTS error', { error: (err as Error).message });
+            });
+        }
+      }
+
+      // Compute and emit final streaming metrics
+      const responseEndTime = Date.now();
+      if (this.speechEndTime > 0) {
+        this.streamingMetrics.endToEndLatency = responseEndTime - this.speechEndTime;
+        this.streamingMetrics.sentenceChunks = this.sentenceChunkCount;
+        this.streamingMetrics.avgChunkLatency =
+          this.chunkLatencies.length > 0
+            ? this.chunkLatencies.reduce((a, b) => a + b, 0) / this.chunkLatencies.length
+            : 0;
+        this.streamingMetrics.targetMet = (this.streamingMetrics.timeToFirstByte ?? Infinity) < 500;
+
+        logger.info('Streaming metrics', {
+          timeToFirstByte: this.streamingMetrics.timeToFirstByte,
+          speechEndToFirstToken: this.streamingMetrics.speechEndToFirstToken,
+          firstTokenToFirstAudio: this.streamingMetrics.firstTokenToFirstAudio,
+          endToEndLatency: this.streamingMetrics.endToEndLatency,
+          sentenceChunks: this.streamingMetrics.sentenceChunks,
+          avgChunkLatency: Math.round(this.streamingMetrics.avgChunkLatency ?? 0),
+          targetMet: this.streamingMetrics.targetMet,
+        });
+
+        // Emit streaming metrics event
+        this.emit('streaming-metrics', this.streamingMetrics as StreamingMetrics);
       }
 
       // If TTS is disabled, go straight to idle
@@ -969,29 +1682,32 @@ export class VoicePipeline extends EventEmitter {
         success: result.success,
         duration,
       });
+
+      // Record tool execution in GEPA metrics
+      try {
+        getMetricsCollector().recordToolExecution(toolCall.name, duration, result.success);
+      } catch (e) {
+        logger.warn('Failed to record GEPA tool metrics', { error: (e as Error).message });
+      }
+
       return result;
     } catch (error) {
-      perfTimer.end(`tool-${toolCall.name}`);
+      const duration = perfTimer.end(`tool-${toolCall.name}`);
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error('Tool execution failed', { toolName: toolCall.name, error: err.message });
+
+      // Record failed tool execution in GEPA metrics
+      try {
+        getMetricsCollector().recordToolExecution(toolCall.name, duration, false);
+      } catch (e) {
+        logger.warn('Failed to record GEPA tool metrics', { error: (e as Error).message });
+      }
+
       return {
         success: false,
         error: err.message,
       };
     }
-  }
-
-  /**
-   * Check if TTS buffer should be flushed (sentence boundary)
-   */
-  private shouldFlushTTSBuffer(text: string): boolean {
-    if (text.length < this.config.ttsBufferSize) {
-      return false;
-    }
-
-    // Check for sentence endings
-    const sentenceEndings = /[.!?]\s*$/;
-    return sentenceEndings.test(text);
   }
 
   /**
@@ -1027,6 +1743,15 @@ export class VoicePipeline extends EventEmitter {
     this.ttsBuffer = '';
     this.metrics = {};
 
+    // Reset streaming optimization state
+    this.streamingMetrics = {};
+    this.sentenceDetector.reset();
+    this.speechEndTime = 0;
+    this.firstTokenTime = 0;
+    this.firstAudioTime = 0;
+    this.chunkLatencies = [];
+    this.sentenceChunkCount = 0;
+
     this.setState('listening');
     this.metrics.wakeToSttTime = 0;
   }
@@ -1048,7 +1773,185 @@ export class VoicePipeline extends EventEmitter {
 
     logger.info('Interaction complete', { metrics: this.metrics });
 
+    // Record interaction in GEPA for self-improvement tracking
+    this.recordGEPAInteraction(true);
+
+    // Clear dynamic voice settings after interaction
+    if (this.naturalVoice) {
+      this.naturalVoice.clearVoiceSettings();
+    }
+
+    // Silent learning: Let JARVIS Brain learn from this conversation
+    if (this.jarvisBrain && this.currentTranscript.trim() && this.currentResponse.trim()) {
+      this.jarvisBrain.learnFromConversation(this.currentTranscript, this.currentResponse)
+        .then(() => {
+          logger.debug('JARVIS Brain learned from conversation');
+        })
+        .catch((err) => {
+          logger.warn('JARVIS Brain learning failed', { error: (err as Error).message });
+        });
+    }
+
     this.setState('idle');
+  }
+
+  /**
+   * Detect user state/intent from message text for tool pre-warming
+   */
+  private detectUserState(text: string): string | undefined {
+    const lower = text.toLowerCase();
+    
+    // Check for debugging indicators
+    if (lower.includes('error') || lower.includes('bug') || lower.includes('debug') || 
+        lower.includes('not working') || lower.includes('broken')) {
+      return 'debugging';
+    }
+    
+    // Check for coding indicators
+    if (lower.includes('code') || lower.includes('function') || lower.includes('class') ||
+        lower.includes('implement') || lower.includes('refactor')) {
+      return 'coding';
+    }
+    
+    // Check for research indicators
+    if (lower.includes('research') || lower.includes('find out') || lower.includes('look up') ||
+        lower.includes('search for') || lower.includes('what is')) {
+      return 'researching';
+    }
+    
+    // Check for trading indicators
+    if (lower.includes('trade') || lower.includes('position') || lower.includes('profit') ||
+        lower.includes('portfolio') || lower.includes('market')) {
+      return 'trading';
+    }
+    
+    // Check for git workflow indicators
+    if (lower.includes('commit') || lower.includes('push') || lower.includes('pull') ||
+        lower.includes('branch') || lower.includes('merge')) {
+      return 'git_workflow';
+    }
+    
+    // Check for testing indicators
+    if (lower.includes('test') || lower.includes('run tests') || lower.includes('coverage')) {
+      return 'testing';
+    }
+    
+    return undefined;
+  }
+
+  /**
+   * Track a tool call for pre-warming predictions
+   */
+  private trackToolCall(toolName: string): void {
+    this.recentToolCalls.push(toolName);
+    if (this.recentToolCalls.length > this.maxRecentToolCalls) {
+      this.recentToolCalls.shift();
+    }
+    
+    // Also record in the prewarmer for learning
+    try {
+      const prewarmer = getToolPrewarmer();
+      prewarmer.recordToolCall(toolName, {
+        lastToolCalls: this.recentToolCalls,
+      });
+    } catch (_error) {
+      // Prewarmer not available
+    }
+  }
+
+  /**
+   * Record interaction metrics in GEPA for self-improvement analysis
+   */
+  private recordGEPAInteraction(success: boolean): void {
+    try {
+      // Only record if we have meaningful data
+      if (!this.currentTranscript.trim() && !this.currentResponse.trim()) {
+        return;
+      }
+
+      // Record the interaction for evaluation
+      recordInteraction({
+        userInput: this.currentTranscript,
+        assistantResponse: this.currentResponse,
+        latencyMs: this.metrics.totalTime,
+        success,
+      });
+
+      // Record component latencies in metrics collector
+      const metricsCollector = getMetricsCollector();
+
+      if (this.metrics.sttTime) {
+        metricsCollector.recordLatency('stt', this.metrics.sttTime);
+      }
+
+      if (this.metrics.llmFirstTokenTime) {
+        metricsCollector.recordLatency('llm', this.metrics.llmFirstTokenTime);
+      }
+
+      if (this.metrics.llmTotalTime) {
+        metricsCollector.recordLatency('llm_total', this.metrics.llmTotalTime);
+      }
+
+      if (this.metrics.ttsFirstAudioTime) {
+        metricsCollector.recordLatency('tts', this.metrics.ttsFirstAudioTime);
+      }
+
+      if (this.metrics.totalTime) {
+        metricsCollector.recordLatency('voice_pipeline', this.metrics.totalTime);
+      }
+
+      // Record streaming metrics if available
+      if (this.streamingMetrics.timeToFirstByte) {
+        metricsCollector.record('latency', this.streamingMetrics.timeToFirstByte, {
+          component: 'time_to_first_byte',
+        });
+      }
+
+      logger.debug('GEPA interaction recorded', {
+        transcriptLength: this.currentTranscript.length,
+        responseLength: this.currentResponse.length,
+        totalLatency: this.metrics.totalTime,
+      });
+    } catch (error) {
+      logger.warn('Failed to record GEPA interaction', { error: (error as Error).message });
+    }
+  }
+
+  /**
+   * Convert prosody emotion signal to EmotionState for TTS
+   */
+  private createEmotionStateFromProsody(prosody: ProsodyEmotionSignal): EmotionState {
+    // Map prosody emotion type to text-based emotion type
+    const typeMap: Record<string, string> = {
+      neutral: 'neutral',
+      happy: 'happy',
+      sad: 'sad',
+      angry: 'angry',
+      frustrated: 'frustrated',
+      excited: 'excited',
+      anxious: 'anxious',
+      confused: 'confused',
+      tired: 'tired',
+      bored: 'neutral',
+    };
+
+    return {
+      primary: {
+        type: (typeMap[prosody.type] || 'neutral') as EmotionState['primary']['type'],
+        intensity: prosody.intensity,
+        confidence: prosody.confidence,
+        source: 'voice',
+        indicators: prosody.indicators,
+      },
+      secondary: prosody.secondaryType ? {
+        type: (typeMap[prosody.secondaryType] || 'neutral') as EmotionState['primary']['type'],
+        intensity: 'subtle',
+        confidence: prosody.secondaryConfidence || 0.5,
+        source: 'voice',
+        indicators: [],
+      } : undefined,
+      timestamp: prosody.timestamp,
+    };
   }
 
   /**
@@ -1056,6 +1959,9 @@ export class VoicePipeline extends EventEmitter {
    */
   private resetInteraction(): void {
     logger.info('Resetting interaction');
+
+    // Record failed/abandoned interaction in GEPA
+    this.recordGEPAInteraction(false);
 
     if (this.tts) {
       this.tts.stop();
@@ -1067,6 +1973,17 @@ export class VoicePipeline extends EventEmitter {
 
     this.audioPipeline?.cancel();
     this.setState('idle');
+  }
+
+  /**
+   * Get current time of day for context-aware responses
+   */
+  private getTimeOfDay(): 'morning' | 'afternoon' | 'evening' | 'night' {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return 'morning';
+    if (hour >= 12 && hour < 17) return 'afternoon';
+    if (hour >= 17 && hour < 21) return 'evening';
+    return 'night';
   }
 
   /**
@@ -1108,15 +2025,48 @@ export class VoicePipeline extends EventEmitter {
    * ```
    */
   async sendText(text: string): Promise<void> {
-    if (!this.isRunning) {
-      throw new Error(
-        'Cannot send text: Voice pipeline is not running. Call start() before sending messages.'
-      );
+    // Allow text chat even if voice pipeline failed to fully start
+    // We only need LLM to be initialized, not the audio components
+    if (!this.llmManager) {
+      // Try to initialize LLM if not already done
+      try {
+        logger.info('Initializing LLM for text-only mode...');
+        this.llmManager = getLLMManager();
+        await this.llmManager.initialize();
+        
+        // Also initialize TTS if not done (for optional voice output)
+        if (!this.tts) {
+          const { getTTSManager } = await import('../tts/manager');
+          this.tts = getTTSManager();
+        }
+        
+        // Initialize emotion detector for empathetic responses
+        if (!this.emotionDetector) {
+          this.emotionDetector = getEmotionDetector();
+        }
+        
+        logger.info('Text-only mode initialized successfully');
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        logger.error('Failed to initialize text-only mode', { error: err.message });
+        throw new Error('Cannot send text: Failed to initialize LLM. ' + err.message);
+      }
     }
 
     this.startInteraction();
     this.setState('processing');
     this.currentTranscript = text;
+
+    // Detect user emotion from text input for empathetic responses
+    if (this.emotionDetector && text.trim()) {
+      this.currentUserEmotion = this.emotionDetector.detectEmotion(text);
+      logger.info('User emotion detected from text', {
+        emotion: this.currentUserEmotion.primary.type,
+        intensity: this.currentUserEmotion.primary.intensity,
+        confidence: this.currentUserEmotion.primary.confidence,
+      });
+      this.emit('emotion-detected', this.currentUserEmotion);
+    }
 
     this.emit('transcript-final', {
       text,
@@ -1125,6 +2075,59 @@ export class VoicePipeline extends EventEmitter {
     } as TranscriptionResult);
 
     await this.processWithLLM(text);
+  }
+
+  /**
+   * Speak a proactive message without user prompt (e.g., trading alerts).
+   * This bypasses LLM processing and goes directly to TTS.
+   *
+   * @param message - The message to speak
+   * @param options - Optional configuration
+   * @returns Promise that resolves when speech starts
+   *
+   * @example
+   * ```typescript
+   * await pipeline.speakProactive("I just closed my ETH position with a 5% gain");
+   * ```
+   */
+  async speakProactive(
+    message: string,
+    options?: { priority?: 'low' | 'normal' | 'high'; interruptCurrent?: boolean }
+  ): Promise<void> {
+    if (!this.tts) {
+      logger.warn('Cannot speak proactive message: TTS not initialized');
+      return;
+    }
+
+    const { interruptCurrent = false } = options ?? {};
+
+    // If currently speaking and shouldn't interrupt, queue it or skip
+    if (this.tts.isSpeaking() && !interruptCurrent) {
+      logger.debug('TTS busy, queueing proactive message', { message: message.substring(0, 50) });
+      // Queue via TTS manager's internal queue
+      await this.tts.speak(message);
+      return;
+    }
+
+    // Interrupt current speech if requested
+    if (interruptCurrent && this.tts.isSpeaking()) {
+      this.tts.stop();
+    }
+
+    logger.info('Speaking proactive message', { message: message.substring(0, 80) });
+    this.setState('speaking');
+    this.emit('proactive-speech', { message });
+
+    try {
+      await this.tts.speak(message);
+    } catch (error) {
+      logger.error('Failed to speak proactive message', { error });
+    } finally {
+      // Return to listening if pipeline is running
+      if (this.isRunning) {
+        this.setState('listening');
+      }
+    }
   }
 
   /**
@@ -1150,7 +2153,7 @@ export class VoicePipeline extends EventEmitter {
   async clearHistory(): Promise<void> {
     if (this.conversationContext) {
       this.conversationContext = createConversationContext(
-        NOVA_SYSTEM_PROMPT,
+        ATLAS_SYSTEM_PROMPT,
         this.config.userName
       );
     }
@@ -1187,6 +2190,22 @@ export class VoicePipeline extends EventEmitter {
    */
   getMetrics(): Partial<InteractionMetrics> {
     return { ...this.metrics };
+  }
+
+  /**
+   * Gets streaming latency metrics from the last interaction.
+   *
+   * @returns Streaming-specific metrics including time-to-first-byte and end-to-end latency
+   *
+   * @example
+   * ```typescript
+   * const streaming = pipeline.getStreamingMetrics();
+   * console.log(`Time to first audio: ${streaming.timeToFirstByte}ms`);
+   * console.log(`Target met (<500ms): ${streaming.targetMet}`);
+   * ```
+   */
+  getStreamingMetrics(): Partial<StreamingMetrics> {
+    return { ...this.streamingMetrics };
   }
 
   /**

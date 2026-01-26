@@ -1,11 +1,18 @@
 /**
- * Nova Desktop - Preference Learner
+ * Atlas Desktop - Preference Learner
  * Extracts and learns user preferences from conversations
+ *
+ * Enhanced with:
+ * - Integration with UserProfileManager
+ * - Time-based preference learning
+ * - Context-aware preference extraction
+ * - Improved confidence scoring
  */
 
 import { EventEmitter } from 'events';
 import { createModuleLogger } from '../utils/logger';
 import { getMemoryManager, MemoryManager } from './index';
+import { getUserProfileManager, UserProfileManager, CommunicationStyle } from './user-profile';
 
 const logger = createModuleLogger('PreferenceLearner');
 
@@ -285,6 +292,36 @@ const DEFAULT_CONFIG: PreferenceLearnerConfig = {
 };
 
 /**
+ * Context for learning
+ */
+export interface LearningContext {
+  /** Current topics being discussed */
+  topics?: string[];
+  /** Time of day (hour 0-23) */
+  timeOfDay?: number;
+  /** Day of week (0-6) */
+  dayOfWeek?: number;
+  /** Tools being used */
+  toolsUsed?: string[];
+  /** Sentiment of conversation */
+  sentiment?: number;
+  /** Session duration in minutes */
+  sessionDuration?: number;
+}
+
+/**
+ * Enhanced preference with context
+ */
+export interface EnhancedPreference extends LearnedPreference {
+  /** Contexts where this preference applies */
+  contexts: string[];
+  /** Time patterns when preference is expressed */
+  timePatterns: Array<{ hour: number; dayOfWeek: number }>;
+  /** Related preferences */
+  relatedPreferences: string[];
+}
+
+/**
  * Preference Learner
  * Extracts and manages user preferences from conversations
  */
@@ -292,6 +329,14 @@ export class PreferenceLearner extends EventEmitter {
   private config: PreferenceLearnerConfig;
   private preferences: Map<string, LearnedPreference> = new Map();
   private memoryManager: MemoryManager | null = null;
+  private profileManager: UserProfileManager | null = null;
+  private currentContext: LearningContext = {};
+  private interactionHistory: Array<{
+    text: string;
+    timestamp: number;
+    topics: string[];
+  }> = [];
+  private readonly MAX_HISTORY = 50;
 
   constructor(config?: Partial<PreferenceLearnerConfig>) {
     super();
@@ -300,16 +345,31 @@ export class PreferenceLearner extends EventEmitter {
   }
 
   /**
-   * Initialize with memory manager
+   * Initialize with memory manager and profile manager
    */
   async initialize(): Promise<void> {
     try {
       this.memoryManager = await getMemoryManager();
+      this.profileManager = await getUserProfileManager();
       await this.loadFromMemory();
-      logger.info('PreferenceLearner connected to MemoryManager');
+      logger.info('PreferenceLearner connected to MemoryManager and UserProfileManager');
     } catch (error) {
-      logger.error('Failed to connect to MemoryManager', { error: (error as Error).message });
+      logger.error('Failed to initialize PreferenceLearner', { error: (error as Error).message });
     }
+  }
+
+  /**
+   * Set current learning context
+   */
+  setContext(context: LearningContext): void {
+    this.currentContext = { ...this.currentContext, ...context };
+  }
+
+  /**
+   * Clear current context
+   */
+  clearContext(): void {
+    this.currentContext = {};
   }
 
   /**
@@ -381,7 +441,8 @@ export class PreferenceLearner extends EventEmitter {
         if (confidenceScore < this.config.minConfidenceScore) continue;
 
         // Check for duplicates
-        const existingKey = `${pattern.type}:${subject}`;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const _existingKey = `${pattern.type}:${subject}`;
         const existing = this.findSimilarPreference(pattern.type, subject);
 
         if (existing) {
@@ -648,10 +709,383 @@ export class PreferenceLearner extends EventEmitter {
     };
   }
 
+  // =========================================================================
+  // Enhanced Learning Methods (Integration with UserProfileManager)
+  // =========================================================================
+
+  /**
+   * Learn from a complete interaction (user message + assistant response)
+   * This is the main entry point for learning from conversations
+   */
+  learnFromInteraction(
+    userMessage: string,
+    assistantResponse: string,
+    context?: LearningContext
+  ): {
+    preferencesLearned: LearnedPreference[];
+    styleUpdates: Partial<CommunicationStyle>;
+    topicsDetected: string[];
+  } {
+    // Update context
+    if (context) {
+      this.setContext(context);
+    }
+
+    // Track interaction
+    const now = Date.now();
+    const topics = context?.topics || [];
+    this.interactionHistory.push({
+      text: userMessage,
+      timestamp: now,
+      topics,
+    });
+    if (this.interactionHistory.length > this.MAX_HISTORY) {
+      this.interactionHistory.shift();
+    }
+
+    // Extract preferences from user message
+    const preferencesLearned = this.extractPreferences(userMessage);
+
+    // Learn communication style
+    const styleUpdates = this.learnCommunicationStyle(userMessage);
+
+    // Update profile manager with interaction
+    if (this.profileManager) {
+      this.profileManager.recordInteraction(userMessage, assistantResponse, {
+        topics,
+        sentiment: context?.sentiment,
+        toolsUsed: context?.toolsUsed,
+        duration: context?.sessionDuration,
+      });
+
+      // Forward learned preferences to profile manager
+      for (const pref of preferencesLearned) {
+        this.profileManager.learnPreference(
+          pref.category || pref.type,
+          pref.subject,
+          pref.value,
+          pref.sourceText,
+          pref.confidenceScore
+        );
+      }
+    }
+
+    logger.debug('Learned from interaction', {
+      preferencesCount: preferencesLearned.length,
+      topicsCount: topics.length,
+      hasStyleUpdates: Object.keys(styleUpdates).length > 0,
+    });
+
+    return {
+      preferencesLearned,
+      styleUpdates,
+      topicsDetected: topics,
+    };
+  }
+
+  /**
+   * Learn communication style from user message
+   */
+  private learnCommunicationStyle(text: string): Partial<CommunicationStyle> {
+    const updates: Partial<CommunicationStyle> = {};
+    const lowerText = text.toLowerCase();
+
+    // Detect verbosity preference from message length
+    const wordCount = text.split(/\s+/).length;
+    if (wordCount < 10) {
+      updates.verbosity = 'brief';
+    } else if (wordCount > 50) {
+      updates.verbosity = 'detailed';
+    }
+
+    // Detect formality
+    const formalIndicators = [
+      'please',
+      'kindly',
+      'would you',
+      'could you',
+      'thank you',
+      'appreciate',
+    ];
+    const casualIndicators = ['hey', 'gonna', 'wanna', 'yeah', 'cool', 'awesome', 'lol', 'btw'];
+
+    const formalCount = formalIndicators.filter((w) => lowerText.includes(w)).length;
+    const casualCount = casualIndicators.filter((w) => lowerText.includes(w)).length;
+
+    if (formalCount > casualCount + 1) {
+      updates.formality = Math.min(1, 0.7);
+    } else if (casualCount > formalCount + 1) {
+      updates.formality = Math.max(0, 0.3);
+    }
+
+    // Detect technical depth preference
+    const technicalTerms = [
+      'api',
+      'code',
+      'function',
+      'variable',
+      'debug',
+      'config',
+      'terminal',
+      'database',
+      'server',
+      'deploy',
+      'compile',
+      'runtime',
+      'async',
+      'callback',
+      'endpoint',
+      'repository',
+      'commit',
+      'branch',
+      'merge',
+    ];
+    const technicalCount = technicalTerms.filter((t) => lowerText.includes(t)).length;
+    if (technicalCount >= 2) {
+      updates.technicalDepth = Math.min(1, 0.8);
+    }
+
+    // Detect emoji preference
+    const hasEmoji = /[\u{1F300}-\u{1F9FF}]/u.test(text);
+    if (hasEmoji) {
+      updates.likesEmoji = true;
+    }
+
+    // Detect format preference
+    if (lowerText.includes('list') || lowerText.includes('bullet')) {
+      updates.preferredFormat = 'bullet_points';
+    } else if (lowerText.includes('step by step') || lowerText.includes('structured')) {
+      updates.preferredFormat = 'structured';
+    }
+
+    // Extract preferred name patterns
+    const namePatterns = [/call me (\w+)/i, /my name is (\w+)/i, /i'm (\w+)/i, /i am (\w+)/i];
+
+    for (const pattern of namePatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const name = match[1];
+        // Avoid common false positives
+        const excludedWords = ['here', 'there', 'doing', 'going', 'looking', 'trying', 'wondering'];
+        if (!excludedWords.includes(name.toLowerCase())) {
+          updates.preferredName = name;
+          break;
+        }
+      }
+    }
+
+    // Update profile manager if we have updates
+    if (this.profileManager && Object.keys(updates).length > 0) {
+      this.profileManager.updateCommunicationStyle(updates);
+    }
+
+    return updates;
+  }
+
+  /**
+   * Get time-based preference suggestions
+   * Returns preferences that are commonly expressed at the current time
+   */
+  getTimeBasedSuggestions(): LearnedPreference[] {
+    const now = new Date();
+    const hour = now.getHours();
+    const dayOfWeek = now.getDay();
+
+    // Find interactions from similar times
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _similarTimeInteractions = this.interactionHistory.filter((interaction) => {
+      const interactionDate = new Date(interaction.timestamp);
+      const hourDiff = Math.abs(interactionDate.getHours() - hour);
+      const dayMatch = interactionDate.getDay() === dayOfWeek;
+      return hourDiff <= 2 && dayMatch;
+    });
+
+    // Find preferences that were learned during similar times
+    const relevantPrefs = Array.from(this.preferences.values()).filter((pref) => {
+      const learnedDate = new Date(pref.learnedAt);
+      const hourDiff = Math.abs(learnedDate.getHours() - hour);
+      return hourDiff <= 2;
+    });
+
+    return relevantPrefs.sort((a, b) => b.confidenceScore - a.confidenceScore).slice(0, 5);
+  }
+
+  /**
+   * Get context-aware preferences
+   * Returns preferences relevant to the current topics/context
+   */
+  getContextualPreferences(topics?: string[]): LearnedPreference[] {
+    const currentTopics = topics || this.currentContext.topics || [];
+    if (currentTopics.length === 0) {
+      return this.getHighConfidencePreferences();
+    }
+
+    const relevantPrefs: LearnedPreference[] = [];
+
+    for (const pref of this.preferences.values()) {
+      // Check if preference relates to current topics
+      const prefText = `${pref.subject} ${pref.value} ${pref.category || ''}`.toLowerCase();
+      const isRelevant = currentTopics.some(
+        (topic) =>
+          prefText.includes(topic.toLowerCase()) ||
+          topic.toLowerCase().includes(pref.subject.toLowerCase())
+      );
+
+      if (isRelevant) {
+        relevantPrefs.push(pref);
+      }
+    }
+
+    return relevantPrefs.sort((a, b) => b.confidenceScore - a.confidenceScore);
+  }
+
+  /**
+   * Build personalized context for LLM
+   * Combines preferences, style, and time-based suggestions
+   */
+  buildPersonalizedContext(): string {
+    const parts: string[] = [];
+
+    // Add communication style info from profile
+    if (this.profileManager) {
+      const style = this.profileManager.getCommunicationStyle();
+      const styleNotes: string[] = [];
+
+      if (style.preferredName) {
+        styleNotes.push(`User prefers to be called ${style.preferredName}`);
+      }
+
+      if (style.verbosity !== 'balanced') {
+        styleNotes.push(`User prefers ${style.verbosity} responses`);
+      }
+
+      if (style.formality > 0.7) {
+        styleNotes.push('User prefers formal communication');
+      } else if (style.formality < 0.3) {
+        styleNotes.push('User prefers casual communication');
+      }
+
+      if (style.technicalDepth > 0.7) {
+        styleNotes.push('User is technically inclined');
+      }
+
+      if (styleNotes.length > 0) {
+        parts.push(`[Style: ${styleNotes.join('. ')}]`);
+      }
+    }
+
+    // Add high confidence preferences
+    const preferenceSummary = this.getPreferenceSummary();
+    if (preferenceSummary) {
+      parts.push(`[Preferences: ${preferenceSummary}]`);
+    }
+
+    // Add time-based context
+    const timeSuggestions = this.getTimeBasedSuggestions();
+    if (timeSuggestions.length > 0) {
+      const timeContext = timeSuggestions
+        .slice(0, 3)
+        .map((p) => p.value)
+        .join(', ');
+      parts.push(`[Time context: ${timeContext}]`);
+    }
+
+    // Add contextual preferences
+    const contextPrefs = this.getContextualPreferences();
+    if (contextPrefs.length > 0 && contextPrefs.length <= 5) {
+      const contextNotes = contextPrefs.map((p) => p.value).join(', ');
+      parts.push(`[Relevant: ${contextNotes}]`);
+    }
+
+    return parts.join(' ');
+  }
+
+  /**
+   * Track command/tool usage
+   */
+  trackToolUsage(
+    toolName: string,
+    success: boolean,
+    executionTime?: number,
+    context?: string
+  ): void {
+    if (this.profileManager) {
+      this.profileManager.trackCommand(toolName, success, executionTime, context);
+    }
+  }
+
+  /**
+   * Get profile summary for display
+   */
+  getProfileSummary(): string | null {
+    if (!this.profileManager) return null;
+    return this.profileManager.getProfileSummary();
+  }
+
+  /**
+   * Get activity suggestion based on current time
+   */
+  getActivitySuggestion(): {
+    suggestedTopics: string[];
+    suggestedTools: string[];
+    typicalDuration: number;
+  } | null {
+    if (!this.profileManager) return null;
+    return this.profileManager.getActivitySuggestion();
+  }
+
+  /**
+   * Export all learned data for user review
+   */
+  exportLearnedData(): {
+    preferences: LearnedPreference[];
+    stats: ReturnType<PreferenceLearner['getStats']>;
+    profileSummary: string | null;
+  } {
+    return {
+      preferences: this.getAllPreferences(),
+      stats: this.getStats(),
+      profileSummary: this.getProfileSummary(),
+    };
+  }
+
+  /**
+   * User verification of preference
+   */
+  verifyPreference(preferenceId: string, isCorrect: boolean): boolean {
+    const pref = Array.from(this.preferences.values()).find((p) => p.id === preferenceId);
+    if (!pref) return false;
+
+    if (isCorrect) {
+      pref.confirmations++;
+      pref.confidenceScore = Math.min(1, pref.confidenceScore + 0.2);
+      pref.confidence =
+        pref.confidenceScore > 0.8 ? 'high' : pref.confidenceScore > 0.5 ? 'medium' : 'low';
+      this.emit('preference-confirmed', pref);
+    } else {
+      // User said it's wrong - remove it
+      for (const [key, p] of this.preferences) {
+        if (p.id === preferenceId) {
+          this.preferences.delete(key);
+          break;
+        }
+      }
+    }
+
+    // Also update profile manager
+    if (this.profileManager) {
+      this.profileManager.verifyPreference(preferenceId, isCorrect);
+    }
+
+    return true;
+  }
+
   /**
    * Shutdown the learner
    */
   shutdown(): void {
+    this.interactionHistory = [];
+    this.currentContext = {};
     this.removeAllListeners();
     logger.info('PreferenceLearner shutdown');
   }

@@ -1,0 +1,105 @@
+/**
+ * TerminalInput Styles - Hacker-aesthetic command input
+ */
+
+.terminal-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--atlas-bg-surface);
+  border: 1px solid var(--atlas-border-subtle);
+  border-radius: var(--atlas-radius-md);
+  font-family: var(--atlas-font-mono);
+  font-size: 14px;
+  position: relative;
+  transition: border-color var(--atlas-transition-fast), box-shadow var(--atlas-transition-fast);
+}
+
+.terminal-input:focus-within {
+  border-color: var(--atlas-accent-cyan);
+  box-shadow: 0 0 0 1px var(--atlas-accent-cyan), 0 0 20px rgba(0, 212, 255, 0.15);
+}
+
+.terminal-input.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.terminal-input__prefix {
+  color: var(--atlas-accent-cyan);
+  font-weight: bold;
+  user-select: none;
+  text-shadow: 0 0 10px var(--atlas-accent-cyan);
+}
+
+.terminal-input__field {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--atlas-text-primary);
+  font-family: inherit;
+  font-size: inherit;
+  caret-color: var(--atlas-accent-cyan);
+}
+
+.terminal-input__field::placeholder {
+  color: var(--atlas-text-muted);
+}
+
+.terminal-input__cursor {
+  display: none;
+}
+
+/* Blinking cursor when focused */
+.terminal-input:focus-within .terminal-input__cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background: var(--atlas-accent-cyan);
+  animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Suggestions dropdown */
+.terminal-input__suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--atlas-bg-elevated);
+  border: 1px solid var(--atlas-border-subtle);
+  border-radius: var(--atlas-radius-md);
+  overflow: hidden;
+  z-index: var(--atlas-z-dropdown);
+  box-shadow: var(--atlas-shadow-lg);
+}
+
+.terminal-input__suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background var(--atlas-transition-fast);
+}
+
+.terminal-input__suggestion:hover,
+.terminal-input__suggestion.selected {
+  background: var(--atlas-bg-hover);
+}
+
+.terminal-input__suggestion.selected {
+  border-left: 2px solid var(--atlas-accent-cyan);
+}
+
+.terminal-input__suggestion-prefix {
+  color: var(--atlas-text-muted);
+  font-size: 12px;
+}

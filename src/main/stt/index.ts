@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - STT Module Index
+ * Atlas Desktop - STT Module Index
  * Speech-to-Text exports
  */
 

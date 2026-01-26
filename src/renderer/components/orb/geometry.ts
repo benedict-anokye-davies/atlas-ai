@@ -340,20 +340,22 @@ export const DEFAULT_LAYERS: LayerConfig[] = [
  * State colors for the AI Core
  */
 export const STATE_COLORS = {
-  idle: { r: 0.0, g: 0.83, b: 1.0 }, // Cyan #00D4FF
-  listening: { r: 0.0, g: 1.0, b: 0.53 }, // Green #00FF88
-  thinking: { r: 0.67, g: 0.33, b: 1.0 }, // Purple #AA55FF
-  speaking: { r: 1.0, g: 0.84, b: 0.0 }, // Gold #FFD700
-  error: { r: 1.0, g: 0.2, b: 0.2 }, // Red #FF3333
+  idle: { r: 1.0, g: 0.65, b: 0.0 }, // Orange #FFA500 (Jarvis Core)
+  listening: { r: 0.0, g: 0.83, b: 1.0 }, // Cyan #00D4FF (Active Input)
+  thinking: { r: 1.0, g: 0.27, b: 0.0 }, // Red-Orange #FF4500 (Processing)
+  speaking: { r: 1.0, g: 0.9, b: 0.4 }, // Bright Gold/White (Output)
+  error: { r: 1.0, g: 0.0, b: 0.0 }, // Red #FF0000
 };
+
+export type AtlasState = keyof typeof STATE_COLORS;
 
 /**
  * State animation parameters
  */
 export const STATE_PARAMS = {
-  idle: { speedMultiplier: 0.3, glowIntensity: 0.8, turbulence: 0.0 },
-  listening: { speedMultiplier: 1.0, glowIntensity: 1.0, turbulence: 0.1 },
-  thinking: { speedMultiplier: 2.5, glowIntensity: 1.5, turbulence: 0.3 },
-  speaking: { speedMultiplier: 1.2, glowIntensity: 1.2, turbulence: 0.05 },
-  error: { speedMultiplier: 0.5, glowIntensity: 2.0, turbulence: 0.6 },
+  idle: { speedMultiplier: 0.2, glowIntensity: 1.2, turbulence: 0.05 },
+  listening: { speedMultiplier: 0.8, glowIntensity: 1.5, turbulence: 0.2 },
+  thinking: { speedMultiplier: 2.0, glowIntensity: 1.8, turbulence: 0.5 },
+  speaking: { speedMultiplier: 1.0, glowIntensity: 1.6, turbulence: 0.1 },
+  error: { speedMultiplier: 0.5, glowIntensity: 2.0, turbulence: 0.8 },
 };

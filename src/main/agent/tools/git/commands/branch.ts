@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Git Branch Commands
+ * Atlas Desktop - Git Branch Commands
  * Implements: branch, checkout, merge, diff, log
  */
 

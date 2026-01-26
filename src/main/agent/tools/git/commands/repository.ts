@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Git Repository Commands
+ * Atlas Desktop - Git Repository Commands
  * Implements: tag, remote, fetch, clone, init
  */
 

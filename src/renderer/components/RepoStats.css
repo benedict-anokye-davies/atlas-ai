@@ -1,0 +1,701 @@
+/**
+ * Atlas Desktop - Repository Statistics Styles
+ */
+
+/* ============================================================================
+ * Overlay & Panel
+ * ========================================================================== */
+
+.repo-stats-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.repo-stats-panel {
+  width: 90vw;
+  max-width: 1100px;
+  height: 85vh;
+  background: #1f2937;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #374151;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================================================
+ * Header
+ * ========================================================================== */
+
+.repo-stats-header {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #374151;
+  gap: 16px;
+}
+
+.repo-stats-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #f9fafb;
+  flex-shrink: 0;
+}
+
+.repo-stats-header .header-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.repo-stats-header .generated-at {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.repo-stats-header .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.repo-stats-header .export-btn,
+.repo-stats-header .refresh-btn,
+.repo-stats-header .close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid #4b5563;
+  border-radius: 6px;
+  color: #d1d5db;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.repo-stats-header .export-btn:hover,
+.repo-stats-header .refresh-btn:hover,
+.repo-stats-header .close-btn:hover {
+  background: #374151;
+  color: #f9fafb;
+}
+
+.repo-stats-header .export-btn:disabled,
+.repo-stats-header .refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.repo-stats-header .refresh-btn,
+.repo-stats-header .close-btn {
+  padding: 8px;
+}
+
+.repo-stats-header .refresh-btn svg.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================================
+ * Tabs
+ * ========================================================================== */
+
+.repo-stats-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #374151;
+  background: #111827;
+}
+
+.repo-stats-tabs .tab-btn {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #9ca3af;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.repo-stats-tabs .tab-btn:hover {
+  background: #1f2937;
+  color: #d1d5db;
+}
+
+.repo-stats-tabs .tab-btn.active {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+/* ============================================================================
+ * Content Area
+ * ========================================================================== */
+
+.repo-stats-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* Loading state */
+.repo-stats-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: #9ca3af;
+}
+
+.repo-stats-loading .loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #374151;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.repo-stats-loading .loading-hint {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Error state */
+.repo-stats-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: #ef4444;
+  text-align: center;
+}
+
+.repo-stats-error svg {
+  opacity: 0.7;
+}
+
+.repo-stats-error span {
+  max-width: 400px;
+}
+
+.repo-stats-error button {
+  padding: 8px 16px;
+  background: #374151;
+  border: none;
+  border-radius: 6px;
+  color: #d1d5db;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.repo-stats-error button:hover {
+  background: #4b5563;
+}
+
+/* ============================================================================
+ * Overview Tab
+ * ========================================================================== */
+
+.repo-stats-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.metric-card .metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #f9fafb;
+  margin-bottom: 4px;
+}
+
+.metric-card .metric-label {
+  font-size: 12px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.overview-section {
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.overview-section h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f9fafb;
+}
+
+.activity-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.activity-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #374151;
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-item .label {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.activity-item .value {
+  color: #f9fafb;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.activity-item .value.positive {
+  color: #10b981;
+}
+
+.activity-item .value.negative {
+  color: #ef4444;
+}
+
+/* Languages */
+.language-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.language-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.language-bar-container {
+  height: 6px;
+  background: #374151;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.language-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.language-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.language-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.language-name {
+  color: #f9fafb;
+  font-weight: 500;
+}
+
+.language-percentage {
+  color: #9ca3af;
+}
+
+.language-files {
+  color: #6b7280;
+  margin-left: auto;
+}
+
+/* Hotspot list compact */
+.hotspot-list.compact .hotspot-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #374151;
+}
+
+.hotspot-list.compact .hotspot-item:last-child {
+  border-bottom: none;
+}
+
+.hotspot-list.compact .hotspot-path {
+  color: #d1d5db;
+  font-size: 13px;
+  font-family: 'SF Mono', Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+}
+
+.hotspot-list.compact .hotspot-churn {
+  color: #f59e0b;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ============================================================================
+ * Commits Tab
+ * ========================================================================== */
+
+.repo-stats-commits {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.commits-summary {
+  display: flex;
+  gap: 24px;
+  padding: 16px;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+}
+
+.commits-summary .summary-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.commits-summary .summary-stat .value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #f9fafb;
+}
+
+.commits-summary .summary-stat .label {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.chart-container {
+  position: relative;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.commits-chart {
+  display: block;
+  cursor: crosshair;
+}
+
+.chart-tooltip {
+  position: absolute;
+  background: #374151;
+  border: 1px solid #4b5563;
+  border-radius: 6px;
+  padding: 8px 12px;
+  pointer-events: none;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.chart-tooltip .tooltip-date {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-bottom: 2px;
+}
+
+.chart-tooltip .tooltip-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f9fafb;
+}
+
+/* ============================================================================
+ * Contributors Tab
+ * ========================================================================== */
+
+.repo-stats-contributors {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.contributors-controls,
+.hotspots-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sort-label {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.sort-select {
+  padding: 6px 12px;
+  background: #374151;
+  border: 1px solid #4b5563;
+  border-radius: 6px;
+  color: #f9fafb;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.contributors-list,
+.hotspots-list,
+.branches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.contributor-item,
+.hotspot-item,
+.branch-item {
+  display: grid;
+  grid-template-columns: 40px 1fr 2fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+}
+
+.contributor-rank,
+.hotspot-rank,
+.branch-rank {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.contributor-info,
+.hotspot-info,
+.branch-info {
+  min-width: 0;
+}
+
+.contributor-name,
+.branch-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #f9fafb;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contributor-email,
+.hotspot-authors,
+.branch-contributors {
+  font-size: 12px;
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hotspot-path {
+  font-size: 13px;
+  color: #f9fafb;
+  font-family: 'SF Mono', Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contributor-stats,
+.hotspot-stats,
+.branch-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-bar-container {
+  height: 6px;
+  background: #374151;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.stat-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.stat-details {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.stat-details .commits,
+.stat-details .changes {
+  color: #d1d5db;
+}
+
+.stat-details .additions,
+.stat-details .ahead {
+  color: #10b981;
+}
+
+.stat-details .deletions,
+.stat-details .behind {
+  color: #ef4444;
+}
+
+.stat-details .percentage,
+.stat-details .churn {
+  color: #f59e0b;
+}
+
+.contributor-activity,
+.hotspot-modified,
+.branch-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: #6b7280;
+  text-align: right;
+}
+
+/* ============================================================================
+ * Branches Tab
+ * ========================================================================== */
+
+.branch-item.current {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #1f2937 0%, #172554 100%);
+}
+
+.current-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: #3b82f6;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #ffffff;
+  text-transform: uppercase;
+}
+
+/* ============================================================================
+ * Responsive
+ * ========================================================================== */
+
+@media (max-width: 768px) {
+  .repo-stats-panel {
+    width: 95vw;
+    height: 90vh;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .activity-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .contributor-item,
+  .hotspot-item,
+  .branch-item {
+    grid-template-columns: 30px 1fr;
+    grid-template-rows: auto auto auto;
+  }
+
+  .contributor-stats,
+  .hotspot-stats,
+  .branch-stats {
+    grid-column: 1 / -1;
+  }
+
+  .contributor-activity,
+  .hotspot-modified,
+  .branch-activity {
+    grid-column: 1 / -1;
+    text-align: left;
+    flex-direction: row;
+    gap: 12px;
+  }
+}
+
+/* ============================================================================
+ * Scrollbar
+ * ========================================================================== */
+
+.repo-stats-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.repo-stats-content::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+.repo-stats-content::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+.repo-stats-content::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}

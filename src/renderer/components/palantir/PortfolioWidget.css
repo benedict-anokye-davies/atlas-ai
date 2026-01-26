@@ -1,0 +1,194 @@
+/**
+ * Atlas Desktop - Portfolio Widget Styles
+ */
+
+.portfolio-widget {
+  display: flex;
+  flex-direction: column;
+  background: var(--atlas-bg-elevated);
+  border: 1px solid var(--atlas-border-subtle);
+  border-radius: var(--atlas-radius-lg);
+  overflow: hidden;
+}
+
+/* Header */
+.portfolio-widget__header {
+  padding: var(--atlas-space-3) var(--atlas-space-4);
+  border-bottom: 1px solid var(--atlas-border-subtle);
+}
+
+.portfolio-widget__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.portfolio-widget__title {
+  font-size: var(--atlas-text-md);
+  font-weight: var(--atlas-weight-semibold);
+  color: var(--atlas-text-primary);
+  margin: 0;
+}
+
+.portfolio-widget__daily-pnl {
+  font-size: var(--atlas-text-md);
+  font-weight: var(--atlas-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolio-widget__daily-pnl.positive {
+  color: var(--atlas-accent-green);
+}
+
+.portfolio-widget__daily-pnl.negative {
+  color: var(--atlas-accent-red);
+}
+
+/* Summary */
+.portfolio-widget__summary {
+  display: flex;
+  gap: var(--atlas-space-6);
+  padding: var(--atlas-space-4);
+  background: var(--atlas-bg-surface);
+}
+
+.portfolio-widget__total,
+.portfolio-widget__change {
+  display: flex;
+  flex-direction: column;
+  gap: var(--atlas-space-1);
+}
+
+.portfolio-widget__total-label,
+.portfolio-widget__change-label {
+  font-size: var(--atlas-text-xs);
+  font-weight: var(--atlas-weight-medium);
+  color: var(--atlas-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.portfolio-widget__total-value {
+  font-size: var(--atlas-text-2xl);
+  font-weight: var(--atlas-weight-bold);
+  color: var(--atlas-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolio-widget__change-value {
+  font-size: var(--atlas-text-lg);
+  font-weight: var(--atlas-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolio-widget__change-value.positive {
+  color: var(--atlas-accent-green);
+}
+
+.portfolio-widget__change-value.negative {
+  color: var(--atlas-accent-red);
+}
+
+/* Positions Table */
+.portfolio-widget__positions {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 250px;
+}
+
+.portfolio-widget__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--atlas-text-sm);
+}
+
+.portfolio-widget__table thead {
+  position: sticky;
+  top: 0;
+  background: var(--atlas-bg-elevated);
+}
+
+.portfolio-widget__table th {
+  padding: var(--atlas-space-2) var(--atlas-space-3);
+  font-size: var(--atlas-text-xs);
+  font-weight: var(--atlas-weight-semibold);
+  color: var(--atlas-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+  border-bottom: 1px solid var(--atlas-border-subtle);
+}
+
+.portfolio-widget__table td {
+  padding: var(--atlas-space-2) var(--atlas-space-3);
+  border-bottom: 1px solid var(--atlas-border-subtle);
+  color: var(--atlas-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolio-widget__position {
+  cursor: pointer;
+  transition: background var(--atlas-transition-fast);
+}
+
+.portfolio-widget__position:hover {
+  background: var(--atlas-bg-hover);
+}
+
+.portfolio-widget__symbol {
+  font-weight: var(--atlas-weight-medium);
+}
+
+.portfolio-widget__side {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: var(--atlas-text-xs);
+  font-weight: var(--atlas-weight-medium);
+  border-radius: var(--atlas-radius-sm);
+  text-transform: uppercase;
+}
+
+.portfolio-widget__side--long {
+  background: var(--atlas-accent-green-dim);
+  color: var(--atlas-accent-green);
+}
+
+.portfolio-widget__side--short {
+  background: var(--atlas-accent-red-dim);
+  color: var(--atlas-accent-red);
+}
+
+.text-right {
+  text-align: right;
+}
+
+.positive {
+  color: var(--atlas-accent-green);
+}
+
+.negative {
+  color: var(--atlas-accent-red);
+}
+
+/* Footer */
+.portfolio-widget__footer {
+  padding: var(--atlas-space-2) var(--atlas-space-4);
+  border-top: 1px solid var(--atlas-border-subtle);
+}
+
+.portfolio-widget__view-all {
+  width: 100%;
+  padding: var(--atlas-space-2);
+  background: transparent;
+  border: none;
+  color: var(--atlas-accent-cyan);
+  font-size: var(--atlas-text-sm);
+  font-weight: var(--atlas-weight-medium);
+  cursor: pointer;
+  transition: color var(--atlas-transition-fast);
+  text-align: center;
+}
+
+.portfolio-widget__view-all:hover {
+  color: var(--atlas-text-primary);
+}

@@ -113,7 +113,7 @@ describe('Integration: Tool Categories', () => {
     expect(toolsIndex.getToolsByCategory).toBeDefined();
     expect(toolsIndex.getToolByName).toBeDefined();
     expect(toolsIndex.toolCategories).toBeDefined();
-  });
+  }, 10000); // 10 second timeout for dynamic import
 
   it('should have all expected tool categories', async () => {
     const { toolCategories } = await import('../src/main/agent/tools/index');

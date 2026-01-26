@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Input Validator
+ * Atlas Desktop - Input Validator
  * Security validation and sanitization for user inputs
  *
  * Features:
@@ -354,6 +354,7 @@ export class InputValidator {
     const threats: DetectedThreat[] = [];
 
     // Control characters (except common whitespace)
+    // eslint-disable-next-line no-control-regex
     const controlCharPattern = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
     const controlMatches = input.matchAll(controlCharPattern);
 

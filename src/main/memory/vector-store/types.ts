@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Vector Store Types
+ * Atlas Desktop - Vector Store Types
  * Type definitions for the vector storage system
  */
 

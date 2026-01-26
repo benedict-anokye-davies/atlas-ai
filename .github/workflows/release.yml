@@ -1,0 +1,465 @@
+# Atlas Desktop - Release Workflow
+#
+# Triggers on:
+# - Manual workflow dispatch with version input
+# - Push of version tags (v*)
+#
+# Builds for Windows, macOS, and Linux with code signing integration.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.2.3 or major/minor/patch)'
+        required: true
+        default: 'patch'
+      prerelease:
+        description: 'Prerelease identifier (e.g., beta, rc.1)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run (no actual release)'
+        required: false
+        type: boolean
+        default: false
+
+  push:
+    tags:
+      - 'v*'
+
+# Ensure only one release runs at a time
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20'
+  ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: 'true'
+
+jobs:
+  # ==========================================================================
+  # Validation Job - Runs quality checks before release
+  # ==========================================================================
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      should_release: ${{ steps.version.outputs.should_release }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run type check
+        run: npm run typecheck
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Extract version from tag
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            # Manual workflow dispatch
+            VERSION="${{ github.event.inputs.version }}"
+            if [[ "$VERSION" =~ ^(major|minor|patch)$ ]]; then
+              # Get current version and bump it
+              CURRENT=$(node -p "require('./package.json').version")
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+              case "$VERSION" in
+                major) VERSION="$((MAJOR + 1)).0.0" ;;
+                minor) VERSION="$MAJOR.$((MINOR + 1)).0" ;;
+                patch) VERSION="$MAJOR.$MINOR.$((PATCH + 1))" ;;
+              esac
+            fi
+            PRERELEASE="${{ github.event.inputs.prerelease }}"
+            if [[ -n "$PRERELEASE" ]]; then
+              VERSION="${VERSION}-${PRERELEASE}"
+            fi
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+          echo "Resolved version: $VERSION"
+
+  # ==========================================================================
+  # Build Jobs - Parallel builds for each platform
+  # ==========================================================================
+  build-windows:
+    name: Build Windows
+    needs: validate
+    if: needs.validate.outputs.should_release == 'true'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update version
+        run: npm version ${{ needs.validate.outputs.version }} --no-git-tag-version
+
+      - name: Build application
+        run: npm run build && npx electron-builder --config electron-builder.yml --win --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code signing for Windows
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: |
+            release/*.exe
+            release/*.exe.blockmap
+            release/latest.yml
+          if-no-files-found: error
+          retention-days: 7
+
+  build-macos:
+    name: Build macOS
+    needs: validate
+    if: needs.validate.outputs.should_release == 'true'
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update version
+        run: npm version ${{ needs.validate.outputs.version }} --no-git-tag-version
+
+      # Setup code signing for macOS
+      - name: Setup macOS code signing
+        if: env.APPLE_ID != ''
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+        run: |
+          # Create keychain for signing
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Add to search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+
+      - name: Build application
+        run: npm run build && npx electron-builder --config electron-builder.yml --mac --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS code signing
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: |
+            release/*.dmg
+            release/*.dmg.blockmap
+            release/*.zip
+            release/latest-mac.yml
+          if-no-files-found: error
+          retention-days: 7
+
+  build-linux:
+    name: Build Linux
+    needs: validate
+    if: needs.validate.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update version
+        run: npm version ${{ needs.validate.outputs.version }} --no-git-tag-version
+
+      - name: Build application
+        run: npm run build && npx electron-builder --config electron-builder.yml --linux --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+            release/latest-linux.yml
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ==========================================================================
+  # Release Job - Creates GitHub release and publishes artifacts
+  # ==========================================================================
+  release:
+    name: Create Release
+    needs: [validate, build-windows, build-macos, build-linux]
+    if: needs.validate.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: List artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find release-artifacts -type f -name "*" | head -50
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+
+          # Generate changelog from conventional commits
+          echo "## What's Changed" > changelog.md
+          echo "" >> changelog.md
+
+          # Features
+          FEATURES=$(git log $RANGE --pretty=format:"* %s (%h)" --grep="^feat" 2>/dev/null || true)
+          if [ -n "$FEATURES" ]; then
+            echo "### Features" >> changelog.md
+            echo "$FEATURES" >> changelog.md
+            echo "" >> changelog.md
+          fi
+
+          # Bug Fixes
+          FIXES=$(git log $RANGE --pretty=format:"* %s (%h)" --grep="^fix" 2>/dev/null || true)
+          if [ -n "$FIXES" ]; then
+            echo "### Bug Fixes" >> changelog.md
+            echo "$FIXES" >> changelog.md
+            echo "" >> changelog.md
+          fi
+
+          # Performance
+          PERF=$(git log $RANGE --pretty=format:"* %s (%h)" --grep="^perf" 2>/dev/null || true)
+          if [ -n "$PERF" ]; then
+            echo "### Performance" >> changelog.md
+            echo "$PERF" >> changelog.md
+            echo "" >> changelog.md
+          fi
+
+          # Other changes
+          OTHER=$(git log $RANGE --pretty=format:"* %s (%h)" --grep="^refactor\|^docs\|^test\|^chore\|^build\|^ci" 2>/dev/null | head -10 || true)
+          if [ -n "$OTHER" ]; then
+            echo "### Other Changes" >> changelog.md
+            echo "$OTHER" >> changelog.md
+            echo "" >> changelog.md
+          fi
+
+          echo "---" >> changelog.md
+          echo "" >> changelog.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG:-initial}...v${{ needs.validate.outputs.version }}" >> changelog.md
+
+          cat changelog.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.validate.outputs.version }}
+          name: Atlas Desktop v${{ needs.validate.outputs.version }}
+          body_path: changelog.md
+          draft: false
+          prerelease: ${{ contains(needs.validate.outputs.version, '-') }}
+          files: |
+            release-artifacts/release-windows/*.exe
+            release-artifacts/release-macos/*.dmg
+            release-artifacts/release-macos/*.zip
+            release-artifacts/release-linux/*.AppImage
+            release-artifacts/release-linux/*.deb
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update CHANGELOG.md
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          DATE=$(date +%Y-%m-%d)
+
+          # Read existing changelog
+          if [ -f CHANGELOG.md ]; then
+            EXISTING=$(cat CHANGELOG.md)
+          else
+            EXISTING="# Changelog\n\nAll notable changes to Atlas Desktop will be documented in this file.\n"
+          fi
+
+          # Create new entry
+          NEW_ENTRY=$(cat changelog.md | sed "s/## What's Changed/## [$VERSION] - $DATE/")
+
+          # Combine and save
+          echo -e "# Changelog\n\nAll notable changes to Atlas Desktop will be documented in this file.\n\n$NEW_ENTRY\n" > CHANGELOG.md
+          echo "$EXISTING" | tail -n +4 >> CHANGELOG.md
+
+          # Commit changelog update
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add CHANGELOG.md
+          git commit -m "docs: update changelog for v$VERSION" || echo "No changelog changes to commit"
+          git push || echo "Nothing to push"
+
+  # ==========================================================================
+  # Notification Job - Sends release notifications
+  # ==========================================================================
+  notify:
+    name: Send Notifications
+    needs: [validate, release]
+    if: always() && needs.validate.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify on success
+        if: needs.release.result == 'success'
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          echo "Release v$VERSION completed successfully!"
+
+          # Discord webhook notification (if configured)
+          if [ -n "${{ secrets.DISCORD_WEBHOOK_URL }}" ]; then
+            curl -H "Content-Type: application/json" \
+              -d "{\"content\": \"Atlas Desktop v$VERSION has been released! Download: https://github.com/${{ github.repository }}/releases/tag/v$VERSION\"}" \
+              "${{ secrets.DISCORD_WEBHOOK_URL }}" || true
+          fi
+
+          # Slack webhook notification (if configured)
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -H "Content-Type: application/json" \
+              -d "{\"text\": \"Atlas Desktop v$VERSION has been released! Download: https://github.com/${{ github.repository }}/releases/tag/v$VERSION\"}" \
+              "${{ secrets.SLACK_WEBHOOK_URL }}" || true
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          echo "Release v$VERSION failed!"
+
+          # Discord webhook notification (if configured)
+          if [ -n "${{ secrets.DISCORD_WEBHOOK_URL }}" ]; then
+            curl -H "Content-Type: application/json" \
+              -d "{\"content\": \"Atlas Desktop v$VERSION release failed! Check: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+              "${{ secrets.DISCORD_WEBHOOK_URL }}" || true
+          fi
+
+  # ==========================================================================
+  # Cleanup Job - Cleans up old artifacts and prereleases
+  # ==========================================================================
+  cleanup:
+    name: Cleanup
+    needs: [release]
+    if: success()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Delete old prereleases
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          keep_latest: 5
+          delete_prerelease_only: true
+          delete_tag_pattern: ".*-(alpha|beta|rc).*"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete old workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 30
+          keep_minimum_runs: 10

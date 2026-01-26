@@ -1,11 +1,11 @@
 /**
- * Nova Desktop - Importance Scorer
+ * Atlas Desktop - Importance Scorer
  * Scores memories by importance for retention and consolidation
  */
 
 import { EventEmitter } from 'events';
 import { createModuleLogger } from '../utils/logger';
-import { MemoryEntry, MemoryType } from './index';
+import { MemoryEntry } from './index';
 
 const logger = createModuleLogger('ImportanceScorer');
 

@@ -1,13 +1,15 @@
 /**
- * Nova Desktop - Error Handling Utilities
+ * Atlas Desktop - Error Handling Utilities
  * Global error handler, retry utilities, circuit breaker, and recovery
  */
 
 import { app, dialog, BrowserWindow } from 'electron';
 import { createModuleLogger } from './logger';
-import { existsSync, writeFileSync, readFileSync, mkdirSync } from 'fs';
+import { existsSync } from 'fs';
+import { writeFile, readFile, mkdir } from 'fs/promises';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
+import { sleep } from '../../shared/utils';
 
 const errorLogger = createModuleLogger('Error');
 
@@ -15,7 +17,7 @@ const errorLogger = createModuleLogger('Error');
 // Custom Error Types
 // ============================================================================
 
-export class NovaError extends Error {
+export class AtlasError extends Error {
   constructor(
     message: string,
     public code: string,
@@ -23,12 +25,12 @@ export class NovaError extends Error {
     public context?: Record<string, unknown>
   ) {
     super(message);
-    this.name = 'NovaError';
-    Error.captureStackTrace(this, NovaError);
+    this.name = 'AtlasError';
+    Error.captureStackTrace(this, AtlasError);
   }
 }
 
-export class APIError extends NovaError {
+export class APIError extends AtlasError {
   constructor(
     message: string,
     public service: string,
@@ -40,14 +42,14 @@ export class APIError extends NovaError {
   }
 }
 
-export class AudioError extends NovaError {
+export class AudioError extends AtlasError {
   constructor(message: string, context?: Record<string, unknown>) {
     super(message, 'AUDIO_ERROR', true, context);
     this.name = 'AudioError';
   }
 }
 
-export class ConfigError extends NovaError {
+export class ConfigError extends AtlasError {
   constructor(message: string, context?: Record<string, unknown>) {
     super(message, 'CONFIG_ERROR', false, context);
     this.name = 'ConfigError';
@@ -66,6 +68,9 @@ interface GlobalErrorHandlerOptions {
 
 let globalErrorHandlerInstalled = false;
 let globalOptions: GlobalErrorHandlerOptions = {};
+let lastErrorDialogTime = 0;
+const ERROR_DIALOG_COOLDOWN_MS = 5000; // Only show one error dialog per 5 seconds
+const isDev = process.env.NODE_ENV === 'development';
 
 /**
  * Install global error handlers for the main process
@@ -77,8 +82,8 @@ export function installGlobalErrorHandler(options: GlobalErrorHandlerOptions = {
   }
 
   globalOptions = {
-    exitOnCritical: true,
-    showDialog: true,
+    exitOnCritical: !isDev, // Don't exit in dev mode
+    showDialog: !isDev, // Don't spam dialogs in dev mode
     ...options,
   };
 
@@ -138,15 +143,20 @@ async function handleCriticalError(error: Error): Promise<void> {
     }
   }
 
-  // Show error dialog
-  if (globalOptions.showDialog) {
+  // Show error dialog with rate limiting to prevent spam
+  const now = Date.now();
+  if (globalOptions.showDialog && (now - lastErrorDialogTime) > ERROR_DIALOG_COOLDOWN_MS) {
+    lastErrorDialogTime = now;
     dialog.showErrorBox(
-      'Nova Error',
+      'Atlas Error',
       `An unexpected error occurred:\n\n${error.message}\n\nThe application may need to restart.`
     );
+  } else if (isDev) {
+    // In dev mode, just log to console instead of showing dialogs
+    errorLogger.error('Critical error (dialog suppressed in dev mode)', { message: error.message });
   }
 
-  // Exit if critical
+  // Exit if critical (disabled in dev mode by default)
   if (globalOptions.exitOnCritical) {
     errorLogger.error('Exiting due to critical error');
     app.exit(1);
@@ -283,7 +293,7 @@ export class CircuitBreaker {
       if (Date.now() - this.lastFailureTime >= this.options.timeout) {
         this.transitionTo(CircuitState.HALF_OPEN);
       } else {
-        throw new NovaError(`Circuit breaker '${this.name}' is OPEN`, 'CIRCUIT_OPEN', true, {
+        throw new AtlasError(`Circuit breaker '${this.name}' is OPEN`, 'CIRCUIT_OPEN', true, {
           name: this.name,
           state: this.state,
         });
@@ -406,7 +416,7 @@ export class CircuitBreaker {
 // Crash Recovery
 // ============================================================================
 
-const STATE_FILE = join(homedir(), '.nova', 'state', 'recovery.json');
+const STATE_FILE = join(homedir(), '.atlas', 'state', 'recovery.json');
 
 export interface RecoveryState {
   timestamp: number;
@@ -419,11 +429,11 @@ export interface RecoveryState {
 /**
  * Save application state for crash recovery
  */
-export function saveRecoveryState(state: Partial<RecoveryState>): void {
+export async function saveRecoveryState(state: Partial<RecoveryState>): Promise<void> {
   try {
     const dir = dirname(STATE_FILE);
     if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
+      await mkdir(dir, { recursive: true });
     }
 
     const fullState: RecoveryState = {
@@ -431,7 +441,7 @@ export function saveRecoveryState(state: Partial<RecoveryState>): void {
       ...state,
     };
 
-    writeFileSync(STATE_FILE, JSON.stringify(fullState, null, 2));
+    await writeFile(STATE_FILE, JSON.stringify(fullState, null, 2));
     errorLogger.debug('Recovery state saved', { timestamp: fullState.timestamp });
   } catch (error) {
     errorLogger.error('Failed to save recovery state', {
@@ -443,13 +453,13 @@ export function saveRecoveryState(state: Partial<RecoveryState>): void {
 /**
  * Load recovery state from previous session
  */
-export function loadRecoveryState(): RecoveryState | null {
+export async function loadRecoveryState(): Promise<RecoveryState | null> {
   try {
     if (!existsSync(STATE_FILE)) {
       return null;
     }
 
-    const data = readFileSync(STATE_FILE, 'utf-8');
+    const data = await readFile(STATE_FILE, 'utf-8');
     const state: RecoveryState = JSON.parse(data);
 
     // Check if state is too old (more than 1 hour)
@@ -476,10 +486,10 @@ export function loadRecoveryState(): RecoveryState | null {
 /**
  * Clear recovery state
  */
-export function clearRecoveryState(): void {
+export async function clearRecoveryState(): Promise<void> {
   try {
     if (existsSync(STATE_FILE)) {
-      writeFileSync(STATE_FILE, JSON.stringify({ timestamp: 0 }));
+      await writeFile(STATE_FILE, JSON.stringify({ timestamp: 0 }));
     }
   } catch (error) {
     // Log but don't throw - clearing state is best-effort
@@ -566,7 +576,7 @@ class ErrorNotificationManager {
       const windows = BrowserWindow.getAllWindows();
       for (const win of windows) {
         if (!win.isDestroyed()) {
-          win.webContents.send('nova:error-notification', notification);
+          win.webContents.send('atlas:error-notification', notification);
         }
       }
     } catch (error) {
@@ -628,12 +638,8 @@ export function notifyWarning(title: string, message: string): void {
 // Utilities
 // ============================================================================
 
-/**
- * Sleep utility
- */
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+// Re-export sleep from shared utils for backward compatibility
+export { sleep } from '../../shared/utils';
 
 /**
  * Check if an error is retryable

@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Logger
+ * Atlas Desktop - Logger
  * Winston-based logging system with file rotation and IPC support
  */
 
@@ -13,7 +13,7 @@ const consoleFormat = winston.format.combine(
   winston.format.timestamp({ format: 'HH:mm:ss.SSS' }),
   winston.format.colorize({ all: true }),
   winston.format.printf(({ timestamp, level, message, module, ...meta }) => {
-    const moduleStr = module ? `[${module}]` : '[Nova]';
+    const moduleStr = module ? `[${module}]` : '[Atlas]';
     const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
     return `${timestamp} ${level} ${moduleStr} ${message}${metaStr}`;
   })
@@ -24,7 +24,7 @@ const fileFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
   winston.format.errors({ stack: true }),
   winston.format.printf(({ timestamp, level, message, module, ...meta }) => {
-    const moduleStr = module ? `[${module}]` : '[Nova]';
+    const moduleStr = module ? `[${module}]` : '[Atlas]';
     const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
     return `${timestamp} ${level.toUpperCase().padEnd(5)} ${moduleStr} ${message}${metaStr}`;
   })
@@ -32,6 +32,21 @@ const fileFormat = winston.format.combine(
 
 // Singleton logger instance
 let loggerInstance: winston.Logger | null = null;
+let isShuttingDown = false;
+
+/**
+ * Mark logger as shutting down to prevent write errors
+ */
+export function markLoggerShuttingDown(): void {
+  isShuttingDown = true;
+}
+
+/**
+ * Check if logger is shutting down
+ */
+export function isLoggerShuttingDown(): boolean {
+  return isShuttingDown;
+}
 
 /**
  * Initialize the logger
@@ -64,7 +79,7 @@ function initLogger(): winston.Logger {
   transports.push(
     new DailyRotateFile({
       dirname: logDir,
-      filename: 'nova-%DATE%.log',
+      filename: 'atlas-%DATE%.log',
       datePattern: 'YYYY-MM-DD',
       maxSize: '20m',
       maxFiles: '14d',
@@ -77,7 +92,7 @@ function initLogger(): winston.Logger {
   transports.push(
     new DailyRotateFile({
       dirname: logDir,
-      filename: 'nova-error-%DATE%.log',
+      filename: 'atlas-error-%DATE%.log',
       datePattern: 'YYYY-MM-DD',
       maxSize: '20m',
       maxFiles: '30d',
@@ -127,20 +142,31 @@ export class ModuleLogger {
     this.module = module;
   }
 
+  private safeLog(level: string, message: string, meta?: Record<string, unknown>): void {
+    if (isShuttingDown) {
+      return; // Skip logging during shutdown to prevent EPIPE errors
+    }
+    try {
+      this.logger.log(level, message, { module: this.module, ...meta });
+    } catch {
+      // Silently ignore write errors during shutdown
+    }
+  }
+
   debug(message: string, meta?: Record<string, unknown>): void {
-    this.logger.debug(message, { module: this.module, ...meta });
+    this.safeLog('debug', message, meta);
   }
 
   info(message: string, meta?: Record<string, unknown>): void {
-    this.logger.info(message, { module: this.module, ...meta });
+    this.safeLog('info', message, meta);
   }
 
   warn(message: string, meta?: Record<string, unknown>): void {
-    this.logger.warn(message, { module: this.module, ...meta });
+    this.safeLog('warn', message, meta);
   }
 
   error(message: string, meta?: Record<string, unknown>): void {
-    this.logger.error(message, { module: this.module, ...meta });
+    this.safeLog('error', message, meta);
   }
 
   /**
@@ -219,10 +245,20 @@ export const ipcLogger = createModuleLogger('IPC');
  * Shutdown the logger (close file handles)
  */
 export function shutdownLogger(): Promise<void> {
+  // Mark as shutting down first to prevent new writes
+  isShuttingDown = true;
+
   return new Promise((resolve) => {
     if (loggerInstance) {
-      loggerInstance.on('finish', resolve);
-      loggerInstance.end();
+      // Give pending writes a moment to complete
+      setTimeout(() => {
+        try {
+          loggerInstance?.end();
+        } catch {
+          // Ignore errors during shutdown
+        }
+        resolve();
+      }, 100);
     } else {
       resolve();
     }

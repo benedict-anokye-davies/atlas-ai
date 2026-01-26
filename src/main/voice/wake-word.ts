@@ -1,6 +1,6 @@
 /**
- * Nova Wake Word Detector
- * Uses Picovoice Porcupine for "Hey Nova" detection
+ * Atlas Wake Word Detector
+ * Uses Picovoice Porcupine for "Hey Atlas" detection
  *
  * Features:
  * - Confidence thresholding to reduce false positives
@@ -8,26 +8,331 @@
  * - Multiple wake phrase support
  * - Audio level normalization and history tracking
  * - Adaptive sensitivity based on ambient noise
+ * - Support for custom trained wake word models (.ppn files)
  *
- * Note: Since "Nova" is not a built-in keyword, we use "Jarvis" as a placeholder
- * until a custom wake word model is trained via Picovoice Console.
- * For production, train a custom "Hey Nova" model at https://console.picovoice.ai/
+ * Custom Wake Word Training:
+ * To train a custom "Hey Atlas" wake word model:
+ * 1. Go to https://console.picovoice.ai/
+ * 2. Create a new Porcupine project
+ * 3. Add phrase "Hey Atlas" (or your preferred wake phrase)
+ * 4. Download the trained model (.ppn file)
+ * 5. Place the model in the assets/wake-words/ directory
+ * 6. Set ATLAS_CUSTOM_WAKE_WORD_PATH environment variable or configure in settings
+ *
+ * The detector will automatically use the custom model if available,
+ * otherwise falls back to built-in "Jarvis" keyword.
  */
 
 import { Porcupine, BuiltinKeyword } from '@picovoice/porcupine-node';
 import { PvRecorder } from '@picovoice/pvrecorder-node';
 import { EventEmitter } from 'events';
-import { BrowserWindow } from 'electron';
+import { app } from 'electron';
+import * as path from 'path';
+import * as fs from 'fs';
+import { sendToMainWindow } from '../utils/main-window';
 import {
   WakeWordEvent,
   WakeWordConfig,
   AudioDevice,
   BuiltInKeyword,
+  WakePhraseConfig,
+  WakePhraseSettings,
+  WAKE_PHRASE_PRESETS,
 } from '../../shared/types/voice';
 import { createModuleLogger } from '../utils/logger';
 import { getConfig } from '../config';
+import { clamp01 } from '../../shared/utils';
 
 const logger = createModuleLogger('WakeWord');
+
+/**
+ * Custom wake word model configuration
+ */
+export interface CustomWakeWordModel {
+  /** Path to the .ppn model file */
+  modelPath: string;
+  /** Display name for the wake word */
+  displayName: string;
+  /** Sensitivity for this model (0-1) */
+  sensitivity: number;
+}
+
+/**
+ * Default paths for custom wake word models
+ */
+const CUSTOM_MODEL_PATHS = {
+  /** Environment variable for custom model path */
+  envVar: 'ATLAS_CUSTOM_WAKE_WORD_PATH',
+  /** Default directory for wake word models */
+  defaultDir: 'assets/wake-words',
+  /** Default model filename */
+  defaultModel: 'hey-atlas.ppn',
+  /** User data directory name for custom models */
+  userDirName: 'wake-words',
+};
+
+/**
+ * Check if a custom wake word model exists
+ * @param modelPath Optional specific path to check
+ * @returns Path to the model if found, null otherwise
+ */
+export function findCustomWakeWordModel(modelPath?: string): string | null {
+  // Check explicit path first
+  if (modelPath && fs.existsSync(modelPath)) {
+    logger.info('Custom wake word model found at explicit path', { modelPath });
+    return modelPath;
+  }
+
+  // Check environment variable
+  const envPath = process.env[CUSTOM_MODEL_PATHS.envVar];
+  if (envPath && fs.existsSync(envPath)) {
+    logger.info('Custom wake word model found via environment variable', { path: envPath });
+    return envPath;
+  }
+
+  // Check default locations (guard against test environments where app may not be available)
+  let appPath: string;
+  let userDataPath: string;
+  try {
+    appPath = app?.getAppPath?.() || process.cwd();
+    userDataPath = app?.getPath?.('userData') || path.join(process.cwd(), '.atlas');
+  } catch {
+    // In test environments, app methods may not be available
+    appPath = process.cwd();
+    userDataPath = path.join(process.cwd(), '.atlas');
+  }
+
+  const possiblePaths = [
+    // Development paths
+    path.join(appPath, CUSTOM_MODEL_PATHS.defaultDir, CUSTOM_MODEL_PATHS.defaultModel),
+    path.join(process.cwd(), CUSTOM_MODEL_PATHS.defaultDir, CUSTOM_MODEL_PATHS.defaultModel),
+    // User data directory
+    path.join(userDataPath, 'wake-words', CUSTOM_MODEL_PATHS.defaultModel),
+    // Resources directory (for packaged app)
+    path.join(process.resourcesPath || appPath, 'wake-words', CUSTOM_MODEL_PATHS.defaultModel),
+  ];
+
+  for (const possiblePath of possiblePaths) {
+    if (fs.existsSync(possiblePath)) {
+      logger.info('Custom wake word model found at default path', { path: possiblePath });
+      return possiblePath;
+    }
+  }
+
+  logger.debug('No custom wake word model found, will use built-in keyword');
+  return null;
+}
+
+/**
+ * Validate a custom wake word model file
+ * @param modelPath Path to the .ppn file
+ * @returns Validation result
+ */
+export function validateCustomModel(modelPath: string): {
+  valid: boolean;
+  error?: string;
+  fileSize?: number;
+} {
+  try {
+    if (!fs.existsSync(modelPath)) {
+      return { valid: false, error: 'Model file does not exist' };
+    }
+
+    const stats = fs.statSync(modelPath);
+    if (!stats.isFile()) {
+      return { valid: false, error: 'Path is not a file' };
+    }
+
+    if (!modelPath.endsWith('.ppn')) {
+      return { valid: false, error: 'Model file must have .ppn extension' };
+    }
+
+    // Check minimum file size (valid .ppn files are typically > 1KB)
+    if (stats.size < 1024) {
+      return { valid: false, error: 'Model file appears to be corrupt (too small)' };
+    }
+
+    return { valid: true, fileSize: stats.size };
+  } catch (error) {
+    return {
+      valid: false,
+      error: `Failed to validate model: ${(error as Error).message}`,
+    };
+  }
+}
+
+/**
+ * Get information about available wake word options
+ */
+export function getWakeWordInfo(): {
+  customModelAvailable: boolean;
+  customModelPath: string | null;
+  builtInKeywords: BuiltInKeyword[];
+  currentMode: 'custom' | 'builtin';
+} {
+  const customPath = findCustomWakeWordModel();
+  return {
+    customModelAvailable: customPath !== null,
+    customModelPath: customPath,
+    builtInKeywords: [
+      'alexa',
+      'americano',
+      'blueberry',
+      'bumblebee',
+      'computer',
+      'grapefruit',
+      'grasshopper',
+      'hey google',
+      'hey siri',
+      'jarvis',
+      'ok google',
+      'picovoice',
+      'porcupine',
+      'terminator',
+    ],
+    currentMode: customPath ? 'custom' : 'builtin',
+  };
+}
+
+/**
+ * Custom wake word model information
+ */
+export interface CustomWakeWordInfo {
+  /** Model ID */
+  id: string;
+  /** Display name for the wake word */
+  displayName: string;
+  /** Path to the .ppn file */
+  modelPath: string;
+  /** When the model was created */
+  createdAt: number;
+  /** Whether this model is currently active */
+  isActive: boolean;
+  /** Recommended sensitivity */
+  sensitivity: number;
+}
+
+/**
+ * List all available custom wake word models from user data directory
+ * This scans ~/.atlas/wake-words/ for .ppn files and their metadata
+ */
+export function listCustomWakeWordModels(): CustomWakeWordInfo[] {
+  const models: CustomWakeWordInfo[] = [];
+
+  // Get user data path
+  let userDataPath: string;
+  try {
+    userDataPath = app?.getPath?.('userData') || path.join(process.cwd(), '.atlas');
+  } catch {
+    userDataPath = path.join(process.cwd(), '.atlas');
+  }
+
+  const wakeWordsDir = path.join(userDataPath, CUSTOM_MODEL_PATHS.userDirName);
+
+  // Check if directory exists
+  if (!fs.existsSync(wakeWordsDir)) {
+    logger.debug('Wake words directory does not exist', { path: wakeWordsDir });
+    return models;
+  }
+
+  // Load metadata file if it exists
+  const metadataPath = path.join(wakeWordsDir, 'models.json');
+  let metadata: { models?: CustomWakeWordInfo[]; activeModelId?: string } = {};
+
+  if (fs.existsSync(metadataPath)) {
+    try {
+      metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+    } catch (error) {
+      logger.error('Failed to parse wake word metadata', { error });
+    }
+  }
+
+  // Scan directory for .ppn files
+  try {
+    const files = fs.readdirSync(wakeWordsDir);
+
+    for (const file of files) {
+      if (file.endsWith('.ppn')) {
+        const modelPath = path.join(wakeWordsDir, file);
+        const stats = fs.statSync(modelPath);
+
+        // Check if we have metadata for this model
+        const existingMeta = metadata.models?.find((m) => m.modelPath === modelPath);
+
+        if (existingMeta) {
+          models.push({
+            ...existingMeta,
+            isActive: existingMeta.isActive || false,
+          });
+        } else {
+          // Create basic info for model without metadata
+          const displayName = file.replace('.ppn', '').replace(/-/g, ' ');
+          models.push({
+            id: `model_${file.replace('.ppn', '')}`,
+            displayName: displayName.charAt(0).toUpperCase() + displayName.slice(1),
+            modelPath,
+            createdAt: stats.mtime.getTime(),
+            isActive: false,
+            sensitivity: 0.5,
+          });
+        }
+      }
+    }
+  } catch (error) {
+    logger.error('Failed to scan wake words directory', { error });
+  }
+
+  return models;
+}
+
+/**
+ * Get the currently active custom wake word model
+ */
+export function getActiveCustomWakeWord(): CustomWakeWordInfo | null {
+  const models = listCustomWakeWordModels();
+  return models.find((m) => m.isActive) || null;
+}
+
+/**
+ * Set a custom wake word model as active
+ * @param modelId The ID of the model to activate, or null to deactivate all
+ */
+export async function setActiveCustomWakeWord(modelId: string | null): Promise<boolean> {
+  let userDataPath: string;
+  try {
+    userDataPath = app?.getPath?.('userData') || path.join(process.cwd(), '.atlas');
+  } catch {
+    userDataPath = path.join(process.cwd(), '.atlas');
+  }
+
+  const wakeWordsDir = path.join(userDataPath, CUSTOM_MODEL_PATHS.userDirName);
+  const metadataPath = path.join(wakeWordsDir, 'models.json');
+
+  const models = listCustomWakeWordModels();
+
+  // Update active status
+  for (const model of models) {
+    model.isActive = model.id === modelId;
+  }
+
+  // Save metadata
+  try {
+    if (!fs.existsSync(wakeWordsDir)) {
+      fs.mkdirSync(wakeWordsDir, { recursive: true });
+    }
+
+    fs.writeFileSync(
+      metadataPath,
+      JSON.stringify({ models, updatedAt: Date.now() }, null, 2)
+    );
+
+    logger.info('Active wake word model updated', { modelId });
+    return true;
+  } catch (error) {
+    logger.error('Failed to save wake word metadata', { error });
+    return false;
+  }
+}
 
 /**
  * Map our keyword type to Porcupine's BuiltinKeyword enum
@@ -113,6 +418,7 @@ export interface WakeWordDetectorEvents {
   started: () => void;
   stopped: () => void;
   'audio-level': (level: number) => void;
+  'audio-frame': (frame: Int16Array) => void;
   feedback: (feedback: WakeWordFeedback) => void;
   'detection-stats': (stats: DetectionStats) => void;
 }
@@ -137,30 +443,50 @@ export interface ConfidenceConfig {
  * Default confidence configuration
  */
 const DEFAULT_CONFIDENCE_CONFIG: ConfidenceConfig = {
-  minThreshold: 0.6,
-  minAudioLevel: 0.02,
+  minThreshold: 0.4, // Lowered for better wake word detection
+  minAudioLevel: 0.0001, // Very low to accept quiet microphones
   audioHistorySize: 50,
   ambientMultiplier: 2.5,
   adaptiveThreshold: true,
 };
 
 /**
+ * Extended wake word configuration with custom model support
+ */
+export interface ExtendedWakeWordConfig extends Partial<WakeWordConfig> {
+  /** Custom wake word model path (.ppn file) */
+  customModelPath?: string;
+  /** Whether to prefer custom model over built-in keywords */
+  preferCustomModel?: boolean;
+  /** Display name for custom wake word */
+  customWakeWordName?: string;
+  /** Confidence configuration */
+  confidence?: Partial<ConfidenceConfig>;
+}
+
+/**
  * WakeWordDetector class
  * Listens for wake word and emits events when detected
  * Includes confidence thresholding and visual feedback
+ * Supports both built-in keywords and custom trained models
  */
 export class WakeWordDetector extends EventEmitter {
   private porcupine: Porcupine | null = null;
   private recorder: PvRecorder | null = null;
   private isRunning: boolean = false;
   private isPaused: boolean = false;
-  private keywords: BuiltInKeyword[];
-  private sensitivities: number[];
+  private keywords: BuiltInKeyword[] = [];
+  private keywordNames: string[] = []; // Display names for keywords
+  private sensitivities: number[] = [];
   private accessKey: string;
   private cooldownMs: number = 2000; // 2 second cooldown between triggers
   private lastTriggerTime: number = 0;
   private deviceIndex: number = -1; // -1 = default device
   private startTime: number = 0;
+
+  // Custom model support
+  private customModelPath: string | null = null;
+  private useCustomModel: boolean = false;
 
   // Confidence thresholding
   private confidenceConfig: ConfidenceConfig;
@@ -182,15 +508,52 @@ export class WakeWordDetector extends EventEmitter {
   // Visual feedback
   private sendVisualFeedback: boolean = true;
 
-  constructor(config?: Partial<WakeWordConfig & { confidence?: Partial<ConfidenceConfig> }>) {
-    super();
-    const novaConfig = getConfig();
+  // Atlas speaking state - suppress wake word during speech
+  private atlasIsSpeaking: boolean = false;
+  private suppressionCount: number = 0;
 
-    this.accessKey = config?.accessKey || novaConfig.porcupineApiKey;
-    // Default to "jarvis" as placeholder for "hey nova"
-    this.keywords = config?.keywords || ['jarvis'];
-    this.sensitivities =
-      config?.sensitivities || this.keywords.map(() => novaConfig.wakeWordSensitivity);
+  constructor(config?: ExtendedWakeWordConfig) {
+    super();
+    this.setMaxListeners(20); // Prevent memory leak warnings
+    const atlasConfig = getConfig();
+
+    this.accessKey = config?.accessKey || atlasConfig.porcupineApiKey;
+
+    // Check for custom model support
+    const preferCustom = config?.preferCustomModel !== false; // Default to true
+    if (preferCustom) {
+      const customPath = findCustomWakeWordModel(config?.customModelPath);
+      if (customPath) {
+        const validation = validateCustomModel(customPath);
+        if (validation.valid) {
+          this.customModelPath = customPath;
+          this.useCustomModel = true;
+          this.keywordNames = [config?.customWakeWordName || 'Hey Atlas'];
+          this.sensitivities = [config?.sensitivities?.[0] ?? atlasConfig.wakeWordSensitivity];
+          logger.info('Using custom wake word model', {
+            path: customPath,
+            name: this.keywordNames[0],
+          });
+        } else {
+          logger.warn('Custom wake word model validation failed', {
+            path: customPath,
+            error: validation.error,
+          });
+        }
+      }
+    }
+
+    // Fall back to built-in keywords if no custom model
+    if (!this.useCustomModel) {
+      this.keywords = config?.keywords || ['jarvis'];
+      this.keywordNames = this.keywords;
+      this.sensitivities =
+        config?.sensitivities || this.keywords.map(() => atlasConfig.wakeWordSensitivity);
+      logger.info('Using built-in wake word', { keywords: this.keywords });
+    } else {
+      // Set empty keywords array when using custom model
+      this.keywords = [];
+    }
 
     // Initialize confidence config
     this.confidenceConfig = {
@@ -199,11 +562,26 @@ export class WakeWordDetector extends EventEmitter {
     };
 
     logger.info('WakeWordDetector initialized', {
-      keywords: this.keywords,
+      mode: this.useCustomModel ? 'custom' : 'builtin',
+      keywords: this.keywordNames,
       sensitivities: this.sensitivities,
       confidenceThreshold: this.confidenceConfig.minThreshold,
       adaptiveThreshold: this.confidenceConfig.adaptiveThreshold,
     });
+  }
+
+  /**
+   * Check if using custom wake word model
+   */
+  get isUsingCustomModel(): boolean {
+    return this.useCustomModel;
+  }
+
+  /**
+   * Get the current wake word display name
+   */
+  get wakeWordName(): string {
+    return this.keywordNames[0] || 'Unknown';
   }
 
   /**
@@ -238,7 +616,7 @@ export class WakeWordDetector extends EventEmitter {
     if (sensitivity < 0 || sensitivity > 1) {
       throw new Error('Sensitivity must be between 0 and 1');
     }
-    this.sensitivities = this.keywords.map(() => sensitivity);
+    this.sensitivities = this.keywordNames.map(() => sensitivity);
     logger.info('Sensitivity updated', { sensitivity });
 
     // If running, restart with new sensitivity
@@ -272,6 +650,228 @@ export class WakeWordDetector extends EventEmitter {
   setVisualFeedback(enabled: boolean): void {
     this.sendVisualFeedback = enabled;
     logger.info('Visual feedback', { enabled });
+  }
+
+  /**
+   * Set Atlas speaking state to suppress wake word detection
+   * This prevents the wake word from being triggered by Atlas's own voice
+   */
+  setAtlasSpeaking(speaking: boolean): void {
+    const wasSpeaking = this.atlasIsSpeaking;
+    this.atlasIsSpeaking = speaking;
+
+    if (speaking && !wasSpeaking) {
+      logger.debug('Wake word detection suppressed - Atlas is speaking');
+    } else if (!speaking && wasSpeaking) {
+      logger.debug('Wake word detection resumed - Atlas finished speaking', {
+        suppressionCount: this.suppressionCount,
+      });
+    }
+  }
+
+  /**
+   * Check if Atlas is currently speaking
+   */
+  isAtlasSpeaking(): boolean {
+    return this.atlasIsSpeaking;
+  }
+
+  /**
+   * Get count of detections suppressed during speech
+   */
+  getSuppressionCount(): number {
+    return this.suppressionCount;
+  }
+
+  /**
+   * Reset suppression counter
+   */
+  resetSuppressionCount(): void {
+    this.suppressionCount = 0;
+  }
+
+  /**
+   * Configure multiple wake phrases from settings
+   * This allows users to enable multiple wake phrases like "Hey Atlas", "Computer", etc.
+   *
+   * @param settings Wake phrase settings from user configuration
+   */
+  async configureWakePhrases(settings: WakePhraseSettings): Promise<void> {
+    const enabledPhrases = settings.phrases.filter((p) => p.enabled);
+
+    if (enabledPhrases.length === 0) {
+      logger.warn('No wake phrases enabled, using default');
+      return;
+    }
+
+    // Collect built-in keywords and their sensitivities
+    const builtInKeywords: BuiltInKeyword[] = [];
+    const customModelPaths: string[] = [];
+    const keywordNames: string[] = [];
+    const sensitivities: number[] = [];
+
+    for (const phrase of enabledPhrases) {
+      const sensitivity = phrase.sensitivity * settings.globalSensitivity;
+
+      if (phrase.isCustomModel) {
+        // Custom model (.ppn file)
+        const validation = validateCustomModel(phrase.keyword);
+        if (validation.valid) {
+          customModelPaths.push(phrase.keyword);
+          keywordNames.push(phrase.displayName);
+          sensitivities.push(clamp01(sensitivity));
+        } else {
+          logger.warn('Custom wake word model validation failed', {
+            displayName: phrase.displayName,
+            path: phrase.keyword,
+            error: validation.error,
+          });
+        }
+      } else {
+        // Built-in keyword
+        builtInKeywords.push(phrase.keyword as BuiltInKeyword);
+        keywordNames.push(phrase.displayName);
+        sensitivities.push(clamp01(sensitivity));
+      }
+    }
+
+    // Update internal state
+    const wasRunning = this.isRunning;
+
+    if (wasRunning) {
+      await this.stop();
+    }
+
+    // Update keywords based on what we found
+    if (customModelPaths.length > 0) {
+      // Use first custom model (Porcupine limitation)
+      this.customModelPath = customModelPaths[0];
+      this.useCustomModel = true;
+      this.keywords = [];
+    } else if (builtInKeywords.length > 0) {
+      this.keywords = builtInKeywords;
+      this.useCustomModel = false;
+      this.customModelPath = null;
+    }
+
+    this.keywordNames = keywordNames;
+    this.sensitivities = sensitivities;
+    this.cooldownMs = settings.cooldownMs;
+
+    logger.info('Wake phrases configured', {
+      phrases: keywordNames,
+      sensitivities,
+      useCustomModel: this.useCustomModel,
+    });
+
+    // Restart if was running
+    if (wasRunning) {
+      await this.start();
+    }
+  }
+
+  /**
+   * Get currently configured wake phrases
+   */
+  getConfiguredPhrases(): { displayName: string; keyword: string; sensitivity: number }[] {
+    return this.keywordNames.map((name, i) => ({
+      displayName: name,
+      keyword: this.useCustomModel && this.customModelPath
+        ? this.customModelPath
+        : (this.keywords[i] || 'unknown'),
+      sensitivity: this.sensitivities[i] || 0.5,
+    }));
+  }
+
+  /**
+   * Add a single wake phrase
+   */
+  async addWakePhrase(phrase: WakePhraseConfig): Promise<boolean> {
+    if (!phrase.enabled) {
+      return false;
+    }
+
+    // Check if already exists
+    const existing = this.keywordNames.find(
+      (name) => name.toLowerCase() === phrase.displayName.toLowerCase()
+    );
+    if (existing) {
+      logger.warn('Wake phrase already exists', { displayName: phrase.displayName });
+      return false;
+    }
+
+    if (phrase.isCustomModel) {
+      const validation = validateCustomModel(phrase.keyword);
+      if (!validation.valid) {
+        logger.warn('Custom model validation failed', { error: validation.error });
+        return false;
+      }
+      // Can only have one custom model at a time
+      this.customModelPath = phrase.keyword;
+      this.useCustomModel = true;
+      this.keywords = [];
+    } else {
+      // Add built-in keyword
+      if (this.useCustomModel) {
+        logger.warn('Cannot mix custom model with built-in keywords');
+        return false;
+      }
+      this.keywords.push(phrase.keyword as BuiltInKeyword);
+    }
+
+    this.keywordNames.push(phrase.displayName);
+    this.sensitivities.push(phrase.sensitivity);
+
+    logger.info('Wake phrase added', { displayName: phrase.displayName });
+
+    // Restart to apply changes
+    if (this.isRunning) {
+      await this.restart();
+    }
+
+    return true;
+  }
+
+  /**
+   * Remove a wake phrase by display name
+   */
+  async removeWakePhrase(displayName: string): Promise<boolean> {
+    const index = this.keywordNames.findIndex(
+      (name) => name.toLowerCase() === displayName.toLowerCase()
+    );
+
+    if (index === -1) {
+      return false;
+    }
+
+    // Don't allow removing the last phrase
+    if (this.keywordNames.length <= 1) {
+      logger.warn('Cannot remove last wake phrase');
+      return false;
+    }
+
+    this.keywordNames.splice(index, 1);
+    this.sensitivities.splice(index, 1);
+
+    if (!this.useCustomModel) {
+      this.keywords.splice(index, 1);
+    }
+
+    logger.info('Wake phrase removed', { displayName });
+
+    // Restart to apply changes
+    if (this.isRunning) {
+      await this.restart();
+    }
+
+    return true;
+  }
+
+  /**
+   * Get available built-in wake phrases
+   */
+  static getAvailableBuiltInPhrases(): WakePhraseConfig[] {
+    return WAKE_PHRASE_PRESETS.map((preset) => ({ ...preset }));
   }
 
   /**
@@ -314,25 +914,44 @@ export class WakeWordDetector extends EventEmitter {
    */
   private async initialize(): Promise<void> {
     try {
-      logger.debug('Initializing Porcupine...');
+      logger.debug('Initializing Porcupine...', {
+        mode: this.useCustomModel ? 'custom' : 'builtin',
+      });
 
       // Create Porcupine instance
-      this.porcupine = new Porcupine(
-        this.accessKey,
-        this.keywords.map(toBuiltinKeyword),
-        this.sensitivities
-      );
+      if (this.useCustomModel && this.customModelPath) {
+        // Use custom wake word model (.ppn file)
+        logger.info('Loading custom wake word model', { path: this.customModelPath });
+        this.porcupine = new Porcupine(
+          this.accessKey,
+          [this.customModelPath], // Pass file path for custom model
+          this.sensitivities
+        );
+      } else {
+        // Use built-in keywords
+        this.porcupine = new Porcupine(
+          this.accessKey,
+          this.keywords.map(toBuiltinKeyword),
+          this.sensitivities
+        );
+      }
 
       // Create recorder with Porcupine's required frame length
       this.recorder = new PvRecorder(this.porcupine.frameLength, this.deviceIndex);
 
       logger.info('Porcupine initialized', {
+        mode: this.useCustomModel ? 'custom' : 'builtin',
+        wakeWord: this.keywordNames[0],
         sampleRate: this.porcupine.sampleRate,
         frameLength: this.porcupine.frameLength,
         version: this.porcupine.version,
       });
     } catch (error) {
-      logger.error('Failed to initialize Porcupine', { error });
+      logger.error('Failed to initialize Porcupine', {
+        error,
+        mode: this.useCustomModel ? 'custom' : 'builtin',
+        customModelPath: this.customModelPath,
+      });
       throw error;
     }
   }
@@ -451,19 +1070,61 @@ export class WakeWordDetector extends EventEmitter {
    * Process audio frames in a loop
    */
   private async processAudio(): Promise<void> {
+    let frameCount = 0;
+    let lastLogTime = Date.now();
+    const LOG_INTERVAL_MS = 5000; // Log every 5 seconds
+    
+    logger.info('[WakeWord] processAudio loop STARTED', { isRunning: this.isRunning });
+    
     while (this.isRunning) {
       try {
-        if (this.isPaused || !this.recorder || !this.porcupine) {
+        if (!this.recorder || !this.porcupine) {
+          logger.debug('[WakeWord] Waiting for recorder/porcupine', { hasRecorder: !!this.recorder, hasPorcupine: !!this.porcupine });
           await this.sleep(100);
           continue;
         }
 
-        // Read audio frame
+        // Log every 100 frames to show loop is running
+        if (frameCount === 0 || frameCount % 100 === 0) {
+          logger.debug('[WakeWord] About to read frame', { frameCount });
+        }
+
+        // Read audio frame - always read even when paused to feed VAD
         const frame = await this.recorder.read();
+        frameCount++;
 
         // Calculate audio level for visualization
         const audioLevel = this.calculateAudioLevel(frame);
         this.emit('audio-level', audioLevel);
+
+        // Emit raw frame for audio spectrum analysis (orb visualization)
+        // This is also used by VAD when pipeline is in listening state
+        this.emit('audio-frame', frame);
+
+        // Skip wake word processing if paused (but audio frames are still emitted above)
+        if (this.isPaused) {
+          continue;
+        }
+
+        // Periodic debug log to confirm processing is running
+        const now = Date.now();
+        if (now - lastLogTime >= LOG_INTERVAL_MS) {
+          logger.debug('Wake word processing active', {
+            frameCount,
+            audioLevel: audioLevel.toFixed(3),
+            paused: this.isPaused,
+            sensitivity: this.sensitivities[0],
+          });
+          lastLogTime = now;
+        }
+
+        // Log high audio levels (potential speech)
+        if (audioLevel > 0.1) {
+          logger.debug('Wake word high audio level detected', {
+            audioLevel: audioLevel.toFixed(3),
+            threshold: 0.1,
+          });
+        }
 
         // Track audio level history for ambient noise estimation
         this.updateAudioHistory(audioLevel);
@@ -491,8 +1152,26 @@ export class WakeWordDetector extends EventEmitter {
    */
   private async handleDetection(keywordIndex: number, audioLevel: number): Promise<void> {
     const now = Date.now();
-    const keyword = this.keywords[keywordIndex];
-    const rawSensitivity = this.sensitivities[keywordIndex];
+    const keyword = this.keywordNames[keywordIndex] || this.keywordNames[0] || 'Unknown';
+    const rawSensitivity = this.sensitivities[keywordIndex] ?? this.sensitivities[0];
+
+    // Check if Atlas is speaking - suppress detection to avoid false triggers
+    if (this.atlasIsSpeaking) {
+      this.suppressionCount++;
+      logger.debug('Wake word detection suppressed - Atlas is speaking', {
+        keyword,
+        suppressionCount: this.suppressionCount,
+      });
+
+      this.emitFeedback({
+        type: 'rejected',
+        timestamp: now,
+        keyword,
+        audioLevel,
+        message: 'Detection suppressed: Atlas is speaking',
+      });
+      return;
+    }
 
     // Update stats
     this.stats.totalDetections++;
@@ -708,10 +1387,7 @@ export class WakeWordDetector extends EventEmitter {
    */
   private sendFeedbackToRenderer(feedback: WakeWordFeedback): void {
     try {
-      const mainWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('nova:wake-feedback', feedback);
-      }
+      sendToMainWindow('atlas:wake-feedback', feedback);
     } catch (error) {
       // Ignore errors when sending to renderer (window might not exist yet)
       logger.debug('Could not send feedback to renderer', { error });

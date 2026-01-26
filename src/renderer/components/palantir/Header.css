@@ -1,0 +1,289 @@
+/**
+ * Atlas Desktop - Header Styles
+ */
+
+.atlas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 var(--atlas-space-4);
+  background: var(--atlas-bg-surface);
+  -webkit-app-region: drag;
+}
+
+/* Left Section */
+.atlas-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--atlas-space-3);
+  -webkit-app-region: no-drag;
+}
+
+.atlas-header-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--atlas-radius-md);
+  cursor: pointer;
+  transition: background var(--atlas-transition-fast);
+}
+
+.atlas-header-logo:hover {
+  background: var(--atlas-bg-hover);
+}
+
+.atlas-header-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: var(--atlas-space-2);
+}
+
+.atlas-header-title {
+  font-size: var(--atlas-text-md);
+  font-weight: var(--atlas-weight-semibold);
+  color: var(--atlas-text-primary);
+  margin: 0;
+}
+
+.atlas-header-subtitle {
+  font-size: var(--atlas-text-sm);
+  color: var(--atlas-text-muted);
+}
+
+.atlas-header-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--atlas-border-subtle);
+}
+
+.atlas-header-view-switcher {
+  display: flex;
+  align-items: center;
+  gap: var(--atlas-space-1);
+}
+
+/* Center Section (Search) */
+.atlas-header-center {
+  flex: 1;
+  max-width: 480px;
+  margin: 0 var(--atlas-space-4);
+  -webkit-app-region: no-drag;
+}
+
+/* Right Section */
+.atlas-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--atlas-space-3);
+  -webkit-app-region: no-drag;
+}
+
+.atlas-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--atlas-space-1);
+}
+
+.atlas-header-user {
+  display: flex;
+  align-items: center;
+  gap: var(--atlas-space-2);
+}
+
+/* Window Controls */
+.atlas-header-window-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--atlas-space-1);
+  margin-left: var(--atlas-space-3);
+  padding-left: var(--atlas-space-3);
+  border-left: 1px solid var(--atlas-border-subtle);
+}
+
+.window-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--atlas-radius-sm);
+  color: var(--atlas-text-muted);
+  cursor: pointer;
+  transition: all var(--atlas-transition-fast);
+}
+
+.window-control:hover {
+  color: var(--atlas-text-primary);
+  background: var(--atlas-bg-hover);
+}
+
+.window-control.close:hover {
+  background: var(--atlas-accent-red);
+  color: white;
+}
+
+/* View Switcher Button */
+.atlas-view-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--atlas-space-1);
+  padding: var(--atlas-space-1) var(--atlas-space-3);
+  font-size: var(--atlas-text-sm);
+  font-weight: var(--atlas-weight-medium);
+  color: var(--atlas-text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--atlas-radius-md);
+  cursor: pointer;
+  transition: all var(--atlas-transition-fast);
+}
+
+.atlas-view-btn:hover {
+  color: var(--atlas-text-primary);
+  background: var(--atlas-bg-hover);
+}
+
+.atlas-view-btn.active {
+  color: var(--atlas-accent-cyan);
+  background: var(--atlas-accent-cyan-dim);
+}
+
+/* Connection Status Indicator */
+.atlas-header-status {
+  display: flex;
+  align-items: center;
+  gap: var(--atlas-space-2);
+  padding: var(--atlas-space-1) var(--atlas-space-3);
+  border-radius: var(--atlas-radius-full);
+  font-family: var(--atlas-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.atlas-header-status--online {
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.atlas-header-status--degraded {
+  background: rgba(255, 170, 0, 0.1);
+  border: 1px solid rgba(255, 170, 0, 0.3);
+}
+
+.atlas-header-status--offline {
+  background: rgba(255, 85, 85, 0.1);
+  border: 1px solid rgba(255, 85, 85, 0.3);
+}
+
+.atlas-header-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+.atlas-header-status--online .atlas-header-status-dot {
+  background: var(--atlas-green);
+  box-shadow: 0 0 8px var(--atlas-green);
+}
+
+.atlas-header-status--degraded .atlas-header-status-dot {
+  background: var(--atlas-accent-amber);
+  box-shadow: 0 0 8px var(--atlas-accent-amber);
+}
+
+.atlas-header-status--offline .atlas-header-status-dot {
+  background: var(--atlas-accent-red);
+  box-shadow: 0 0 8px var(--atlas-accent-red);
+  animation: status-pulse-fast 1s ease-in-out infinite;
+}
+
+.atlas-header-status-text {
+  color: var(--atlas-text-muted);
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.9); }
+}
+
+@keyframes status-pulse-fast {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+/* System Clock */
+.atlas-header-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding-left: var(--atlas-space-3);
+  font-family: var(--atlas-font-mono);
+}
+
+.atlas-header-clock-time {
+  font-size: var(--atlas-text-md);
+  font-weight: var(--atlas-weight-semibold);
+  color: var(--atlas-cyan);
+  letter-spacing: 0.05em;
+}
+
+.atlas-header-clock-date {
+  font-size: 10px;
+  color: var(--atlas-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Logo Animations */
+.atlas-logo-svg {
+  filter: drop-shadow(0 0 4px var(--atlas-cyan));
+}
+
+.atlas-logo-ring {
+  transform-origin: center;
+  animation: logo-rotate 20s linear infinite;
+}
+
+.atlas-logo-core {
+  animation: logo-pulse 3s ease-in-out infinite;
+}
+
+.atlas-logo-scan {
+  animation: logo-scan 4s ease-in-out infinite;
+}
+
+@keyframes logo-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes logo-pulse {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.9); }
+}
+
+@keyframes logo-scan {
+  0% { transform: translateY(-10px); opacity: 0; }
+  20% { opacity: 0.5; }
+  80% { opacity: 0.5; }
+  100% { transform: translateY(10px); opacity: 0; }
+}
+
+/* Header title with glow */
+.atlas-header-title {
+  font-family: var(--atlas-font-mono);
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+

@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - OpenRouter LLM Provider
+ * Atlas Desktop - OpenRouter LLM Provider
  * LLM fallback using OpenRouter (OpenAI-compatible API)
  * Provides access to multiple models: Claude, GPT-4, Llama, etc.
  */
@@ -17,7 +17,7 @@ import {
   LLMStreamChunk,
   ConversationContext,
   DEFAULT_LLM_CONFIG,
-  NOVA_SYSTEM_PROMPT,
+  ATLAS_SYSTEM_PROMPT,
   createConversationContext,
   estimateTokenCount,
 } from '../../shared/types/llm';
@@ -143,8 +143,8 @@ const DEFAULT_OPENROUTER_CONFIG: Partial<OpenRouterConfig> = {
   model: DEFAULT_OPENROUTER_MODEL,
   maxTokens: 2048,
   temperature: 0.7,
-  siteName: 'Nova Desktop',
-  siteUrl: 'https://github.com/nova-desktop',
+  siteName: 'Atlas Desktop',
+  siteUrl: 'https://github.com/atlas-desktop',
   trackCosts: true,
 };
 
@@ -197,8 +197,8 @@ export class OpenRouterLLM extends EventEmitter implements LLMProvider {
       baseURL: this.config.baseURL,
       timeout: this.config.timeout,
       defaultHeaders: {
-        'HTTP-Referer': this.config.siteUrl || 'https://github.com/nova-desktop',
-        'X-Title': this.config.siteName || 'Nova Desktop',
+        'HTTP-Referer': this.config.siteUrl || 'https://github.com/atlas-desktop',
+        'X-Title': this.config.siteName || 'Atlas Desktop',
       },
     });
 
@@ -228,7 +228,7 @@ export class OpenRouterLLM extends EventEmitter implements LLMProvider {
    * Build system prompt with variables
    */
   private buildSystemPrompt(context?: ConversationContext): string {
-    const template = context?.systemPrompt || NOVA_SYSTEM_PROMPT;
+    const template = context?.systemPrompt || ATLAS_SYSTEM_PROMPT;
     const userName = context?.userName || 'User';
     const timestamp = new Date().toLocaleString();
 
@@ -634,8 +634,8 @@ export class OpenRouterLLM extends EventEmitter implements LLMProvider {
         baseURL: this.config.baseURL,
         timeout: this.config.timeout,
         defaultHeaders: {
-          'HTTP-Referer': this.config.siteUrl || 'https://github.com/nova-desktop',
-          'X-Title': this.config.siteName || 'Nova Desktop',
+          'HTTP-Referer': this.config.siteUrl || 'https://github.com/atlas-desktop',
+          'X-Title': this.config.siteName || 'Atlas Desktop',
         },
       });
     }
@@ -661,7 +661,7 @@ export class OpenRouterLLM extends EventEmitter implements LLMProvider {
    * Create a new conversation context
    */
   createContext(userName?: string): ConversationContext {
-    const context = createConversationContext(NOVA_SYSTEM_PROMPT, userName);
+    const context = createConversationContext(ATLAS_SYSTEM_PROMPT, userName);
     this.currentContext = context;
     return context;
   }

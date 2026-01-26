@@ -1,5 +1,6 @@
 /**
- * Nova Desktop - Global Styles
+ * Atlas Desktop - Global Styles
+ * Supports dark/light theme switching via CSS variables
  */
 
 * {
@@ -9,27 +10,63 @@
 }
 
 :root {
-  /* Nova color palette */
-  --nova-bg-primary: #000000;
-  --nova-bg-secondary: #000000;
-  --nova-accent: #6366f1;
-  --nova-accent-light: #818cf8;
-  --nova-text-primary: #f1f5f9;
-  --nova-text-secondary: #94a3b8;
-  --nova-success: #10b981;
-  --nova-warning: #f59e0b;
-  --nova-error: #ef4444;
+  /* Theme transition - set by JavaScript, none by default to prevent FOUC */
+  --theme-transition: none;
 
-  /* Orb colors */
+  /* Atlas color palette - default to dark theme, overridden by JS */
+  --atlas-bg-primary: #000000;
+  --atlas-bg-secondary: #0a0a0f;
+  --atlas-bg-tertiary: #12121a;
+
+  --atlas-text-primary: #f1f5f9;
+  --atlas-text-secondary: #94a3b8;
+  --atlas-text-tertiary: #64748b;
+
+  --atlas-accent: #6366f1;
+  --atlas-accent-light: #818cf8;
+  --atlas-accent-dark: #4f46e5;
+
+  --atlas-success: #10b981;
+  --atlas-warning: #f59e0b;
+  --atlas-error: #ef4444;
+  --atlas-info: #3b82f6;
+
+  --atlas-border: rgba(99, 102, 241, 0.2);
+  --atlas-border-light: rgba(99, 102, 241, 0.1);
+
+  --atlas-overlay-bg: rgba(0, 0, 0, 0.8);
+  --atlas-modal-bg: rgba(18, 18, 26, 0.95);
+
+  --atlas-scrollbar-track: #0a0a0f;
+  --atlas-scrollbar-thumb: #6366f1;
+  --atlas-scrollbar-thumb-hover: #818cf8;
+
+  --atlas-selection-bg: #6366f1;
+  --atlas-selection-text: #f1f5f9;
+
+  --atlas-focus-ring: #6366f1;
+
+  /* Orb colors - state-based */
   --orb-idle: #6366f1;
   --orb-listening: #10b981;
   --orb-thinking: #f59e0b;
   --orb-speaking: #818cf8;
   --orb-error: #ef4444;
 
+  /* Shadows */
+  --atlas-shadow-small: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --atlas-shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --atlas-shadow-large: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --atlas-shadow-glow: 0 0 20px rgba(99, 102, 241, 0.5);
+
   /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Semantic color aliases for components */
+  --color-success: var(--atlas-success);
+  --color-warning: var(--atlas-warning);
+  --color-error: var(--atlas-error);
 }
 
 html,
@@ -37,16 +74,44 @@ body {
   height: 100%;
   width: 100%;
   font-family: var(--font-sans);
-  background: var(--nova-bg-primary);
-  color: var(--nova-text-primary);
+  background: var(--atlas-bg-primary);
+  color: var(--atlas-text-primary);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Smooth theme transitions */
+  transition:
+    background-color var(--theme-transition),
+    color var(--theme-transition);
 }
 
 #root {
   height: 100%;
   width: 100%;
+}
+
+/* Theme-aware elements transition */
+.atlas-app,
+.atlas-background,
+.atlas-footer,
+.atlas-conversation,
+.atlas-status,
+.footer-button,
+.keyboard-shortcuts-modal,
+.shortcuts-header,
+.shortcuts-content,
+.shortcuts-footer,
+.loading-overlay,
+.progress-bar-container,
+button,
+input,
+select,
+textarea {
+  transition:
+    background-color var(--theme-transition),
+    border-color var(--theme-transition),
+    color var(--theme-transition),
+    box-shadow var(--theme-transition);
 }
 
 /* Scrollbar styling */
@@ -56,27 +121,27 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--nova-bg-secondary);
+  background: var(--atlas-scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--nova-accent);
+  background: var(--atlas-scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--nova-accent-light);
+  background: var(--atlas-scrollbar-thumb-hover);
 }
 
 /* Selection styling */
 ::selection {
-  background: var(--nova-accent);
-  color: var(--nova-text-primary);
+  background: var(--atlas-selection-bg);
+  color: var(--atlas-selection-text);
 }
 
 /* Focus styling */
 :focus {
-  outline: 2px solid var(--nova-accent);
+  outline: 2px solid var(--atlas-focus-ring);
   outline-offset: 2px;
 }
 
@@ -98,12 +163,12 @@ body {
 @keyframes glow {
   0%,
   100% {
-    box-shadow: 0 0 20px var(--nova-accent);
+    box-shadow: 0 0 20px var(--atlas-accent);
   }
   50% {
     box-shadow:
-      0 0 40px var(--nova-accent),
-      0 0 60px var(--nova-accent);
+      0 0 40px var(--atlas-accent),
+      0 0 60px var(--atlas-accent);
   }
 }
 

@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Vector Store Index
+ * Atlas Desktop - Vector Store Index
  * Main entry point for the vector storage system
  */
 

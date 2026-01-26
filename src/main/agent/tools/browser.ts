@@ -1,16 +1,48 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * Nova Desktop - Browser Automation Tools
+ * Atlas Desktop - Browser Automation Tools
  * Playwright-based browser automation for web interactions
  */
 
+import * as fs from 'fs';
 import { AgentTool, ActionResult } from '../../../shared/types/agent';
 import { createModuleLogger } from '../../utils/logger';
 
 const logger = createModuleLogger('BrowserTools');
 
 // Browser instance management
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let browserInstance: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let pageInstance: any = null;
+let currentBrowserType: 'chromium' | 'brave' | 'chrome' = 'chromium';
+
+/**
+ * Common Brave paths on Windows
+ */
+const BRAVE_PATHS_WINDOWS = [
+  'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+  'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+  `${process.env.LOCALAPPDATA}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
+];
+
+/**
+ * Find Brave executable path
+ */
+export function findBravePath(): string | null {
+  if (process.platform === 'win32') {
+    for (const path of BRAVE_PATHS_WINDOWS) {
+      try {
+        if (fs.existsSync(path)) {
+          return path;
+        }
+      } catch {
+        // Path doesn't exist, continue
+      }
+    }
+  }
+  return null;
+}
 
 /**
  * URL validation and safety check
@@ -67,20 +99,63 @@ async function getPlaywright(): Promise<any> {
 }
 
 /**
+ * Browser launch options
+ */
+export interface BrowserLaunchOptions {
+  /** Browser type: 'chromium', 'brave', or 'chrome' */
+  browserType?: 'chromium' | 'brave' | 'chrome';
+  /** Run in headless mode (default: true) */
+  headless?: boolean;
+  /** Slow down actions by this many ms (for debugging) */
+  slowMo?: number;
+}
+
+/**
  * Get or create browser instance
  */
-async function getBrowser(): Promise<any> {
-  if (browserInstance) {
+async function getBrowser(options?: BrowserLaunchOptions): Promise<any> {
+  const browserType = options?.browserType || 'chromium';
+  const headless = options?.headless ?? true;
+  const slowMo = options?.slowMo;
+
+  // If browser exists and type matches, return it
+  if (browserInstance && currentBrowserType === browserType) {
     return browserInstance;
   }
 
-  const playwright = await getPlaywright();
-  browserInstance = await playwright.chromium.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  // Close existing browser if type changed
+  if (browserInstance && currentBrowserType !== browserType) {
+    await browserInstance.close();
+    browserInstance = null;
+    pageInstance = null;
+  }
 
-  logger.info('Browser instance created');
+  const playwright = await getPlaywright();
+
+  const launchOptions: Record<string, unknown> = {
+    headless,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  };
+
+  if (slowMo) {
+    launchOptions.slowMo = slowMo;
+  }
+
+  // Handle Brave browser
+  if (browserType === 'brave') {
+    const bravePath = findBravePath();
+    if (bravePath) {
+      launchOptions.executablePath = bravePath;
+      logger.info('Using Brave browser', { path: bravePath });
+    } else {
+      logger.warn('Brave not found, falling back to Chromium');
+    }
+  }
+
+  browserInstance = await playwright.chromium.launch(launchOptions);
+  currentBrowserType = browserType;
+
+  logger.info('Browser instance created', { type: browserType, headless });
   return browserInstance;
 }
 
@@ -451,10 +526,92 @@ export const closeBrowserTool: AgentTool = {
 };
 
 /**
+ * Launch browser tool - allows launching with specific browser type
+ */
+export const launchBrowserTool: AgentTool = {
+  name: 'browser_launch',
+  description:
+    'Launch a browser instance. Supports Chromium, Brave, or Chrome. Use this before navigation if you want to use a specific browser.',
+  parameters: {
+    type: 'object',
+    properties: {
+      browserType: {
+        type: 'string',
+        description: 'Browser to use: "chromium" (default), "brave", or "chrome"',
+      },
+      headless: {
+        type: 'boolean',
+        description: 'Run in headless mode without visible window (default: true)',
+      },
+      slowMo: {
+        type: 'number',
+        description: 'Slow down actions by this many milliseconds (for debugging)',
+      },
+    },
+    required: [],
+  },
+  execute: async (params: Record<string, unknown>): Promise<ActionResult> => {
+    try {
+      const browserType = (params.browserType as 'chromium' | 'brave' | 'chrome') || 'chromium';
+      const headless = params.headless !== false;
+      const slowMo = params.slowMo as number | undefined;
+
+      const browser = await getBrowser({ browserType, headless, slowMo });
+
+      logger.info('Browser launched', { browserType, headless });
+
+      return {
+        success: true,
+        data: {
+          browserType: currentBrowserType,
+          headless,
+          connected: !!browser,
+        },
+      };
+    } catch (error) {
+      const err = error as Error;
+      logger.error('Browser launch failed', { error: err.message });
+      return { success: false, error: err.message };
+    }
+  },
+};
+
+/**
+ * Check if Brave browser is available
+ */
+export const checkBraveTool: AgentTool = {
+  name: 'browser_check_brave',
+  description: 'Check if Brave browser is installed and available.',
+  parameters: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+  execute: async (): Promise<ActionResult> => {
+    try {
+      const bravePath = findBravePath();
+
+      return {
+        success: true,
+        data: {
+          available: !!bravePath,
+          path: bravePath,
+        },
+      };
+    } catch (error) {
+      const err = error as Error;
+      return { success: false, error: err.message };
+    }
+  },
+};
+
+/**
  * Get all browser tools
  */
 export function getBrowserTools(): AgentTool[] {
   return [
+    launchBrowserTool,
+    checkBraveTool,
     navigateToUrlTool,
     getPageContentTool,
     clickElementTool,
@@ -466,7 +623,10 @@ export function getBrowserTools(): AgentTool[] {
 
 export default {
   validateUrl,
+  findBravePath,
   getBrowserTools,
+  launchBrowserTool,
+  checkBraveTool,
   navigateToUrlTool,
   getPageContentTool,
   clickElementTool,

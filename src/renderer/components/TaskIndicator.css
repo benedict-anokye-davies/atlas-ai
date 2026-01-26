@@ -1,0 +1,312 @@
+/**
+ * Atlas Desktop - TaskIndicator Styles
+ * Overlay styles for task progress visualization
+ */
+
+/* Main container - positioned above the status */
+.task-indicator {
+  position: absolute;
+  bottom: 140px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 15;
+  pointer-events: auto;
+}
+
+/* Active task card */
+.task-active {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 280px;
+  max-width: 400px;
+  animation: taskSlideIn 0.3s ease;
+}
+
+@keyframes taskSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Task header */
+.task-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.task-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.task-priority {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--atlas-warning, #f59e0b);
+  flex-shrink: 0;
+}
+
+.task-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--atlas-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Task controls */
+.task-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.task-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 4px;
+  color: var(--atlas-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.task-control-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--atlas-text-primary);
+}
+
+.task-control-cancel:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+/* Progress bar */
+.task-progress-container {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.task-progress-bar {
+  height: 100%;
+  background: var(--atlas-accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Status-based progress bar colors */
+.task-status-running .task-progress-bar {
+  background: var(--atlas-accent);
+  animation: progressPulse 2s ease-in-out infinite;
+}
+
+.task-status-paused .task-progress-bar {
+  background: var(--atlas-warning, #f59e0b);
+}
+
+.task-status-completed .task-progress-bar {
+  background: var(--atlas-success, #22c55e);
+}
+
+.task-status-failed .task-progress-bar {
+  background: var(--atlas-error, #ef4444);
+}
+
+@keyframes progressPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Task details */
+.task-details {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.task-step {
+  font-size: 0.75rem;
+  color: var(--atlas-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.task-meta {
+  font-size: 0.7rem;
+  font-family: var(--font-mono, monospace);
+  color: var(--atlas-text-tertiary);
+  flex-shrink: 0;
+}
+
+/* Step indicators */
+.task-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding-top: 0.25rem;
+}
+
+.task-step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transition: all 0.2s ease;
+}
+
+.task-step-dot.pending {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.task-step-dot.running {
+  background: var(--atlas-accent);
+  box-shadow: 0 0 6px var(--atlas-accent);
+  animation: stepPulse 1s ease-in-out infinite;
+}
+
+.task-step-dot.completed {
+  background: var(--atlas-success, #22c55e);
+}
+
+.task-step-dot.failed {
+  background: var(--atlas-error, #ef4444);
+}
+
+.task-step-dot.skipped {
+  background: var(--atlas-warning, #f59e0b);
+  opacity: 0.5;
+}
+
+@keyframes stepPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+}
+
+/* Queue indicator */
+.task-queue-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.queue-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--atlas-accent);
+}
+
+.queue-label {
+  font-size: 0.7rem;
+  color: var(--atlas-text-tertiary);
+}
+
+/* Stats summary */
+.task-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.7rem;
+  color: var(--atlas-text-tertiary);
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.stat-running {
+  color: var(--atlas-accent);
+}
+
+.stat-queued {
+  color: var(--atlas-text-secondary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .task-indicator {
+    bottom: 120px;
+    width: calc(100% - 2rem);
+    left: 1rem;
+    right: 1rem;
+    transform: none;
+  }
+
+  .task-active {
+    min-width: unset;
+    max-width: unset;
+    width: 100%;
+  }
+}
+
+/* Status border glow effects */
+.task-status-running {
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.1);
+}
+
+.task-status-paused {
+  border-color: rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.1);
+}
+
+.task-status-completed {
+  border-color: rgba(34, 197, 94, 0.3);
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.1);
+}
+
+.task-status-failed {
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.1);
+}

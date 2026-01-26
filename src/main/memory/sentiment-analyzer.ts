@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Sentiment Analyzer
+ * Atlas Desktop - Sentiment Analyzer
  * Detects user sentiment from text for adaptive responses
  */
 
@@ -367,7 +367,8 @@ export class SentimentAnalyzer extends EventEmitter {
     // Analyze punctuation
     if (this.config.analyzePunctuation) {
       const exclamationCount = (text.match(/!/g) || []).length;
-      const questionCount = (text.match(/\?/g) || []).length;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _questionCount = (text.match(/\?/g) || []).length;
 
       // Multiple exclamations intensify sentiment
       if (exclamationCount > 1) {

@@ -1,13 +1,17 @@
 /**
- * Nova Desktop - Conversation Memory
+ * Atlas Desktop - Conversation Memory
  * High-level conversation context management with topic extraction
  * and intelligent context assembly for LLM prompts
  */
 
 import { EventEmitter } from 'events';
+import { format } from 'date-fns';
 import { createModuleLogger } from '../utils/logger';
-import { getMemoryManager, MemoryManager, MemoryEntry } from './index';
+import { getMemoryManager, MemoryManager } from './index';
 import { ChatMessage } from '../../shared/types/llm';
+import { createNote } from './note-writer';
+import { addConversationToJournal } from './daily-journal';
+import { indexNote } from './lance-sync';
 
 const logger = createModuleLogger('ConversationMemory');
 
@@ -524,6 +528,223 @@ export class ConversationMemory extends EventEmitter {
     this.sessionStartTime = Date.now();
     this.emit('context-updated');
     logger.info('Conversation memory cleared');
+  }
+
+  /**
+   * Mark the current conversation as "do not remember"
+   * Clears turns without storing to vault and removes from memory manager
+   */
+  async forgetConversation(): Promise<void> {
+    logger.info('Forgetting current conversation', { turnCount: this.turns.length });
+
+    // Clear the current session from memory manager without storing
+    if (this.memoryManager) {
+      const currentSession = this.memoryManager.getCurrentSession();
+      if (currentSession) {
+        // Remove all messages from the current session
+        currentSession.messages = [];
+        logger.debug('Cleared messages from memory manager session');
+      }
+    }
+
+    // Clear local turns without storing to vault
+    this.turns = [];
+    this.topics.clear();
+    this.sessionStartTime = Date.now();
+
+    this.emit('context-updated');
+    logger.info('Conversation forgotten - not stored to vault');
+  }
+
+  /**
+   * Forget the last N turns from the conversation
+   * @param count Number of turns to forget (default: 1)
+   */
+  forgetLastTurns(count: number = 1): number {
+    const toRemove = Math.min(count, this.turns.length);
+
+    if (toRemove === 0) {
+      logger.debug('No turns to forget');
+      return 0;
+    }
+
+    // Remove turns from the end
+    this.turns.splice(-toRemove, toRemove);
+
+    // Update topics based on remaining turns
+    this.recalculateTopics();
+
+    // Remove corresponding messages from memory manager
+    if (this.memoryManager) {
+      const currentSession = this.memoryManager.getCurrentSession();
+      if (currentSession) {
+        // Each turn has 2 messages (user + assistant)
+        const messagesToRemove = toRemove * 2;
+        currentSession.messages = currentSession.messages.slice(0, -messagesToRemove);
+      }
+    }
+
+    this.emit('context-updated');
+    logger.info('Forgot last turns', {
+      removed: toRemove,
+      remaining: this.turns.length,
+    });
+
+    return toRemove;
+  }
+
+  /**
+   * Forget a specific turn by ID
+   */
+  forgetTurn(turnId: string): boolean {
+    const index = this.turns.findIndex((t) => t.id === turnId);
+    if (index === -1) {
+      logger.warn('Turn not found for forgetting', { turnId });
+      return false;
+    }
+
+    this.turns.splice(index, 1);
+    this.recalculateTopics();
+
+    this.emit('context-updated');
+    logger.info('Forgot specific turn', { turnId });
+
+    return true;
+  }
+
+  /**
+   * Recalculate topics based on remaining turns
+   */
+  private recalculateTopics(): void {
+    this.topics.clear();
+
+    for (const turn of this.turns) {
+      for (const topic of turn.topics) {
+        this.updateTopic(topic);
+      }
+    }
+  }
+
+  /**
+   * Store the current conversation session to Obsidian vault
+   * Creates a note in conversations/ and adds entry to daily journal
+   */
+  async storeToVault(): Promise<string | null> {
+    if (this.turns.length === 0) {
+      logger.debug('No turns to store to vault');
+      return null;
+    }
+
+    try {
+      const summary = this.getSummary();
+      const timestamp = format(new Date(), 'yyyy-MM-dd-HHmmss');
+      const filename = `conversation-${timestamp}`;
+
+      // Build conversation transcript
+      const transcript = this.turns
+        .map((turn) => `**User:** ${turn.userMessage}\n\n**Atlas:** ${turn.novaResponse}`)
+        .join('\n\n---\n\n');
+
+      // Build topics section
+      const topicsSection =
+        summary.mainTopics.length > 0
+          ? `## Topics\n\n${summary.mainTopics.map((t) => `- [[${t}]]`).join('\n')}`
+          : '';
+
+      // Build key points section
+      const keyPointsSection =
+        summary.keyPoints.length > 0
+          ? `## Key Points\n\n${summary.keyPoints.map((p) => `- ${p}`).join('\n')}`
+          : '';
+
+      // Generate a one-line summary for the journal
+      const journalSummary = this.generateJournalSummary(summary);
+
+      // Build note content
+      const content = `## Summary
+
+${journalSummary}
+
+${topicsSection}
+
+${keyPointsSection}
+
+## Transcript
+
+${transcript}
+
+---
+
+*Duration: ${Math.round(summary.duration / 60000)} minutes | Turns: ${summary.turnCount} | Sentiment: ${summary.sentiment}*
+
+#conversation #${format(new Date(), 'yyyy-MM-dd')}
+`;
+
+      // Create the note in conversations/ directory
+      const notePath = await createNote('conversations', filename, content, {
+        type: 'conversation',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        time: format(new Date(), 'HH:mm'),
+        turns: summary.turnCount,
+        topics: summary.mainTopics,
+        sentiment: summary.sentiment,
+        duration: summary.duration,
+      });
+
+      logger.info('Conversation stored to vault', {
+        path: notePath,
+        turns: summary.turnCount,
+        topics: summary.mainTopics,
+      });
+
+      // Add to daily journal
+      try {
+        await addConversationToJournal(journalSummary, filename);
+        logger.debug('Added conversation to daily journal');
+      } catch (err) {
+        logger.warn('Failed to add conversation to journal', {
+          error: (err as Error).message,
+        });
+      }
+
+      // Index in LanceDB for semantic search
+      try {
+        await indexNote(notePath);
+        logger.debug('Indexed conversation in LanceDB');
+      } catch (err) {
+        logger.warn('Failed to index conversation', {
+          error: (err as Error).message,
+        });
+      }
+
+      return notePath;
+    } catch (error) {
+      logger.error('Failed to store conversation to vault', {
+        error: (error as Error).message,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Generate a brief summary for the daily journal entry
+   */
+  private generateJournalSummary(summary: ConversationSummary): string {
+    const parts: string[] = [];
+
+    if (summary.mainTopics.length > 0) {
+      parts.push(`Discussed ${summary.mainTopics.slice(0, 3).join(', ')}`);
+    } else {
+      parts.push('General conversation');
+    }
+
+    if (summary.keyPoints.length > 0) {
+      parts.push(
+        `- ${summary.keyPoints[0].slice(0, 50)}${summary.keyPoints[0].length > 50 ? '...' : ''}`
+      );
+    }
+
+    return parts.join('. ');
   }
 
   /**

@@ -385,14 +385,16 @@ describe('STTManager', () => {
   });
 
   describe('provider selection', () => {
-    it('should report no active provider before start', () => {
+    it('should report default provider after construction', () => {
       manager = new STTManager();
-      expect(manager.getActiveProviderType()).toBeNull();
+      // Manager pre-selects a default provider (vosk as fallback when no API keys)
+      expect(manager.getActiveProviderType()).toBe('vosk');
     });
 
-    it('should report offline mode status', () => {
+    it('should report offline mode status when preferOffline set', () => {
       manager = new STTManager({ preferOffline: true });
-      expect(manager.isUsingOffline()).toBe(false); // Not started yet
+      // When preferOffline is set, isUsingOffline returns true immediately
+      expect(manager.isUsingOffline()).toBe(true);
     });
   });
 

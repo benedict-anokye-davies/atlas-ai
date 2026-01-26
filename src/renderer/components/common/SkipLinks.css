@@ -1,0 +1,69 @@
+/**
+ * Atlas Desktop - Skip Links Styles
+ * Session 039-A: Keyboard Navigation
+ */
+
+/* Skip links container */
+.skip-links {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+}
+
+/* Individual skip link */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  padding: 0.75rem 1rem;
+  background: var(--atlas-accent);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: top 0.15s ease;
+  white-space: nowrap;
+}
+
+/* Show skip link on focus */
+.skip-link:focus {
+  top: 0.5rem;
+  left: 0.5rem;
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+
+/* Stack multiple skip links when focused */
+.skip-link:focus + .skip-link:focus,
+.skip-link:focus ~ .skip-link:focus {
+  top: calc(0.5rem + 2.5rem);
+}
+
+.skip-link:focus ~ .skip-link:focus ~ .skip-link:focus {
+  top: calc(0.5rem + 5rem);
+}
+
+/* Skip target (invisible focus receiver) */
+.skip-target {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-target:focus {
+  /* Still invisible but receives focus */
+  outline: none;
+}

@@ -1,0 +1,96 @@
+/**
+ * Atlas Desktop - App Shell Layout Styles
+ */
+
+.atlas-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  background: var(--atlas-bg-base);
+  overflow: hidden;
+}
+
+/* Header */
+.atlas-shell-header {
+  flex-shrink: 0;
+  height: var(--atlas-header-height);
+  background: var(--atlas-bg-surface);
+  border-bottom: 1px solid var(--atlas-border-subtle);
+  z-index: var(--atlas-z-sticky);
+  -webkit-app-region: drag;
+}
+
+/* Body container */
+.atlas-shell-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* Left Navigation */
+.atlas-shell-nav {
+  flex-shrink: 0;
+  height: 100%;
+  background: var(--atlas-bg-surface);
+  border-right: 1px solid var(--atlas-border-subtle);
+  overflow: hidden;
+  z-index: var(--atlas-z-sticky);
+}
+
+/* Main Content */
+.atlas-shell-main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: var(--atlas-bg-base);
+}
+
+/* Context Panel */
+.atlas-shell-context {
+  flex-shrink: 0;
+  height: 100%;
+  background: var(--atlas-bg-surface);
+  border-left: 1px solid var(--atlas-border-subtle);
+  overflow: hidden;
+}
+
+/* Context Panel Toggle */
+.atlas-shell-context-toggle {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--atlas-bg-elevated);
+  border: 1px solid var(--atlas-border-subtle);
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  color: var(--atlas-text-muted);
+  cursor: pointer;
+  transition: all var(--atlas-transition-fast);
+  z-index: var(--atlas-z-sticky);
+}
+
+.atlas-shell-context-toggle:hover {
+  background: var(--atlas-bg-hover);
+  color: var(--atlas-text-primary);
+}
+
+.atlas-shell-context-toggle.active {
+  right: var(--atlas-context-panel-width);
+}
+
+/* Status Bar */
+.atlas-shell-status {
+  flex-shrink: 0;
+  height: var(--atlas-status-bar-height);
+  background: var(--atlas-bg-surface);
+  border-top: 1px solid var(--atlas-border-subtle);
+  z-index: var(--atlas-z-sticky);
+}

@@ -1,0 +1,885 @@
+/**
+ * Atlas Desktop - Git History Component Styles
+ */
+
+/* ============================================================================
+   Overlay & Panel
+   ============================================================================ */
+
+.git-history-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.git-history-panel {
+  width: 90vw;
+  max-width: 1400px;
+  height: 85vh;
+  max-height: 900px;
+  background: #1a1a2e;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+
+.git-history-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.git-history-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.branch-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.commit-count {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* ============================================================================
+   Filters
+   ============================================================================ */
+
+.git-history-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.search-form {
+  display: flex;
+  flex: 1;
+  max-width: 400px;
+}
+
+.search-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  padding: 8px 12px;
+  color: #fff;
+  font-size: 13px;
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.search-btn {
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 0 6px 6px 0;
+  padding: 8px 12px;
+  color: #60a5fa;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.search-btn:hover {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.filter-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.filter-options {
+  position: absolute;
+  top: 100%;
+  right: 20px;
+  background: #1a1a2e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 16px;
+  z-index: 100;
+  min-width: 280px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.filter-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.filter-row label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.filter-row input,
+.filter-row select {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 8px;
+  color: #fff;
+  font-size: 13px;
+}
+
+.filter-row select {
+  cursor: pointer;
+}
+
+.filter-row input:focus,
+.filter-row select:focus {
+  outline: none;
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.filter-clear {
+  width: 100%;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.filter-clear:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* ============================================================================
+   Content Area
+   ============================================================================ */
+
+.git-history-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.git-history-list-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.git-history-list {
+  flex: 1;
+  display: flex;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.git-history-graph {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.commit-list {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ============================================================================
+   Commit Row
+   ============================================================================ */
+
+.git-history-commit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background 0.15s;
+  height: 28px;
+  box-sizing: content-box;
+  justify-content: center;
+}
+
+.git-history-commit:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.git-history-commit.selected {
+  background: rgba(59, 130, 246, 0.15);
+  border-left: 3px solid #3b82f6;
+  padding-left: 13px;
+}
+
+.commit-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.commit-sha {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  color: #f97316;
+  background: rgba(249, 115, 22, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.commit-subject {
+  flex: 1;
+  font-size: 13px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.commit-badge.merge {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+}
+
+.commit-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.commit-author {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.commit-date {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.commit-branches,
+.commit-tags {
+  display: flex;
+  gap: 4px;
+}
+
+.commit-branch,
+.commit-tag {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+.commit-branch {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.commit-tag {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.commit-branch-more {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+}
+
+/* ============================================================================
+   Detail Panel
+   ============================================================================ */
+
+.git-history-detail {
+  width: 400px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.git-history-detail.loading,
+.git-history-detail.empty {
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+  gap: 12px;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.detail-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.detail-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.detail-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.detail-section {
+  margin-bottom: 20px;
+}
+
+.detail-section h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-sha {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.detail-sha .label {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+.detail-sha code {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 11px;
+  color: #f97316;
+  word-break: break-all;
+}
+
+.detail-message h4 {
+  font-size: 14px;
+  color: #fff;
+  margin: 0 0 8px;
+}
+
+.detail-message p {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meta-item {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.meta-item .label {
+  color: rgba(255, 255, 255, 0.5);
+  min-width: 80px;
+}
+
+.meta-item span:last-child {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ============================================================================
+   Actions
+   ============================================================================ */
+
+.detail-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 6px;
+  color: #60a5fa;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+/* ============================================================================
+   File List
+   ============================================================================ */
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.file-status {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-weight: 600;
+  width: 14px;
+  text-align: center;
+}
+
+.file-path {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.8);
+  word-break: break-all;
+}
+
+.file-path .old-path {
+  color: rgba(255, 255, 255, 0.4);
+  text-decoration: line-through;
+}
+
+.file-path .arrow {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.file-stats {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.additions {
+  color: #10b981;
+}
+
+.deletions {
+  color: #ef4444;
+}
+
+.binary-badge {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.stats .additions,
+.stats .deletions {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ============================================================================
+   Raw Diff
+   ============================================================================ */
+
+.toggle-diff {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+}
+
+.toggle-diff:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.raw-diff {
+  margin-top: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.raw-diff code {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: pre;
+  line-height: 1.5;
+}
+
+/* ============================================================================
+   Branch Comparison
+   ============================================================================ */
+
+.git-history-comparison {
+  width: 400px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.git-history-comparison.loading {
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+  gap: 12px;
+}
+
+.comparison-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.comparison-header h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.comparison-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.comparison-stats {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.comparison-stats .stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.comparison-stats .value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.comparison-stats .value.ahead {
+  color: #10b981;
+}
+
+.comparison-stats .value.behind {
+  color: #f97316;
+}
+
+.comparison-stats .value.additions {
+  color: #10b981;
+  font-size: 12px;
+}
+
+.comparison-stats .value.deletions {
+  color: #ef4444;
+  font-size: 12px;
+}
+
+.comparison-stats .label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.comparison-section {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.comparison-section h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0 0 10px;
+}
+
+.comparison-commit {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 12px;
+}
+
+.comparison-commit .sha {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  color: #f97316;
+}
+
+.comparison-commit .subject {
+  color: rgba(255, 255, 255, 0.8);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================================================
+   Pagination
+   ============================================================================ */
+
+.git-history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.git-history-pagination button {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.git-history-pagination button:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+.git-history-pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.git-history-pagination span {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+/* ============================================================================
+   Loading & Error States
+   ============================================================================ */
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.git-history-loading,
+.git-history-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.git-history-error svg {
+  color: #ef4444;
+}
+
+.git-history-error button {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.git-history-error button:hover {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+/* ============================================================================
+   Responsive
+   ============================================================================ */
+
+@media (max-width: 1200px) {
+  .git-history-detail,
+  .git-history-comparison {
+    width: 350px;
+  }
+}
+
+@media (max-width: 900px) {
+  .git-history-panel {
+    width: 95vw;
+    height: 90vh;
+  }
+
+  .git-history-detail,
+  .git-history-comparison {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    z-index: 10;
+  }
+}

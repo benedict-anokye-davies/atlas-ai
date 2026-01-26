@@ -1,10 +1,11 @@
+/* eslint-disable no-console */
 /**
- * Nova Desktop - useNovaState Hook
+ * Atlas Desktop - useAtlasState Hook
  * Connects to the voice pipeline IPC events and provides reactive state
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { NovaState } from '../components/orb/NovaParticles';
+import type { AtlasState } from '../components/orb/AtlasParticles';
 import type {
   FullVoicePipelineStatus,
   WakeWordFeedback,
@@ -12,13 +13,14 @@ import type {
   ListeningState,
   StillListeningEvent,
 } from '../../shared/types/voice';
+import { useNovaStore } from '../stores';
 
 /**
  * State returned by the hook
  */
-interface NovaStateResult {
+interface AtlasStateResult {
   // Core state
-  state: NovaState;
+  state: AtlasState;
   isReady: boolean;
   isListening: boolean;
   isSpeaking: boolean;
@@ -58,9 +60,9 @@ interface NovaStateResult {
 }
 
 /**
- * Map pipeline state string to NovaState type
+ * Map pipeline state string to AtlasState type
  */
-function mapToNovaState(pipelineState: string): NovaState {
+function mapToAtlasState(pipelineState: string): AtlasState {
   switch (pipelineState?.toLowerCase()) {
     case 'listening':
       return 'listening';
@@ -78,11 +80,11 @@ function mapToNovaState(pipelineState: string): NovaState {
 }
 
 /**
- * Hook to connect to Nova voice pipeline
+ * Hook to connect to Atlas voice pipeline
  */
-export function useNovaState(): NovaStateResult {
+export function useAtlasState(): AtlasStateResult {
   // Core state
-  const [state, setState] = useState<NovaState>('idle');
+  const [state, setState] = useState<AtlasState>('idle');
   const [isReady, setIsReady] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -125,17 +127,17 @@ export function useNovaState(): NovaStateResult {
 
   // Subscribe to IPC events
   useEffect(() => {
-    if (!window.nova) {
-      console.warn('[useNovaState] Nova API not available');
+    if (!window.atlas) {
+      console.warn('[useAtlasState] Atlas API not available');
       return;
     }
 
-    const { on } = window.nova;
+    const { on } = window.atlas;
     const cleanups: Array<() => void> = [];
 
     // State change events
     cleanups.push(
-      on('nova:state-change', (data: unknown) => {
+      on('atlas:state-change', (data: unknown) => {
         // IPC sends { state, previousState } object
         let stateStr: string;
         if (typeof data === 'object' && data !== null && 'state' in data) {
@@ -143,7 +145,7 @@ export function useNovaState(): NovaStateResult {
         } else {
           stateStr = String(data);
         }
-        setState(mapToNovaState(stateStr));
+        setState(mapToAtlasState(stateStr));
         setIsListening(stateStr === 'listening');
         setIsThinking(stateStr === 'processing' || stateStr === 'thinking');
       })
@@ -151,7 +153,7 @@ export function useNovaState(): NovaStateResult {
 
     // Audio level
     cleanups.push(
-      on('nova:audio-level', (data: unknown) => {
+      on('atlas:audio-level', (data: unknown) => {
         // IPC sends { level } object
         let level: number;
         if (typeof data === 'object' && data !== null && 'level' in data) {
@@ -167,7 +169,7 @@ export function useNovaState(): NovaStateResult {
 
     // Transcription events
     cleanups.push(
-      on('nova:transcript-interim', (data: unknown) => {
+      on('atlas:transcript-interim', (data: unknown) => {
         // IPC sends { text } object
         let text: string;
         if (typeof data === 'object' && data !== null && 'text' in data) {
@@ -180,7 +182,7 @@ export function useNovaState(): NovaStateResult {
     );
 
     cleanups.push(
-      on('nova:transcript-final', (data: unknown) => {
+      on('atlas:transcript-final', (data: unknown) => {
         // IPC sends TranscriptionResult object with text property
         let text: string;
         if (typeof data === 'object' && data !== null && 'text' in data) {
@@ -195,14 +197,14 @@ export function useNovaState(): NovaStateResult {
 
     // Response events
     cleanups.push(
-      on('nova:response-start', () => {
+      on('atlas:response-start', () => {
         setResponse('');
         setIsThinking(true);
       })
     );
 
     cleanups.push(
-      on('nova:response-chunk', (data: unknown) => {
+      on('atlas:response-chunk', (data: unknown) => {
         // IPC sends LLMStreamChunk object with content/text property
         let text: string;
         if (typeof data === 'object' && data !== null) {
@@ -216,7 +218,7 @@ export function useNovaState(): NovaStateResult {
     );
 
     cleanups.push(
-      on('nova:response-complete', (data: unknown) => {
+      on('atlas:response-complete', (data: unknown) => {
         // IPC sends LLMResponse object with content property
         let text: string;
         if (typeof data === 'object' && data !== null) {
@@ -232,21 +234,21 @@ export function useNovaState(): NovaStateResult {
 
     // Speaking events
     cleanups.push(
-      on('nova:speaking-start', () => {
+      on('atlas:speaking-start', () => {
         setIsSpeaking(true);
         setState('speaking');
       })
     );
 
     cleanups.push(
-      on('nova:speaking-end', () => {
+      on('atlas:speaking-end', () => {
         setIsSpeaking(false);
         setState('idle');
       })
     );
 
     // TTS Audio playback - receive audio data and play it
-    const playNextInQueue = () => {
+    const playNextInQueue = async () => {
       if (audioQueueRef.current.length === 0) {
         isPlayingRef.current = false;
         return;
@@ -254,27 +256,38 @@ export function useNovaState(): NovaStateResult {
 
       isPlayingRef.current = true;
       const audioData = audioQueueRef.current.shift()!;
-      console.log('[useNovaState] Playing audio, queue size:', audioQueueRef.current.length);
+      console.log('[useAtlasState] Playing audio, queue size:', audioQueueRef.current.length);
 
       if (!audioRef.current) {
         audioRef.current = new Audio();
         audioRef.current.onended = playNextInQueue;
         audioRef.current.onerror = (e) => {
-          console.error('[useNovaState] Audio playback error:', e);
+          console.error('[useAtlasState] Audio playback error:', e);
           playNextInQueue(); // Try next in queue
         };
+        
+        // Set output device if specified in settings
+        const outputDeviceId = useNovaStore.getState().settings.outputDevice;
+        if (outputDeviceId && 'setSinkId' in audioRef.current) {
+          try {
+            await (audioRef.current as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> }).setSinkId(outputDeviceId);
+            console.log('[useAtlasState] Audio output set to device:', outputDeviceId);
+          } catch (err) {
+            console.warn('[useAtlasState] Failed to set audio output device:', err);
+          }
+        }
       }
 
       audioRef.current.src = audioData;
       audioRef.current.play().catch((err) => {
-        console.error('[useNovaState] Failed to play audio:', err);
+        console.error('[useAtlasState] Failed to play audio:', err);
         playNextInQueue();
       });
     };
 
     cleanups.push(
-      on('nova:tts-audio', (data: unknown) => {
-        console.log('[useNovaState] Received nova:tts-audio');
+      on('atlas:tts-audio', (data: unknown) => {
+        console.log('[useAtlasState] Received atlas:tts-audio');
         // Receive base64 audio data URL from main process
         if (typeof data === 'string' && data.startsWith('data:audio')) {
           audioQueueRef.current.push(data);
@@ -286,8 +299,8 @@ export function useNovaState(): NovaStateResult {
     );
 
     cleanups.push(
-      on('nova:audio-chunk', (data: unknown) => {
-        console.log('[useNovaState] Received nova:audio-chunk', data);
+      on('atlas:audio-chunk', (data: unknown) => {
+        console.log('[useAtlasState] Received atlas:audio-chunk', data);
         // Receive audio chunk with base64 data
         if (typeof data === 'object' && data !== null) {
           const chunk = data as { audio?: string; data?: string };
@@ -308,8 +321,8 @@ export function useNovaState(): NovaStateResult {
 
     // Also listen for complete synthesis result
     cleanups.push(
-      on('nova:synthesis-complete', (data: unknown) => {
-        console.log('[useNovaState] Received nova:synthesis-complete');
+      on('atlas:synthesis-complete', (data: unknown) => {
+        console.log('[useAtlasState] Received atlas:synthesis-complete');
         if (typeof data === 'object' && data !== null) {
           const result = data as { audioBase64?: string; format?: string };
           if (result.audioBase64) {
@@ -326,7 +339,7 @@ export function useNovaState(): NovaStateResult {
 
     // Provider changes
     cleanups.push(
-      on('nova:provider-change', (data: unknown) => {
+      on('atlas:provider-change', (data: unknown) => {
         if (typeof data === 'object' && data !== null) {
           const providerData = data as { type?: string; provider?: string };
           if (providerData.type === 'stt') {
@@ -340,14 +353,14 @@ export function useNovaState(): NovaStateResult {
 
     // Lifecycle events
     cleanups.push(
-      on('nova:started', () => {
+      on('atlas:started', () => {
         setIsReady(true);
         setError(null);
       })
     );
 
     cleanups.push(
-      on('nova:stopped', () => {
+      on('atlas:stopped', () => {
         setIsReady(false);
         setState('idle');
       })
@@ -355,7 +368,7 @@ export function useNovaState(): NovaStateResult {
 
     // Error events
     cleanups.push(
-      on('nova:error', (err: unknown) => {
+      on('atlas:error', (err: unknown) => {
         setError(String(err || 'Unknown error'));
         setState('error');
       })
@@ -363,7 +376,7 @@ export function useNovaState(): NovaStateResult {
 
     // Wake word detected
     cleanups.push(
-      on('nova:wake-word', () => {
+      on('atlas:wake-word', () => {
         setState('listening');
         setIsListening(true);
       })
@@ -371,7 +384,7 @@ export function useNovaState(): NovaStateResult {
 
     // Wake word feedback (for confidence thresholding visualization)
     cleanups.push(
-      on('nova:wake-feedback', (data: unknown) => {
+      on('atlas:wake-feedback', (data: unknown) => {
         if (typeof data === 'object' && data !== null) {
           const feedback = data as WakeWordFeedback;
           setWakeFeedback(feedback);
@@ -391,7 +404,7 @@ export function useNovaState(): NovaStateResult {
 
     // VAD listening state changes
     cleanups.push(
-      on('nova:listening-state', (data: unknown) => {
+      on('atlas:listening-state', (data: unknown) => {
         if (typeof data === 'string') {
           setListeningState(data as ListeningState);
         }
@@ -400,7 +413,7 @@ export function useNovaState(): NovaStateResult {
 
     // VAD still listening event (pause detected but expecting more speech)
     cleanups.push(
-      on('nova:still-listening', (data: unknown) => {
+      on('atlas:still-listening', (data: unknown) => {
         if (typeof data === 'object' && data !== null) {
           const event = data as StillListeningEvent;
           setStillListening(event);
@@ -428,13 +441,13 @@ export function useNovaState(): NovaStateResult {
   // Fetch initial status
   useEffect(() => {
     const fetchStatus = async () => {
-      if (!window.nova?.nova) return;
+      if (!window.atlas?.atlas) return;
 
       try {
-        const result = await window.nova.nova.getStatus();
+        const result = await window.atlas.atlas.getStatus();
         if (result.success && result.data) {
           const status = result.data as FullVoicePipelineStatus;
-          setState(mapToNovaState(status.state));
+          setState(mapToAtlasState(status.state));
           setIsListening(status.isListening);
           setIsSpeaking(status.isSpeaking);
           setAudioLevel(status.audioLevel);
@@ -445,7 +458,7 @@ export function useNovaState(): NovaStateResult {
           setIsReady(true);
         }
       } catch (err) {
-        console.error('[useNovaState] Failed to fetch status:', err);
+        console.error('[useAtlasState] Failed to fetch status:', err);
       }
     };
 
@@ -454,9 +467,9 @@ export function useNovaState(): NovaStateResult {
 
   // Actions
   const start = useCallback(async () => {
-    if (!window.nova?.nova) return;
+    if (!window.atlas?.atlas) return;
     try {
-      const result = await window.nova.nova.start();
+      const result = await window.atlas.atlas.start();
       if (!result.success) {
         setError(result.error || 'Failed to start');
       }
@@ -466,36 +479,36 @@ export function useNovaState(): NovaStateResult {
   }, []);
 
   const stop = useCallback(async () => {
-    if (!window.nova?.nova) return;
+    if (!window.atlas?.atlas) return;
     try {
-      await window.nova.nova.stop();
+      await window.atlas.atlas.stop();
     } catch (err) {
       setError(String(err));
     }
   }, []);
 
   const triggerWake = useCallback(async () => {
-    if (!window.nova?.nova) return;
+    if (!window.atlas?.atlas) return;
     try {
-      await window.nova.nova.triggerWake();
+      await window.atlas.atlas.triggerWake();
     } catch (err) {
       setError(String(err));
     }
   }, []);
 
   const sendText = useCallback(async (text: string) => {
-    if (!window.nova?.nova) return;
+    if (!window.atlas?.atlas) return;
     try {
-      await window.nova.nova.sendText(text);
+      await window.atlas.atlas.sendText(text);
     } catch (err) {
       setError(String(err));
     }
   }, []);
 
   const clearHistory = useCallback(async () => {
-    if (!window.nova?.nova) return;
+    if (!window.atlas?.atlas) return;
     try {
-      await window.nova.nova.clearHistory();
+      await window.atlas.atlas.clearHistory();
       setTranscript('');
       setResponse('');
     } catch (err) {
@@ -528,4 +541,4 @@ export function useNovaState(): NovaStateResult {
   };
 }
 
-export default useNovaState;
+export default useAtlasState;

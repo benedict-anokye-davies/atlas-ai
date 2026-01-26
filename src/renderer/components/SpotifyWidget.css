@@ -1,0 +1,571 @@
+/**
+ * Atlas Desktop - Spotify Widget Styles
+ * Floating mini player with album art and controls
+ */
+
+.spotify-widget {
+  position: fixed;
+  width: 320px;
+  background: linear-gradient(145deg, rgba(20, 20, 25, 0.98), rgba(10, 10, 15, 0.98));
+  border: 1px solid rgba(30, 215, 96, 0.15);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5),
+              0 0 30px rgba(30, 215, 96, 0.1);
+  z-index: 999;
+  animation: slideIn 0.3s ease-out;
+}
+
+.spotify-widget.bottom-right {
+  bottom: 20px;
+  right: 20px;
+}
+
+.spotify-widget.bottom-left {
+  bottom: 20px;
+  left: 20px;
+}
+
+.spotify-widget.top-right {
+  top: 20px;
+  right: 20px;
+}
+
+.spotify-widget.top-left {
+  top: 20px;
+  left: 20px;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header */
+.widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(30, 215, 96, 0.08);
+  border-bottom: 1px solid rgba(30, 215, 96, 0.1);
+}
+
+.widget-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spotify-logo {
+  width: 20px;
+  height: 20px;
+  color: #1ed760;
+}
+
+.brand-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1ed760;
+}
+
+.connection-status {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-left: 8px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.5);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.close-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(30, 215, 96, 0.2);
+  border-top-color: #1ed760;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Track Display */
+.track-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.album-art-wrapper {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+}
+
+.album-art {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.album-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(30, 215, 96, 0.2), rgba(30, 215, 96, 0.05));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-logo {
+  width: 32px;
+  height: 32px;
+  color: rgba(30, 215, 96, 0.5);
+}
+
+.playing-indicator {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 4px;
+}
+
+.playing-indicator .bar {
+  width: 3px;
+  background: #1ed760;
+  border-radius: 1px;
+  animation: bounce 0.8s ease-in-out infinite;
+}
+
+.playing-indicator .bar:nth-child(1) { height: 8px; animation-delay: 0s; }
+.playing-indicator .bar:nth-child(2) { height: 12px; animation-delay: 0.2s; }
+.playing-indicator .bar:nth-child(3) { height: 6px; animation-delay: 0.4s; }
+
+@keyframes bounce {
+  0%, 100% { transform: scaleY(0.5); }
+  50% { transform: scaleY(1); }
+}
+
+.track-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.track-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-artists {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-album {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.like-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.like-btn:hover {
+  color: #1ed760;
+  background: rgba(30, 215, 96, 0.1);
+}
+
+.like-btn.liked {
+  color: #1ed760;
+}
+
+.like-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.like-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Progress Section */
+.progress-section {
+  padding: 0 16px;
+}
+
+.progress-bar {
+  position: relative;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  cursor: pointer;
+  overflow: visible;
+}
+
+.progress-bar:hover .progress-fill {
+  background: #1ed760;
+}
+
+.progress-bar:hover .progress-handle {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+.progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 2px;
+  transition: background 0.2s ease;
+}
+
+.progress-handle {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  transform: translateX(-50%) translateY(-50%) scale(0);
+  opacity: 0;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.progress-times {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 6px;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+}
+
+.control-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.control-btn:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.control-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.control-btn.primary {
+  width: 48px;
+  height: 48px;
+  background: #fff;
+  color: #000;
+}
+
+.control-btn.primary:hover:not(:disabled) {
+  transform: scale(1.05);
+  background: #fff;
+}
+
+.control-btn.secondary {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.control-btn.secondary.active {
+  color: #1ed760;
+}
+
+.control-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.control-btn.primary .control-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.repeat-one {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  font-size: 0.6rem;
+  font-weight: bold;
+  color: #1ed760;
+}
+
+/* Bottom Controls */
+.bottom-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 12px;
+}
+
+.volume-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.volume-btn {
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.volume-btn:hover {
+  color: #fff;
+}
+
+.volume-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.volume-slider-wrapper {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px;
+  background: rgba(30, 30, 35, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.volume-slider {
+  width: 80px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.device-control {
+  position: relative;
+}
+
+.device-btn {
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.device-btn:hover {
+  color: #fff;
+}
+
+.device-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.devices-dropdown {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  min-width: 180px;
+  padding: 8px;
+  background: rgba(30, 30, 35, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.device-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.device-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.device-item.active {
+  color: #1ed760;
+}
+
+/* Voice Commands */
+.voice-commands {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.voice-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.voice-toggle:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.voice-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.commands-list {
+  padding: 8px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: expandIn 0.2s ease-out;
+}
+
+@keyframes expandIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.command-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+
+.command-phrase {
+  font-size: 0.75rem;
+  color: #1ed760;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.command-action {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+}

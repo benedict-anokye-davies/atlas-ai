@@ -1,0 +1,689 @@
+/**
+ * Atlas Desktop - Developer Console Styles
+ */
+
+.dev-console-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.dev-console-container {
+  width: 95vw;
+  max-width: 1100px;
+  height: 85vh;
+  max-height: 800px;
+  background: #0d0d14;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px) scale(0.98); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) scale(1); 
+  }
+}
+
+/* Header */
+.dc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #0a0a10;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dc-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dc-icon {
+  width: 20px;
+  height: 20px;
+  color: #10b981;
+}
+
+.dc-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  font-family: inherit;
+}
+
+.dc-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.dc-close svg {
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.dc-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dc-close:hover svg {
+  color: #fff;
+}
+
+/* Tabs */
+.dc-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tab-btn {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+/* Content */
+.dc-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Logs Panel */
+.logs-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.logs-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.toolbar-left {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 8px 4px 10px;
+  border-radius: 6px;
+}
+
+.filter-icon {
+  width: 14px;
+  height: 14px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.filter-group select {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.filter-group select option {
+  background: #0d0d14;
+}
+
+.search-input {
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-family: inherit;
+  width: 200px;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.search-input:focus {
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.toolbar-right {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.toolbar-right button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.toolbar-right button svg {
+  width: 14px;
+  height: 14px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.toolbar-right button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.toolbar-right button:hover svg {
+  color: #fff;
+}
+
+.auto-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+}
+
+.auto-scroll input {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+/* Logs List */
+.logs-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.logs-empty {
+  padding: 40px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.log-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: default;
+  transition: background 0.15s ease;
+}
+
+.log-entry:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.log-entry.error {
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.log-entry.warn {
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.log-time {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.log-level {
+  font-weight: 600;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.log-source {
+  color: #8b5cf6;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.log-message {
+  color: rgba(255, 255, 255, 0.9);
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.log-expand-indicator {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.log-data {
+  width: 100%;
+  margin: 8px 0 0 0;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  overflow-x: auto;
+}
+
+/* Command Input */
+.command-input {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.prompt {
+  color: #10b981;
+  margin-right: 8px;
+  font-weight: 600;
+}
+
+.command-input input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.command-input input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* State Panel */
+.state-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.state-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.state-header h3 {
+  margin: 0;
+  font-size: 13px;
+  color: #fff;
+}
+
+.state-header button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.state-header button svg {
+  width: 14px;
+  height: 14px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.state-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.state-section {
+  margin-bottom: 20px;
+}
+
+.state-section h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #8b5cf6;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.state-section pre {
+  margin: 0;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  overflow-x: auto;
+}
+
+/* IPC Panel */
+.ipc-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ipc-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ipc-header h3 {
+  margin: 0;
+  font-size: 13px;
+  color: #fff;
+}
+
+.ipc-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.ipc-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.ipc-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ipc-channel {
+  flex: 1;
+  color: #10b981;
+  font-size: 12px;
+}
+
+.ipc-calls {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  margin-right: 20px;
+}
+
+.ipc-last {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 11px;
+}
+
+/* Performance Panel */
+.perf-panel {
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.perf-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.perf-metric {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.metric-value {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: #10b981;
+  margin-bottom: 4px;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.perf-timings h4 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.timing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timing-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+
+.timing-name {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.timing-value {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.timing-value.good {
+  color: #10b981;
+}
+
+.timing-value.ok {
+  color: #f59e0b;
+}
+
+.timing-value.bad {
+  color: #ef4444;
+}
+
+/* Timing bar for startup phases */
+.timing-bar-container {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  margin: 0 12px;
+  overflow: hidden;
+}
+
+.timing-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease-out;
+}
+
+/* Performance loading and error states */
+.perf-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+}
+
+.perf-error {
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #ef4444;
+  font-size: 12px;
+  margin-top: 16px;
+}
+
+/* Performance recommendations */
+.perf-recommendations {
+  margin-top: 24px;
+  padding: 16px;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+}
+
+.perf-recommendations h4 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #3b82f6;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.perf-recommendations ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.perf-recommendations li {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.perf-recommendations li:last-child {
+  margin-bottom: 0;
+}
+
+/* Scrollbar */
+.logs-list::-webkit-scrollbar,
+.state-content::-webkit-scrollbar,
+.ipc-list::-webkit-scrollbar,
+.perf-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.logs-list::-webkit-scrollbar-track,
+.state-content::-webkit-scrollbar-track,
+.ipc-list::-webkit-scrollbar-track,
+.perf-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.logs-list::-webkit-scrollbar-thumb,
+.state-content::-webkit-scrollbar-thumb,
+.ipc-list::-webkit-scrollbar-thumb,
+.perf-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dev-console-container {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .perf-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .toolbar-left,
+  .toolbar-right {
+    flex-wrap: wrap;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+}

@@ -17,7 +17,7 @@ export function createMockChatCompletion(content: string, finishReason = 'stop')
         index: 0,
       },
     ],
-    model: 'accounts/fireworks/models/deepseek-r1',
+    model: 'accounts/fireworks/models/glm-4p7',
     usage: {
       prompt_tokens: 50,
       completion_tokens: content.split(' ').length * 2,
@@ -45,7 +45,7 @@ export async function* createMockStreamingResponse(chunks: string[]) {
       ],
       id: `chatcmpl-${Date.now()}`,
       created: Math.floor(Date.now() / 1000),
-      model: 'accounts/fireworks/models/deepseek-r1',
+      model: 'accounts/fireworks/models/glm-4p7',
       object: 'chat.completion.chunk',
     };
   }

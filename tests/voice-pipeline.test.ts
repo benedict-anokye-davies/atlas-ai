@@ -349,7 +349,7 @@ describe('VoicePipelineConfig', () => {
     const config = pipeline.getConfig();
 
     expect(config.streamToTTS).toBe(true);
-    expect(config.ttsBufferSize).toBe(50);
+    expect(config.ttsBufferSize).toBe(15); // Ultra-low latency default
     expect(config.enableHistory).toBe(true);
     expect(config.maxHistoryTurns).toBe(10);
   });

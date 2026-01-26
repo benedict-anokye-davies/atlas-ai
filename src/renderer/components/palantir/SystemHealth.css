@@ -1,0 +1,84 @@
+/**
+ * Atlas Desktop - System Health Styles
+ */
+
+.system-health {
+  display: flex;
+  flex-direction: column;
+  background: var(--atlas-bg-elevated);
+  border: 1px solid var(--atlas-border-subtle);
+  border-radius: var(--atlas-radius-lg);
+  overflow: hidden;
+}
+
+.system-health__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--atlas-space-3) var(--atlas-space-4);
+  border-bottom: 1px solid var(--atlas-border-subtle);
+}
+
+.system-health__title {
+  font-size: var(--atlas-text-md);
+  font-weight: var(--atlas-weight-semibold);
+  color: var(--atlas-text-primary);
+  margin: 0;
+}
+
+.system-health__summary {
+  font-size: var(--atlas-text-xs);
+  font-weight: var(--atlas-weight-medium);
+}
+
+.system-health__summary.online {
+  color: var(--atlas-accent-green);
+}
+
+.system-health__summary.issues {
+  color: var(--atlas-accent-yellow);
+}
+
+.system-health__services {
+  display: flex;
+  flex-direction: column;
+  padding: var(--atlas-space-2);
+}
+
+.system-health__service {
+  display: flex;
+  align-items: center;
+  gap: var(--atlas-space-2);
+  padding: var(--atlas-space-2) var(--atlas-space-3);
+  border-radius: var(--atlas-radius-md);
+  cursor: pointer;
+  transition: background var(--atlas-transition-fast);
+}
+
+.system-health__service:hover {
+  background: var(--atlas-bg-hover);
+}
+
+.system-health__status-dot {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.system-health__service-name {
+  flex: 1;
+  font-size: var(--atlas-text-sm);
+  color: var(--atlas-text-primary);
+}
+
+.system-health__latency {
+  font-size: var(--atlas-text-xs);
+  color: var(--atlas-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.system-health__status-label {
+  font-size: var(--atlas-text-xs);
+  font-weight: var(--atlas-weight-medium);
+  min-width: 60px;
+  text-align: right;
+}

@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Semantic Chunker
+ * Atlas Desktop - Semantic Chunker
  * Breaks conversations into semantic chunks for better memory organization
  */
 

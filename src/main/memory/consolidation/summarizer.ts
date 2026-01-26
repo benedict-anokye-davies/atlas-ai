@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Memory Summarizer
+ * Atlas Desktop - Memory Summarizer
  * Summarizes low-importance memories for efficient storage
  */
 

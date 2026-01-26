@@ -1,0 +1,21 @@
+/**
+ * MiniChart Styles
+ */
+
+.mini-chart {
+  display: inline-flex;
+  position: relative;
+}
+
+.mini-chart__canvas {
+  display: block;
+}
+
+/* Optional glow based on trend */
+.mini-chart[data-trend="up"] {
+  filter: drop-shadow(0 0 4px rgba(0, 255, 136, 0.3));
+}
+
+.mini-chart[data-trend="down"] {
+  filter: drop-shadow(0 0 4px rgba(255, 71, 87, 0.3));
+}

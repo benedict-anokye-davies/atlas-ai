@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Agent Types
+ * Atlas Desktop - Agent Types
  * Type definitions for the agent system
  */
 
@@ -84,7 +84,8 @@ export type ToolCategory =
   | 'memory'
   | 'search'
   | 'utility'
-  | 'git';
+  | 'git'
+  | 'appLauncher';
 
 /**
  * File system operation types
@@ -248,7 +249,7 @@ export const BLOCKED_PATHS = [
   '.ssh/id_ed25519',
   '.gnupg',
   '.aws/credentials',
-  // Nova internal
+  // Atlas internal
   '.env',
   '*.pem',
   '*.key',
@@ -307,3 +308,103 @@ export const SAFE_COMMANDS = [
   'pip',
   'code',
 ] as const;
+
+// ============================================================================
+// App Launcher Types
+// ============================================================================
+
+/**
+ * Represents an installed application
+ */
+export interface InstalledApp {
+  /** Display name of the application */
+  name: string;
+  /** Normalized name for matching (lowercase, no special chars) */
+  normalizedName: string;
+  /** Full path to the executable */
+  executablePath: string;
+  /** Version string if available */
+  version?: string;
+  /** Publisher/vendor name */
+  publisher?: string;
+  /** Application icon path */
+  iconPath?: string;
+  /** Installation directory */
+  installDir?: string;
+  /** Source of detection (registry, startmenu, common, custom) */
+  source: 'registry' | 'startmenu' | 'common' | 'custom';
+  /** User-defined aliases for this app */
+  aliases?: string[];
+  /** Last time this app was launched via Atlas */
+  lastLaunched?: number;
+  /** Number of times launched via Atlas */
+  launchCount?: number;
+}
+
+/**
+ * Custom alias mapping for voice commands
+ */
+export interface AppAlias {
+  /** The alias phrase (e.g., "browser") */
+  alias: string;
+  /** Target app name or executable */
+  target: string;
+  /** Priority when multiple matches exist (lower = higher priority) */
+  priority?: number;
+}
+
+/**
+ * Result of an app launch operation
+ */
+export interface AppLaunchResult {
+  /** Name of the application */
+  appName: string;
+  /** Whether the launch was successful */
+  launched: boolean;
+  /** Path to the executable that was launched */
+  executablePath?: string;
+  /** Process ID if available */
+  pid?: number;
+  /** Arguments passed to the application */
+  args?: string[];
+  /** If fuzzy matched, the original query */
+  matchedFrom?: string;
+  /** Confidence score of the match (0-1) */
+  matchConfidence?: number;
+  /** Suggestions if app not found */
+  suggestions?: string[];
+}
+
+/**
+ * Registry scan result
+ */
+export interface RegistryScanResult {
+  /** List of detected applications */
+  apps: InstalledApp[];
+  /** Timestamp of the scan */
+  scannedAt: number;
+  /** Duration of the scan in milliseconds */
+  duration: number;
+  /** Count of apps found by source */
+  sources: {
+    registry: number;
+    startMenu: number;
+    common: number;
+  };
+}
+
+/**
+ * App registry statistics
+ */
+export interface AppRegistryStats {
+  /** Total number of applications */
+  totalApps: number;
+  /** Number of custom apps */
+  customApps: number;
+  /** Total number of aliases (built-in + custom) */
+  aliasCount: number;
+  /** Number of recently launched apps */
+  recentCount: number;
+  /** Age of last scan in milliseconds */
+  lastScanAge: number;
+}

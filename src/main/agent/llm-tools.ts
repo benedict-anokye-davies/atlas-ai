@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - LLM Tool Definitions
+ * Atlas Desktop - LLM Tool Definitions
  * OpenAI-compatible tool definitions for function calling
  *
  * These definitions allow the LLM to understand and request tool execution
@@ -88,6 +88,48 @@ export const VOICE_TOOLS = [
   'git_diff',
   'git_log',
   'git_stash',
+  // Code Intelligence - advanced coding capabilities
+  'grep_search',
+  'semantic_code_search',
+  'find_symbol',
+  'code_patch',
+  'run_tests',
+  'lint_format',
+  // Code Analysis - deep code understanding
+  'parse_ast',
+  'analyze_complexity',
+  'analyze_dependencies',
+  'find_duplicates',
+  'find_dead_code',
+  // Code Refactoring - automated refactoring
+  'extract_function',
+  'rename_symbol',
+  'inline_variable',
+  'manage_imports',
+  'convert_style',
+  // Debug Controller - debugging operations
+  'debug_start',
+  'debug_breakpoint',
+  'debug_inspect',
+  'debug_control',
+  'debug_callstack',
+  'debug_profile',
+  // Documentation Generator - auto-generate docs
+  'generate_jsdoc',
+  'generate_readme',
+  'generate_api_docs',
+  'generate_changelog',
+  // Scaffolding - code generation
+  'create_component',
+  'create_api_route',
+  'create_model',
+  'create_test_file',
+  // Multi-File Editor - batch operations
+  'find_replace_in_files',
+  'batch_edit_files',
+  'move_with_import_updates',
+  'code_migration',
+  'transactional_edit',
 ] as const;
 
 /**

@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Git Tool Types
+ * Atlas Desktop - Git Tool Types
  * Type definitions for git operations
  */
 

@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Git Utilities Index
+ * Atlas Desktop - Git Utilities Index
  * Re-exports all git utilities
  */
 

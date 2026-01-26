@@ -1,0 +1,33 @@
+.pt-ascii-orb-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--atlas-bg-surface);
+  border: 1px solid var(--atlas-border-subtle);
+  border-radius: 4px; /* Tech card slight radius */
+}
+
+.pt-ascii-canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated; /* Crisp text */
+}
+
+.pt-ascii-overlay {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  pointer-events: none;
+}
+
+.pt-ascii-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--atlas-text-muted);
+  letter-spacing: 1px;
+  text-shadow: 0 0 5px var(--atlas-bg-base);
+}

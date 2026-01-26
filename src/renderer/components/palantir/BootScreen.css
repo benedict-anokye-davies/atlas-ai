@@ -1,0 +1,282 @@
+/**
+ * Atlas Desktop - Boot Screen Styles
+ * Cyberpunk initialization sequence animation
+ */
+
+.boot-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--atlas-bg-base);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--atlas-font-mono);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Background effect */
+.boot-screen__background {
+  position: absolute;
+  inset: 0;
+  opacity: 0.15;
+}
+
+/* Vignette overlay */
+.boot-screen__vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 0%,
+    transparent 40%,
+    rgba(0, 0, 0, 0.8) 100%
+  );
+  pointer-events: none;
+}
+
+/* Scanline overlay */
+.boot-screen__scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.1) 2px,
+    rgba(0, 0, 0, 0.1) 4px
+  );
+  pointer-events: none;
+  animation: scanline-flicker 0.05s infinite;
+}
+
+@keyframes scanline-flicker {
+  0%, 100% { opacity: 0.03; }
+  50% { opacity: 0.05; }
+}
+
+/* Main content container */
+.boot-screen__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  padding: 40px;
+  max-width: 500px;
+  z-index: 1;
+}
+
+/* Logo section */
+.boot-screen__logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.boot-logo-svg {
+  filter: drop-shadow(0 0 20px var(--atlas-cyan));
+}
+
+/* Ring drawing animation */
+.boot-logo__ring--outer {
+  animation: draw-ring 1s ease-out forwards;
+}
+
+.boot-logo__ring--middle {
+  animation: draw-ring 1s ease-out 0.3s forwards;
+}
+
+@keyframes draw-ring {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Core pulse */
+.boot-logo__core {
+  animation: core-pulse 2s ease-in-out infinite;
+}
+
+@keyframes core-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.9); }
+}
+
+/* Crosshairs fade in */
+.boot-logo__crosshairs {
+  animation: crosshairs-in 0.5s ease-out 0.8s forwards;
+}
+
+@keyframes crosshairs-in {
+  to { opacity: 0.7; }
+}
+
+.boot-screen__title {
+  font-size: 36px;
+  font-weight: 300;
+  letter-spacing: 0.5em;
+  color: var(--atlas-text-primary);
+  margin: 0;
+  text-shadow: 0 0 30px var(--atlas-cyan);
+}
+
+.boot-screen__subtitle {
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--atlas-text-muted);
+  margin: 0;
+}
+
+/* Boot messages */
+.boot-screen__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-height: 200px;
+  overflow: hidden;
+}
+
+.boot-message {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--atlas-text-secondary);
+  padding: 4px 0;
+}
+
+.boot-message--success {
+  color: var(--atlas-text-primary);
+}
+
+.boot-message--running {
+  color: var(--atlas-cyan);
+}
+
+.boot-message--warning {
+  color: var(--atlas-accent-amber);
+}
+
+.boot-message--error {
+  color: var(--atlas-accent-red);
+}
+
+.boot-message__status {
+  width: 16px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.boot-message__spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+  color: var(--atlas-cyan);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.boot-message__check {
+  color: var(--atlas-green);
+}
+
+.boot-message__warn {
+  color: var(--atlas-accent-amber);
+}
+
+.boot-message__error {
+  color: var(--atlas-accent-red);
+}
+
+.boot-message__pending {
+  color: var(--atlas-text-muted);
+  opacity: 0.5;
+}
+
+.boot-message__text {
+  flex: 1;
+}
+
+.boot-message__time {
+  font-size: 10px;
+  color: var(--atlas-text-muted);
+  opacity: 0.6;
+}
+
+/* Progress bar */
+.boot-screen__progress {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.boot-screen__progress-track {
+  flex: 1;
+  height: 2px;
+  background: var(--atlas-border-subtle);
+  overflow: hidden;
+  position: relative;
+}
+
+.boot-screen__progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--atlas-cyan), var(--atlas-green));
+  box-shadow: 0 0 10px var(--atlas-cyan);
+  position: relative;
+}
+
+.boot-screen__progress-fill::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 8px;
+  background: var(--atlas-green);
+  box-shadow: 0 0 10px var(--atlas-green);
+}
+
+.boot-screen__progress-text {
+  font-size: 11px;
+  color: var(--atlas-cyan);
+  min-width: 35px;
+  text-align: right;
+}
+
+/* Skip hint */
+.boot-screen__skip {
+  font-size: 10px;
+  color: var(--atlas-text-muted);
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .boot-screen__content {
+    padding: 24px;
+    gap: 24px;
+  }
+
+  .boot-screen__title {
+    font-size: 28px;
+    letter-spacing: 0.3em;
+  }
+
+  .boot-logo-svg {
+    width: 60px;
+    height: 60px;
+  }
+
+  .boot-message {
+    font-size: 11px;
+  }
+}

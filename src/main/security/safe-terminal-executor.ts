@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Safe Terminal Executor
+ * Atlas Desktop - Safe Terminal Executor
  * Security-hardened command execution with whitelisting and sandboxing
  *
  * Features:
@@ -350,7 +350,8 @@ export class SafeTerminalExecutor {
     command: string,
     options: TerminalExecuteOptions & { sessionId?: string; source?: string } = {}
   ): Promise<{ success: boolean; data?: TerminalResult; error?: string }> {
-    const startTime = Date.now();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _startTime = Date.now();
     const source = options.source ?? 'terminal';
     const sessionId = options.sessionId ?? this.sessionId;
 

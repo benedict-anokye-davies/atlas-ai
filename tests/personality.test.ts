@@ -1,5 +1,5 @@
 /**
- * Tests for Nova Personality System
+ * Tests for Atlas Personality System
  *
  * Tests personality types, PersonalityManager, emotion detection,
  * and system prompt generation.
@@ -15,12 +15,13 @@ import {
 import {
   PersonalityTraits,
   PersonalityConfig,
-  DEFAULT_NOVA_PERSONALITY,
+  DEFAULT_ATLAS_PERSONALITY,
+  JARVIS_PERSONALITY,
   PROFESSIONAL_PERSONALITY,
   PLAYFUL_PERSONALITY,
   MINIMAL_PERSONALITY,
   PERSONALITY_PRESETS,
-  NovaEmotion,
+  AtlasEmotion,
   UserEmotion,
 } from '../src/shared/types/personality';
 
@@ -31,7 +32,7 @@ import {
 describe('Personality Types', () => {
   describe('PersonalityTraits', () => {
     it('should have all required trait fields', () => {
-      const traits: PersonalityTraits = DEFAULT_NOVA_PERSONALITY.traits;
+      const traits: PersonalityTraits = DEFAULT_ATLAS_PERSONALITY.traits;
 
       expect(traits).toHaveProperty('friendliness');
       expect(traits).toHaveProperty('formality');
@@ -42,7 +43,7 @@ describe('Personality Types', () => {
     });
 
     it('should have trait values between 0 and 1', () => {
-      const traits = DEFAULT_NOVA_PERSONALITY.traits;
+      const traits = DEFAULT_ATLAS_PERSONALITY.traits;
 
       Object.values(traits).forEach((value) => {
         expect(value).toBeGreaterThanOrEqual(0);
@@ -51,33 +52,33 @@ describe('Personality Types', () => {
     });
   });
 
-  describe('DEFAULT_NOVA_PERSONALITY', () => {
+  describe('DEFAULT_ATLAS_PERSONALITY', () => {
     it('should have correct name', () => {
-      expect(DEFAULT_NOVA_PERSONALITY.name).toBe('Nova');
+      expect(DEFAULT_ATLAS_PERSONALITY.name).toBe('Atlas');
     });
 
     it('should have archetype defined', () => {
-      expect(DEFAULT_NOVA_PERSONALITY.archetype).toBeDefined();
-      expect(DEFAULT_NOVA_PERSONALITY.archetype.length).toBeGreaterThan(0);
+      expect(DEFAULT_ATLAS_PERSONALITY.archetype).toBeDefined();
+      expect(DEFAULT_ATLAS_PERSONALITY.archetype.length).toBeGreaterThan(0);
     });
 
     it('should have greeting message', () => {
-      expect(DEFAULT_NOVA_PERSONALITY.greeting).toBeDefined();
-      expect(DEFAULT_NOVA_PERSONALITY.greeting).toContain('Nova');
+      expect(DEFAULT_ATLAS_PERSONALITY.greeting).toBeDefined();
+      expect(DEFAULT_ATLAS_PERSONALITY.greeting).toContain('Atlas');
     });
 
     it('should have farewell messages', () => {
-      expect(DEFAULT_NOVA_PERSONALITY.farewells).toBeInstanceOf(Array);
-      expect(DEFAULT_NOVA_PERSONALITY.farewells.length).toBeGreaterThan(0);
+      expect(DEFAULT_ATLAS_PERSONALITY.farewells).toBeInstanceOf(Array);
+      expect(DEFAULT_ATLAS_PERSONALITY.farewells.length).toBeGreaterThan(0);
     });
 
     it('should have catchphrases', () => {
-      expect(DEFAULT_NOVA_PERSONALITY.catchphrases).toBeInstanceOf(Array);
-      expect(DEFAULT_NOVA_PERSONALITY.catchphrases.length).toBeGreaterThan(0);
+      expect(DEFAULT_ATLAS_PERSONALITY.catchphrases).toBeInstanceOf(Array);
+      expect(DEFAULT_ATLAS_PERSONALITY.catchphrases.length).toBeGreaterThan(0);
     });
 
     it('should have emotional responses for all emotion types', () => {
-      const emotions: NovaEmotion[] = [
+      const emotions: AtlasEmotion[] = [
         'happy',
         'sad',
         'confused',
@@ -89,13 +90,13 @@ describe('Personality Types', () => {
       ];
 
       emotions.forEach((emotion) => {
-        expect(DEFAULT_NOVA_PERSONALITY.emotionalResponses[emotion]).toBeDefined();
-        expect(DEFAULT_NOVA_PERSONALITY.emotionalResponses[emotion].length).toBeGreaterThan(0);
+        expect(DEFAULT_ATLAS_PERSONALITY.emotionalResponses[emotion]).toBeDefined();
+        expect(DEFAULT_ATLAS_PERSONALITY.emotionalResponses[emotion].length).toBeGreaterThan(0);
       });
     });
 
     it('should have response style settings', () => {
-      const style = DEFAULT_NOVA_PERSONALITY.responseStyle;
+      const style = DEFAULT_ATLAS_PERSONALITY.responseStyle;
 
       expect(style.maxSentences).toBeGreaterThan(0);
       expect(typeof style.useContractions).toBe('boolean');
@@ -109,7 +110,7 @@ describe('Personality Types', () => {
 
   describe('Personality Presets', () => {
     it('should have all preset personalities defined', () => {
-      expect(PERSONALITY_PRESETS.nova).toBeDefined();
+      expect(PERSONALITY_PRESETS.atlas).toBeDefined();
       expect(PERSONALITY_PRESETS.professional).toBeDefined();
       expect(PERSONALITY_PRESETS.playful).toBeDefined();
       expect(PERSONALITY_PRESETS.minimal).toBeDefined();
@@ -118,24 +119,24 @@ describe('Personality Types', () => {
 
     it('professional preset should have higher formality', () => {
       expect(PROFESSIONAL_PERSONALITY.traits.formality).toBeGreaterThan(
-        DEFAULT_NOVA_PERSONALITY.traits.formality
+        DEFAULT_ATLAS_PERSONALITY.traits.formality
       );
     });
 
     it('playful preset should have higher humor and energy', () => {
       expect(PLAYFUL_PERSONALITY.traits.humor).toBeGreaterThan(
-        DEFAULT_NOVA_PERSONALITY.traits.humor
+        DEFAULT_ATLAS_PERSONALITY.traits.humor
       );
       expect(PLAYFUL_PERSONALITY.traits.energy).toBeGreaterThan(
-        DEFAULT_NOVA_PERSONALITY.traits.energy
+        DEFAULT_ATLAS_PERSONALITY.traits.energy
       );
     });
 
     it('minimal preset should have lower energy and humor', () => {
       expect(MINIMAL_PERSONALITY.traits.energy).toBeLessThan(
-        DEFAULT_NOVA_PERSONALITY.traits.energy
+        DEFAULT_ATLAS_PERSONALITY.traits.energy
       );
-      expect(MINIMAL_PERSONALITY.traits.humor).toBeLessThan(DEFAULT_NOVA_PERSONALITY.traits.humor);
+      expect(MINIMAL_PERSONALITY.traits.humor).toBeLessThan(DEFAULT_ATLAS_PERSONALITY.traits.humor);
     });
   });
 });
@@ -158,8 +159,8 @@ describe('PersonalityManager', () => {
 
   describe('Initialization', () => {
     it('should initialize with default personality', () => {
-      expect(manager.getConfig().name).toBe('Nova');
-      expect(manager.getPreset()).toBe('nova');
+      expect(manager.getConfig().name).toBe('Atlas');
+      expect(manager.getPreset()).toBe('jarvis'); // Default is jarvis preset
     });
 
     it('should initialize with custom config overrides', () => {
@@ -185,14 +186,14 @@ describe('PersonalityManager', () => {
       const config = manager.getConfig();
       config.name = 'Modified';
 
-      expect(manager.getConfig().name).toBe('Nova');
+      expect(manager.getConfig().name).toBe('Atlas');
     });
 
     it('should return copy of traits', () => {
       const traits = manager.getTraits();
       traits.friendliness = 0;
 
-      expect(manager.getTraits().friendliness).toBe(DEFAULT_NOVA_PERSONALITY.traits.friendliness);
+      expect(manager.getTraits().friendliness).toBe(JARVIS_PERSONALITY.traits.friendliness);
     });
 
     it('should switch presets correctly', () => {
@@ -250,14 +251,15 @@ describe('PersonalityManager', () => {
     it('should generate system prompt with personality name', () => {
       const prompt = manager.getSystemPrompt();
 
-      expect(prompt).toContain('Nova');
+      expect(prompt).toContain('Atlas');
     });
 
     it('should include personality description', () => {
       const prompt = manager.getSystemPrompt();
 
+      // JARVIS personality has high friendliness (0.9), so it generates 'warm' and 'welcoming'
       expect(prompt).toContain('warm');
-      expect(prompt).toContain('curious');
+      expect(prompt).toContain('helping');
     });
 
     it('should include response guidelines', () => {
@@ -320,7 +322,7 @@ describe('PersonalityManager', () => {
       const enhanced = manager.enhanceResponse(response, 'excited');
 
       // Should either prefix or suffix with an excited phrase
-      const hasExcitedPhrase = DEFAULT_NOVA_PERSONALITY.emotionalResponses.excited.some((phrase) =>
+      const hasExcitedPhrase = JARVIS_PERSONALITY.emotionalResponses.excited.some((phrase) =>
         enhanced.includes(phrase)
       );
 
@@ -486,25 +488,28 @@ describe('PersonalityManager', () => {
     it('should return greeting message', () => {
       const greeting = manager.getGreeting();
 
-      expect(greeting).toBe(DEFAULT_NOVA_PERSONALITY.greeting);
+      // getGreeting returns time-based greetings now, not the static one
+      expect(typeof greeting).toBe('string');
+      expect(greeting.length).toBeGreaterThan(0);
     });
 
     it('should return a farewell message', () => {
       const farewell = manager.getFarewell();
 
-      expect(DEFAULT_NOVA_PERSONALITY.farewells).toContain(farewell);
+      expect(JARVIS_PERSONALITY.farewells).toContain(farewell);
     });
 
     it('should return an action phrase', () => {
       const action = manager.getAction();
 
-      expect(DEFAULT_NOVA_PERSONALITY.actions).toContain(action);
+      expect(JARVIS_PERSONALITY.actions).toContain(action);
     });
 
     it('should return a catchphrase', () => {
       const catchphrase = manager.getCatchphrase();
 
-      expect(DEFAULT_NOVA_PERSONALITY.catchphrases).toContain(catchphrase);
+      // JARVIS has no catchphrases by design
+      expect(catchphrase).toBeNull();
     });
 
     it('should return null for catchphrase when none configured', () => {
@@ -550,7 +555,7 @@ describe('PersonalityManager Singleton', () => {
     shutdownPersonalityManager();
     const instance2 = getPersonalityManager();
 
-    expect(instance2.getTraits().humor).toBe(DEFAULT_NOVA_PERSONALITY.traits.humor);
+    expect(instance2.getTraits().humor).toBe(JARVIS_PERSONALITY.traits.humor);
   });
 
   it('should remove all listeners on shutdown', () => {

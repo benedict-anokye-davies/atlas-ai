@@ -1,0 +1,335 @@
+/**
+ * Atlas Desktop - Command Palette Styles
+ * VS Code-style command palette with Atlas dark theme
+ */
+
+/* Overlay */
+.command-palette-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  z-index: 2000;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Main palette container */
+.command-palette {
+  background: #1a1a2e;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(99, 102, 241, 0.2);
+  animation: slideDown 0.2s ease-out;
+  overflow: hidden;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Search section */
+.command-search {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 12px;
+}
+
+.command-search-icon {
+  width: 18px;
+  height: 18px;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+.command-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.command-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.command-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s;
+}
+
+.command-clear:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.command-clear svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Results list */
+.command-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.command-results::-webkit-scrollbar {
+  width: 8px;
+}
+
+.command-results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.command-results::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.command-results::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Empty state */
+.command-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.9rem;
+}
+
+/* Category header */
+.command-category-header {
+  padding: 8px 12px 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 8px;
+}
+
+.command-category-header:first-child {
+  margin-top: 0;
+}
+
+/* Command item */
+.command-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.command-item:hover,
+.command-item.selected {
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.command-item.selected {
+  background: rgba(99, 102, 241, 0.25);
+}
+
+.command-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.command-item.disabled:hover {
+  background: transparent;
+}
+
+/* Command icon */
+.command-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(99, 102, 241, 0.15);
+  border-radius: 6px;
+  color: #818cf8;
+  flex-shrink: 0;
+}
+
+.command-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Command content */
+.command-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.command-label {
+  font-size: 0.9rem;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.command-recent-badge {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  background: rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+  border-radius: 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.command-description {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Keyboard shortcut */
+.command-shortcut {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+/* Footer */
+.command-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.command-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.command-hint kbd {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .command-palette-overlay {
+    padding-top: 10vh;
+  }
+
+  .command-palette {
+    max-height: 70vh;
+  }
+
+  .command-footer {
+    gap: 12px;
+  }
+
+  .command-hint {
+    font-size: 0.7rem;
+  }
+
+  .command-shortcut {
+    display: none;
+  }
+}
+
+/* Animations for items appearing */
+.command-item {
+  animation: itemFadeIn 0.15s ease-out;
+}
+
+@keyframes itemFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Focus states */
+.command-input:focus {
+  outline: none;
+}
+
+.command-item:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: -2px;
+}

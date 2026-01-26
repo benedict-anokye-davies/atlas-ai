@@ -20,10 +20,7 @@ import {
   validateRemoteUrl,
 } from '../src/main/agent/tools/git/utils/validator';
 import { getGitTools } from '../src/main/agent/tools/git';
-import {
-  summarizeToolResultForVoice,
-  getContextualTools,
-} from '../src/main/agent/llm-tools';
+import { summarizeToolResultForVoice, getContextualTools } from '../src/main/agent/llm-tools';
 
 describe('Git Parser', () => {
   describe('parseGitStatus', () => {
@@ -329,8 +326,12 @@ describe('Git Tool Definitions', () => {
     it('git_status should have optional cwd parameter', () => {
       const tools = getGitTools();
       const statusTool = tools.find((t) => t.name === 'git_status');
+      expect(statusTool).toBeDefined();
 
-      const params = statusTool?.parameters as { properties: Record<string, unknown>; required?: string[] };
+      const params = statusTool?.parameters as {
+        properties: Record<string, unknown>;
+        required?: string[];
+      };
       expect(params.properties.cwd).toBeDefined();
       expect(params.required || []).not.toContain('cwd');
     });
@@ -338,8 +339,12 @@ describe('Git Tool Definitions', () => {
     it('git_commit should require message parameter', () => {
       const tools = getGitTools();
       const commitTool = tools.find((t) => t.name === 'git_commit');
+      expect(commitTool).toBeDefined();
 
-      const params = commitTool?.parameters as { properties: Record<string, unknown>; required: string[] };
+      const params = commitTool?.parameters as {
+        properties: Record<string, unknown>;
+        required: string[];
+      };
       expect(params.properties.message).toBeDefined();
       expect(params.required).toContain('message');
     });
@@ -347,8 +352,12 @@ describe('Git Tool Definitions', () => {
     it('git_checkout should require target parameter', () => {
       const tools = getGitTools();
       const checkoutTool = tools.find((t) => t.name === 'git_checkout');
+      expect(checkoutTool).toBeDefined();
 
-      const params = checkoutTool?.parameters as { properties: Record<string, unknown>; required: string[] };
+      const params = checkoutTool?.parameters as {
+        properties: Record<string, unknown>;
+        required: string[];
+      };
       expect(params.properties.target).toBeDefined();
       expect(params.required).toContain('target');
     });
@@ -356,8 +365,12 @@ describe('Git Tool Definitions', () => {
     it('git_clone should require url parameter', () => {
       const tools = getGitTools();
       const cloneTool = tools.find((t) => t.name === 'git_clone');
+      expect(cloneTool).toBeDefined();
 
-      const params = cloneTool?.parameters as { properties: Record<string, unknown>; required: string[] };
+      const params = cloneTool?.parameters as {
+        properties: Record<string, unknown>;
+        required: string[];
+      };
       expect(params.properties.url).toBeDefined();
       expect(params.required).toContain('url');
     });
@@ -365,8 +378,12 @@ describe('Git Tool Definitions', () => {
     it('git_reset should require mode parameter', () => {
       const tools = getGitTools();
       const resetTool = tools.find((t) => t.name === 'git_reset');
+      expect(resetTool).toBeDefined();
 
-      const params = resetTool?.parameters as { properties: Record<string, unknown>; required: string[] };
+      const params = resetTool?.parameters as {
+        properties: Record<string, unknown>;
+        required: string[];
+      };
       expect(params.properties.mode).toBeDefined();
       expect(params.required).toContain('mode');
     });
@@ -507,7 +524,7 @@ describe('Tool Category Registration', () => {
     const gitTools = getGitTools();
     expect(gitTools).toBeDefined();
     expect(gitTools.length).toBeGreaterThan(0);
-    // Verify it has all the expected git tools
+    // There are 21 git tools in the implementation (including cherry-pick, revert, submodule)
     expect(gitTools.length).toBe(21);
   });
 
@@ -515,7 +532,9 @@ describe('Tool Category Registration', () => {
     const gitTools = getGitTools();
     const gitToolNames = gitTools.map((t) => t.name);
 
+    // Core tools
     expect(gitToolNames).toContain('git_status');
+    expect(gitToolNames).toContain('git_add');
     expect(gitToolNames).toContain('git_commit');
     expect(gitToolNames).toContain('git_push');
     expect(gitToolNames).toContain('git_pull');
@@ -527,11 +546,14 @@ describe('Tool Category Registration', () => {
     expect(gitToolNames).toContain('git_stash');
     expect(gitToolNames).toContain('git_reset');
     expect(gitToolNames).toContain('git_rebase');
+    expect(gitToolNames).toContain('git_cherry_pick');
+    expect(gitToolNames).toContain('git_revert');
     expect(gitToolNames).toContain('git_tag');
     expect(gitToolNames).toContain('git_remote');
     expect(gitToolNames).toContain('git_fetch');
     expect(gitToolNames).toContain('git_clone');
     expect(gitToolNames).toContain('git_init');
+    expect(gitToolNames).toContain('git_submodule');
   });
 });
 
@@ -576,4 +598,3 @@ describe('Contextual Tool Selection', () => {
     expect(gitTools.length).toBeGreaterThan(0);
   });
 });
-

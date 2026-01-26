@@ -1,0 +1,611 @@
+/**
+ * Atlas Desktop - Transcript View Styles
+ * Dark theme styling for conversation transcript panel
+ */
+
+/* Main transcript container */
+.transcript-view {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 400px;
+  max-width: 100vw;
+  display: flex;
+  flex-direction: column;
+  background: rgba(12, 12, 18, 0.98);
+  border-left: 1px solid rgba(99, 102, 241, 0.15);
+  backdrop-filter: blur(20px);
+  z-index: 100;
+  transform: translateX(0);
+  transition: width 0.3s ease, transform 0.3s ease;
+  -webkit-app-region: no-drag;
+}
+
+.transcript-view.expanded {
+  width: 600px;
+}
+
+/* Header */
+.transcript-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+  flex-shrink: 0;
+}
+
+.transcript-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.transcript-title h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--atlas-text-primary);
+  margin: 0;
+}
+
+.transcript-count {
+  font-size: 12px;
+  color: var(--atlas-text-secondary);
+  background: rgba(99, 102, 241, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.transcript-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Close button */
+.transcript-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--atlas-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.transcript-close-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--atlas-error);
+}
+
+/* Search bar */
+.transcript-search {
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+  flex-shrink: 0;
+}
+
+.transcript-search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(30, 30, 46, 0.8);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+}
+
+.transcript-search-input-wrapper:focus-within {
+  border-color: var(--atlas-accent);
+}
+
+.transcript-search-input-wrapper svg {
+  color: var(--atlas-text-secondary);
+  flex-shrink: 0;
+}
+
+.transcript-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--atlas-text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+
+.transcript-search-input::placeholder {
+  color: var(--atlas-text-secondary);
+  opacity: 0.6;
+}
+
+.transcript-search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--atlas-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.transcript-search-clear:hover {
+  color: var(--atlas-text-primary);
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.transcript-search-results {
+  display: block;
+  font-size: 12px;
+  color: var(--atlas-text-secondary);
+  margin-top: 8px;
+}
+
+/* Toolbar */
+.transcript-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+  flex-shrink: 0;
+}
+
+.transcript-toolbar-left,
+.transcript-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.transcript-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0 8px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 6px;
+  color: var(--atlas-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.transcript-toolbar-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: var(--atlas-text-primary);
+}
+
+.transcript-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.transcript-toolbar-btn.active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: var(--atlas-accent);
+  color: var(--atlas-accent);
+}
+
+.transcript-toolbar-delete:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--atlas-error);
+}
+
+/* Export dropdown */
+.transcript-export-dropdown {
+  position: relative;
+}
+
+.transcript-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 200px;
+  background: rgba(24, 24, 36, 0.98);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  z-index: 110;
+}
+
+.transcript-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  color: var(--atlas-text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.transcript-dropdown-item:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+/* Messages list */
+.transcript-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 0;
+  scroll-behavior: smooth;
+}
+
+.transcript-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--atlas-text-secondary);
+}
+
+.transcript-empty p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Individual message */
+.transcript-message {
+  position: relative;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-left: 3px solid transparent;
+}
+
+.transcript-message:hover {
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.transcript-message.selected {
+  background: rgba(99, 102, 241, 0.1);
+  border-left-color: var(--atlas-accent);
+}
+
+.transcript-message-user {
+  border-left-color: transparent;
+}
+
+.transcript-message-user.selected,
+.transcript-message-user:hover {
+  border-left-color: var(--orb-listening);
+}
+
+.transcript-message-assistant {
+  border-left-color: transparent;
+}
+
+.transcript-message-assistant.selected,
+.transcript-message-assistant:hover {
+  border-left-color: var(--orb-speaking);
+}
+
+.transcript-message.interim {
+  opacity: 0.7;
+}
+
+/* Message header */
+.transcript-message-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.transcript-message-role {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.transcript-message-role svg {
+  color: var(--atlas-text-secondary);
+}
+
+.transcript-message-user .transcript-message-role svg {
+  color: var(--orb-listening);
+}
+
+.transcript-message-assistant .transcript-message-role svg {
+  color: var(--orb-speaking);
+}
+
+.transcript-message-role-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--atlas-text-secondary);
+}
+
+.transcript-message-user .transcript-message-role-label {
+  color: var(--orb-listening);
+}
+
+.transcript-message-assistant .transcript-message-role-label {
+  color: var(--orb-speaking);
+}
+
+.transcript-message-time {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--atlas-text-secondary);
+  opacity: 0.7;
+}
+
+/* Message content */
+.transcript-message-content {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--atlas-text-primary);
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.transcript-interim-indicator {
+  color: var(--atlas-text-secondary);
+  animation: blink 1s ease-in-out infinite;
+}
+
+/* Search highlight */
+.transcript-highlight {
+  background: rgba(245, 158, 11, 0.3);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* Message actions */
+.transcript-message-actions {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.transcript-message-actions.visible {
+  opacity: 1;
+}
+
+.transcript-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: rgba(30, 30, 46, 0.9);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 4px;
+  color: var(--atlas-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.transcript-action-btn:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: var(--atlas-text-primary);
+}
+
+.transcript-action-delete:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--atlas-error);
+}
+
+/* Session history panel */
+.transcript-history-panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 280px;
+  background: rgba(18, 18, 26, 0.98);
+  border-right: 1px solid rgba(99, 102, 241, 0.15);
+  display: flex;
+  flex-direction: column;
+  z-index: 105;
+  transform: translateX(-100%);
+  animation: slideIn 0.2s ease forwards;
+}
+
+@keyframes slideIn {
+  to {
+    transform: translateX(0);
+  }
+}
+
+.transcript-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+.transcript-history-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--atlas-text-primary);
+  margin: 0;
+}
+
+.transcript-history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.transcript-history-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--atlas-text-secondary);
+  font-size: 13px;
+}
+
+.transcript-history-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.05);
+  transition: background 0.15s ease;
+}
+
+.transcript-history-item:hover {
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.transcript-history-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.transcript-history-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--atlas-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transcript-history-item-date {
+  font-size: 11px;
+  color: var(--atlas-text-secondary);
+}
+
+.transcript-history-item-count {
+  font-size: 11px;
+  color: var(--atlas-text-secondary);
+  opacity: 0.7;
+}
+
+.transcript-history-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.transcript-history-load-btn {
+  padding: 4px 12px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 4px;
+  color: var(--atlas-accent);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.transcript-history-load-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: var(--atlas-accent);
+}
+
+.transcript-history-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--atlas-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.transcript-history-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--atlas-error);
+}
+
+/* Footer with keyboard shortcuts */
+.transcript-footer {
+  padding: 8px 20px;
+  border-top: 1px solid rgba(99, 102, 241, 0.1);
+  flex-shrink: 0;
+}
+
+.transcript-shortcuts {
+  font-size: 11px;
+  color: var(--atlas-text-secondary);
+  opacity: 0.7;
+}
+
+.transcript-shortcuts kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  margin: 0 2px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 800px) {
+  .transcript-view {
+    width: 100vw;
+  }
+
+  .transcript-view.expanded {
+    width: 100vw;
+  }
+
+  .transcript-history-panel {
+    width: 100%;
+  }
+}
+
+/* Scrollbar styling for transcript */
+.transcript-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.transcript-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.transcript-messages::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.2);
+  border-radius: 3px;
+}
+
+.transcript-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.3);
+}

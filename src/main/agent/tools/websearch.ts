@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Web Search Tool
+ * Atlas Desktop - Web Search Tool
  * Search the web using DuckDuckGo (no API key required)
  */
 

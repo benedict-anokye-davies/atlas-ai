@@ -1,9 +1,69 @@
 /**
- * Nova Desktop - TTS Types
+ * Atlas Desktop - TTS Types
  * Text-to-Speech type definitions
  */
 
 import { EventEmitter } from 'events';
+
+/**
+ * Voice speed/pitch customization settings
+ * Allows users to adjust TTS playback characteristics
+ */
+export interface VoiceSettings {
+  /** Playback speed multiplier (0.5 to 2.0, 1.0 = normal) */
+  speed: number;
+  /** Pitch adjustment in semitones (-12 to +12, 0 = normal) */
+  pitch: number;
+}
+
+/**
+ * Default voice settings
+ */
+export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
+  speed: 1.0,
+  pitch: 0,
+};
+
+/**
+ * Voice settings validation constraints
+ */
+export const VOICE_SETTINGS_CONSTRAINTS = {
+  speed: { min: 0.5, max: 2.0, step: 0.1 },
+  pitch: { min: -12, max: 12, step: 1 },
+} as const;
+
+/**
+ * Voice command triggers for adjusting settings
+ */
+export const VOICE_COMMAND_TRIGGERS = {
+  speakFaster: ['speak faster', 'talk faster', 'speed up', 'faster please'],
+  speakSlower: ['speak slower', 'talk slower', 'slow down', 'slower please'],
+  pitchHigher: ['higher pitch', 'pitch up', 'higher voice'],
+  pitchLower: ['lower pitch', 'pitch down', 'lower voice'],
+  resetVoice: ['reset voice', 'normal voice', 'default voice', 'reset speech'],
+} as const;
+
+/**
+ * User TTS preferences stored persistently
+ */
+export interface TTSUserPreferences {
+  /** Voice settings (speed/pitch) */
+  voiceSettings: VoiceSettings;
+  /** Preferred voice ID */
+  preferredVoiceId?: string;
+  /** Preferred TTS provider */
+  preferredProvider?: 'elevenlabs' | 'offline';
+  /** Last updated timestamp */
+  updatedAt: number;
+}
+
+/**
+ * Default user TTS preferences
+ */
+export const DEFAULT_TTS_USER_PREFERENCES: TTSUserPreferences = {
+  voiceSettings: DEFAULT_VOICE_SETTINGS,
+  updatedAt: Date.now(),
+};
 
 /**
  * TTS configuration options
@@ -27,6 +87,8 @@ export interface TTSConfig {
   outputFormat?: 'mp3_44100_128' | 'mp3_22050_32' | 'pcm_16000' | 'pcm_22050' | 'pcm_24000' | 'pcm_44100';
   /** Request timeout in ms */
   timeout?: number;
+  /** Voice settings (speed/pitch) */
+  voiceSettings?: VoiceSettings;
 }
 
 /**
@@ -105,6 +167,10 @@ export interface TTSEvents {
   error: (error: Error) => void;
   /** Emitted when queue changes */
   queueUpdate: (queue: SpeechQueueItem[]) => void;
+  /** Emitted when voice settings change */
+  voiceSettingsChanged: (settings: VoiceSettings) => void;
+  /** Emitted when previewing voice settings */
+  voiceSettingsPreview: (settings: VoiceSettings, previewText: string) => void;
   /** Emitted when interrupted */
   interrupted: () => void;
 }
@@ -198,14 +264,14 @@ export const ELEVENLABS_VOICES = {
   
   // Good for assistant voice
   onyx: 'onwK4e9ZLuTAKqWW03F9', // Daniel - calm, professional
-  nova: 'EXAVITQu4vr4xnSDxMaL', // Sarah - friendly, warm
+  atlas: 'EXAVITQu4vr4xnSDxMaL', // Sarah - friendly, warm
 } as const;
 
 /**
- * Default TTS configuration
+ * Default TTS configuration - warm British voice for JARVIS-like sound
  */
 export const DEFAULT_TTS_CONFIG: Partial<TTSConfig> = {
-  voiceId: ELEVENLABS_VOICES.onyx,
+  voiceId: ELEVENLABS_VOICES.paul, // Warm British voice
   modelId: 'eleven_turbo_v2_5',
   stability: 0.5,
   similarityBoost: 0.75,
@@ -213,4 +279,91 @@ export const DEFAULT_TTS_CONFIG: Partial<TTSConfig> = {
   useSpeakerBoost: true,
   outputFormat: 'mp3_44100_128',
   timeout: 30000,
+  voiceSettings: DEFAULT_VOICE_SETTINGS,
 };
+
+/**
+ * Validate voice settings are within constraints
+ * @param settings - Voice settings to validate
+ * @returns Validated and clamped voice settings
+ */
+export function validateVoiceSettings(settings: Partial<VoiceSettings>): VoiceSettings {
+  const { speed: speedConstraints, pitch: pitchConstraints } = VOICE_SETTINGS_CONSTRAINTS;
+
+  return {
+    speed: Math.max(
+      speedConstraints.min,
+      Math.min(speedConstraints.max, settings.speed ?? DEFAULT_VOICE_SETTINGS.speed)
+    ),
+    pitch: Math.max(
+      pitchConstraints.min,
+      Math.min(pitchConstraints.max, settings.pitch ?? DEFAULT_VOICE_SETTINGS.pitch)
+    ),
+  };
+}
+
+/**
+ * Adjust speed by a delta amount (respects constraints)
+ * @param currentSpeed - Current speed value
+ * @param delta - Amount to adjust (positive = faster, negative = slower)
+ * @returns New speed value within constraints
+ */
+export function adjustSpeed(currentSpeed: number, delta: number): number {
+  const { min, max, step } = VOICE_SETTINGS_CONSTRAINTS.speed;
+  const newSpeed = currentSpeed + delta * step;
+  return Math.max(min, Math.min(max, Math.round(newSpeed * 10) / 10));
+}
+
+/**
+ * Adjust pitch by a delta amount (respects constraints)
+ * @param currentPitch - Current pitch value
+ * @param delta - Amount to adjust (positive = higher, negative = lower)
+ * @returns New pitch value within constraints
+ */
+export function adjustPitch(currentPitch: number, delta: number): number {
+  const { min, max, step } = VOICE_SETTINGS_CONSTRAINTS.pitch;
+  const newPitch = currentPitch + delta * step;
+  return Math.max(min, Math.min(max, Math.round(newPitch)));
+}
+
+/**
+ * Check if text matches any voice command trigger
+ * @param text - Text to check
+ * @returns Command type if matched, null otherwise
+ */
+export function matchVoiceCommand(
+  text: string
+): keyof typeof VOICE_COMMAND_TRIGGERS | null {
+  const normalizedText = text.toLowerCase().trim();
+
+  for (const [command, triggers] of Object.entries(VOICE_COMMAND_TRIGGERS)) {
+    if (triggers.some((trigger) => normalizedText.includes(trigger))) {
+      return command as keyof typeof VOICE_COMMAND_TRIGGERS;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Get human-readable description of voice settings
+ * @param settings - Voice settings
+ * @returns Human-readable description
+ */
+export function describeVoiceSettings(settings: VoiceSettings): string {
+  const speedDesc =
+    settings.speed === 1.0
+      ? 'normal speed'
+      : settings.speed > 1.0
+        ? `${settings.speed}x faster`
+        : `${settings.speed}x slower`;
+
+  const pitchDesc =
+    settings.pitch === 0
+      ? 'normal pitch'
+      : settings.pitch > 0
+        ? `pitch raised ${settings.pitch} semitones`
+        : `pitch lowered ${Math.abs(settings.pitch)} semitones`;
+
+  return `${speedDesc}, ${pitchDesc}`;
+}

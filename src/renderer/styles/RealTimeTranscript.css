@@ -1,0 +1,186 @@
+/**
+ * Real-Time Transcript Overlay Styles
+ * Lightweight, semi-transparent overlay at the bottom of the screen
+ */
+
+.realtime-transcript {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 800px;
+  width: 90%;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.realtime-transcript-content {
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  max-height: 150px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.realtime-transcript-entry {
+  margin-bottom: 12px;
+  animation: fadeSlideIn 0.3s ease-out;
+}
+
+.realtime-transcript-entry:last-child {
+  margin-bottom: 0;
+}
+
+.realtime-transcript-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.realtime-transcript-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.realtime-transcript-name {
+  opacity: 0.8;
+}
+
+.realtime-transcript-indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-left: auto;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.realtime-transcript-entry--user .realtime-transcript-label {
+  color: #60a5fa; /* Blue for user */
+}
+
+.realtime-transcript-entry--user .realtime-transcript-indicator {
+  background: #60a5fa;
+}
+
+.realtime-transcript-entry--atlas .realtime-transcript-label {
+  color: #34d399; /* Green for Atlas */
+}
+
+.realtime-transcript-entry--atlas .realtime-transcript-indicator {
+  background: #34d399;
+}
+
+.realtime-transcript-text {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+}
+
+.realtime-transcript-entry--user .realtime-transcript-text {
+  border-left-color: #60a5fa;
+}
+
+.realtime-transcript-entry--atlas .realtime-transcript-text {
+  border-left-color: #34d399;
+}
+
+.realtime-transcript-placeholder {
+  opacity: 0.5;
+  font-style: italic;
+}
+
+/* Scrollbar styling */
+.realtime-transcript-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.realtime-transcript-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.realtime-transcript-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.realtime-transcript-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Animations */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .realtime-transcript-entry {
+    animation: none;
+  }
+
+  .realtime-transcript-indicator {
+    animation: none;
+  }
+}
+
+/* Dark theme adjustments */
+@media (prefers-color-scheme: light) {
+  .realtime-transcript-content {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.15),
+      0 0 0 1px rgba(0, 0, 0, 0.05);
+  }
+
+  .realtime-transcript-text {
+    color: rgba(0, 0, 0, 0.9);
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .realtime-transcript-entry--user .realtime-transcript-label {
+    color: #2563eb;
+  }
+
+  .realtime-transcript-entry--atlas .realtime-transcript-label {
+    color: #059669;
+  }
+}

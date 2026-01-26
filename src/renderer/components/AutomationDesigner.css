@@ -1,0 +1,420 @@
+.automation-designer {
+  display: flex;
+  height: 100%;
+  background: #1e1e1e;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.automation-sidebar {
+  width: 280px;
+  background: #252526;
+  border-right: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #333;
+}
+
+.sidebar-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.create-btn {
+  padding: 4px 10px;
+  background: #4a9eff;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.create-btn:hover {
+  background: #3a8eef;
+}
+
+.rules-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.empty-state {
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.empty-state p {
+  margin: 0;
+  color: #888;
+}
+
+.hint {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.rule-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #333;
+  transition: background 0.2s;
+}
+
+.rule-item:hover {
+  background: #2a2a2a;
+}
+
+.rule-item.selected {
+  background: #333;
+  border-left: 3px solid #4a9eff;
+  padding-left: 13px;
+}
+
+.rule-item.disabled {
+  opacity: 0.5;
+}
+
+.rule-toggle input {
+  cursor: pointer;
+}
+
+.rule-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rule-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rule-trigger {
+  font-size: 11px;
+  color: #888;
+}
+
+.delete-btn {
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rule-item:hover .delete-btn {
+  opacity: 1;
+}
+
+.delete-btn:hover {
+  color: #fc5c65;
+}
+
+.automation-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.no-selection {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.no-selection p {
+  margin: 0;
+  color: #888;
+}
+
+.editor-header {
+  padding: 16px;
+  border-bottom: 1px solid #333;
+}
+
+.rule-name-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 16px;
+  font-weight: 600;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #fff;
+}
+
+.rule-name-input:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.editor-section {
+  border-bottom: 1px solid #333;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.section-header:hover {
+  background: #252526;
+}
+
+.section-icon {
+  font-size: 16px;
+}
+
+.section-header h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.section-summary {
+  font-size: 12px;
+  color: #888;
+}
+
+.section-content {
+  padding: 0 16px 16px;
+}
+
+.trigger-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.trigger-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  background: #2a2a2a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.trigger-option:hover {
+  background: #333;
+}
+
+.trigger-option.selected {
+  background: rgba(74, 158, 255, 0.15);
+  border-color: #4a9eff;
+}
+
+.option-icon {
+  font-size: 20px;
+}
+
+.option-label {
+  font-size: 10px;
+  color: #e0e0e0;
+  text-align: center;
+}
+
+.trigger-config {
+  padding: 12px;
+  background: #252526;
+  border-radius: 6px;
+}
+
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.config-field label {
+  font-size: 11px;
+  color: #888;
+}
+
+.config-field input {
+  padding: 8px 10px;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 12px;
+}
+
+.config-field input:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.condition-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.condition-row select,
+.condition-row input {
+  flex: 1;
+  padding: 8px 10px;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 12px;
+}
+
+.condition-row select:focus,
+.condition-row input:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.remove-btn {
+  width: 28px;
+  height: 28px;
+  background: #444;
+  border: none;
+  border-radius: 4px;
+  color: #e0e0e0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-btn:hover {
+  background: #fc5c65;
+  color: #fff;
+}
+
+.add-btn {
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: 1px dashed #444;
+  border-radius: 4px;
+  color: #888;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.add-btn:hover {
+  border-color: #4a9eff;
+  color: #4a9eff;
+}
+
+.action-row {
+  padding: 12px;
+  background: #252526;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.action-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.action-icon {
+  font-size: 16px;
+}
+
+.action-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.action-config {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-config input {
+  padding: 8px 10px;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 12px;
+}
+
+.action-config input:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.add-action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.add-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  background: transparent;
+  border: 1px dashed #444;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.add-action-btn:hover {
+  background: rgba(74, 158, 255, 0.1);
+  border-color: #4a9eff;
+}
+
+.add-action-btn .option-icon {
+  font-size: 16px;
+}
+
+.add-action-btn .option-label {
+  font-size: 9px;
+  color: #888;
+}

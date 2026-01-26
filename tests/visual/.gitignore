@@ -1,0 +1,22 @@
+# Visual Test Artifacts - Git Ignore
+# These are generated during test runs and should not be committed
+
+# Diff images (generated when tests fail)
+diffs/
+!diffs/.gitkeep
+
+# Reports (generated after test runs)
+reports/
+!reports/.gitkeep
+
+# Test output
+test-results/
+
+# Playwright traces
+traces/
+
+# Browser downloads
+browsers/
+
+# Note: baselines/ IS tracked in git
+# Baselines are the expected screenshots that tests compare against

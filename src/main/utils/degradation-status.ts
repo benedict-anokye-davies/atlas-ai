@@ -72,7 +72,7 @@ interface ServiceConfig {
 
 const SERVICE_CONFIGS: Record<DegradableService, ServiceConfig> = {
   stt: { primary: 'Deepgram', fallback: 'Vosk (Offline)' },
-  llm: { primary: 'Fireworks AI', fallback: 'OpenRouter' },
+  llm: { primary: 'Fireworks AI (GLM-4.7 Thinking)', fallback: 'OpenRouter' },
   tts: { primary: 'ElevenLabs', fallback: 'System Voice' },
 };
 

@@ -1,5 +1,5 @@
 /**
- * Nova Desktop - Git Commands Index
+ * Atlas Desktop - Git Commands Index
  * Re-exports all git command modules
  */
 
