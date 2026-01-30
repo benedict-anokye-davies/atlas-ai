@@ -104,6 +104,40 @@ export {
   type TradingSystemStatus,
 } from './initializer';
 
+// Voice Integration - Wire trading context into voice pipeline
+export {
+  TradingVoiceIntegration,
+  getTradingVoiceIntegration,
+  initializeTradingVoiceIntegration,
+  shutdownTradingVoiceIntegration,
+} from './voice-integration';
+export type { TradingContextSummary } from './voice-integration';
+
+// =============================================================================
+// Finance Intelligence - Research, Watchlist, Alerts
+// =============================================================================
+
+// Finance Intelligence Manager
+export {
+  FinanceIntelligenceManager,
+  getFinanceIntelligence,
+  shutdownFinanceIntelligence,
+  FINANCE_CONSTANTS,
+  type MarketResearchEntry,
+  type TechnicalSetup,
+  type Catalyst,
+  type WatchlistEntry,
+  type PriceAlert,
+  type NewsItem,
+  type PortfolioRecommendation,
+} from './finance-intelligence';
+
+// Finance Intelligence Tools
+export { getFinanceIntelligenceTools } from './finance-tools';
+
+// Finance Seed Data
+export { seedFinanceIntelligence } from './finance-seed';
+
 // Re-export specific items for convenience
 export { BinanceExchange, createBinanceExchange, createBinanceTestnet } from './exchanges/binance';
 export { BaseExchange } from './exchanges/base';

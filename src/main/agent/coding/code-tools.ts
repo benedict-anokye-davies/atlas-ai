@@ -91,7 +91,7 @@ function detectLanguage(filePath: string): string {
  */
 function shouldIgnore(filePath: string): boolean {
   const parts = filePath.split(path.sep);
-  return parts.some(part => IGNORE_PATTERNS.has(part));
+  return parts.some((part) => IGNORE_PATTERNS.has(part));
 }
 
 /**
@@ -337,7 +337,7 @@ If the oldText matches multiple locations, the edit will fail - add more context
 
       if (matches === 0) {
         // Try to find similar text to help debug
-        const oldLines = oldText.split('\n').filter(l => l.trim());
+        const oldLines = oldText.split('\n').filter((l) => l.trim());
         const firstLine = oldLines[0]?.trim();
         const lastLine = oldLines[oldLines.length - 1]?.trim();
 
@@ -520,7 +520,7 @@ Common directories like node_modules, .git, dist are excluded by default.`,
       const results: string[] = [];
       const MAX_FILES = 500;
 
-      async function listDir(currentPath: string, depth: number, prefix: string): Promise<void> {
+      const listDir = async (currentPath: string, depth: number, prefix: string): Promise<void> => {
         if (depth > maxDepth || results.length >= MAX_FILES) return;
 
         const entries = await readdirAsync(currentPath, { withFileTypes: true });
@@ -541,7 +541,7 @@ Common directories like node_modules, .git, dist are excluded by default.`,
             results.push(`${prefix}${relativePath}`);
           }
         }
-      }
+      };
 
       await listDir(dirPath, 0, '');
 
@@ -634,21 +634,21 @@ For semantic code understanding, prefer search_codebase instead.`,
         : new RegExp(escapeRegex(pattern), caseSensitive ? 'g' : 'gi');
 
       // Check if file pattern matches
-      function matchesFilePattern(filePath: string): boolean {
+      const matchesFilePattern = (filePath: string): boolean => {
         if (!filePattern) return true;
-        const patterns = filePattern.split(',').map(p => p.trim());
+        const patterns = filePattern.split(',').map((p) => p.trim());
         const ext = path.extname(filePath);
         const basename = path.basename(filePath);
 
-        return patterns.some(p => {
+        return patterns.some((p) => {
           if (p.startsWith('*.')) {
             return ext === p.substring(1) || ext === '.' + p.substring(2);
           }
           return basename.includes(p.replace('*', ''));
         });
-      }
+      };
 
-      async function searchDir(dirPath: string): Promise<void> {
+      const searchDir = async (dirPath: string): Promise<void> => {
         if (results.length >= maxResults) return;
 
         try {
@@ -669,9 +669,9 @@ For semantic code understanding, prefer search_codebase instead.`,
         } catch {
           // Skip directories we can't read
         }
-      }
+      };
 
-      async function searchFile(filePath: string): Promise<void> {
+      const searchFile = async (filePath: string): Promise<void> => {
         try {
           const content = await readFileAsync(filePath, 'utf-8');
           const lines = content.split('\n');
@@ -697,7 +697,7 @@ For semantic code understanding, prefer search_codebase instead.`,
         } catch {
           // Skip files we can't read
         }
-      }
+      };
 
       if ((await statAsync(searchPath)).isFile()) {
         await searchFile(searchPath);
@@ -820,7 +820,7 @@ Useful for understanding how code is used and finding all references.`,
       const definitions: { file: string; line: number; type: string; content: string }[] = [];
       const usages: { file: string; line: number; content: string }[] = [];
 
-      async function searchDir(dirPath: string): Promise<void> {
+      const searchDir = async (dirPath: string): Promise<void> => {
         try {
           const entries = await readdirAsync(dirPath, { withFileTypes: true });
 
@@ -838,9 +838,9 @@ Useful for understanding how code is used and finding all references.`,
         } catch {
           // Skip
         }
-      }
+      };
 
-      async function searchFile(filePath: string): Promise<void> {
+      const searchFile = async (filePath: string): Promise<void> => {
         try {
           const content = await readFileAsync(filePath, 'utf-8');
           const lines = content.split('\n');
@@ -874,7 +874,7 @@ Useful for understanding how code is used and finding all references.`,
         } catch {
           // Skip
         }
-      }
+      };
 
       await searchDir(searchPath);
 
@@ -1163,10 +1163,13 @@ export const gitStatusTool: CodingTool = {
       let ahead = 0;
       let behind = 0;
       try {
-        const tracking = execSync('git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null', {
-          cwd: repoPath,
-          encoding: 'utf-8',
-        }).trim();
+        const tracking = execSync(
+          'git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null',
+          {
+            cwd: repoPath,
+            encoding: 'utf-8',
+          }
+        ).trim();
         const [a, b] = tracking.split('\t').map(Number);
         ahead = a || 0;
         behind = b || 0;
@@ -1316,14 +1319,14 @@ export const CODING_TOOLS: CodingTool[] = [
 
 /** Get a tool by name */
 export function getToolByName(name: string): CodingTool | undefined {
-  return CODING_TOOLS.find(t => t.name === name);
+  return CODING_TOOLS.find((t) => t.name === name);
 }
 
 /** Get tool definitions for LLM prompt */
 export function getToolDefinitions(): string {
-  return CODING_TOOLS.map(tool => {
+  return CODING_TOOLS.map((tool) => {
     const params = tool.parameters
-      .map(p => {
+      .map((p) => {
         let def = `    - ${p.name} (${p.type}${p.required ? ', required' : ', optional'}): ${p.description}`;
         if (p.default !== undefined) {
           def += ` Default: ${p.default}`;

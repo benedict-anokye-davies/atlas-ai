@@ -29,6 +29,11 @@ build.log
 *.swo
 *~
 
+# Agent workspace (personal memory - don't commit)
+.agent/memory/
+.agent/MEMORY.md
+.agent/TOOLS.md
+
 # OS files
 .DS_Store
 Thumbs.db

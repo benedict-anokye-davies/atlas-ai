@@ -61,6 +61,7 @@ import { getEmotionDetector, EmotionDetector, EmotionState } from '../intelligen
 import { getTradingContextForLLM } from '../trading';
 import { getToolPrewarmer, type ConversationContext as PrewarmerContext } from '../ml/tool-prewarmer';
 import { getBrowserVoiceIntegrator } from '../agent/browser-agent/voice-integration';
+import { getPersonalityContextBuilder, PersonalityContextBuilder } from '../personality/personality-context-builder';
 import { getNaturalVoiceIntegration, NaturalVoiceIntegration } from './natural-voice-integration';
 import { getProsodyAnalyzer, ProsodyAnalyzer, ProsodyEmotionSignal } from './prosody';
 
@@ -273,7 +274,7 @@ export class SentenceBoundaryDetector {
   private buffer = '';
   private isFirstChunk = true;
   private chunkCount = 0;
-  
+
   // Adaptive thresholds
   private readonly firstChunkMinLength = 5; // Very short for fast first audio
   private readonly minChunkLength = 8; // Allows short phrases after first
@@ -325,7 +326,7 @@ export class SentenceBoundaryDetector {
       if (this.isFirstChunk && this.buffer.length >= this.firstChunkMinLength) {
         // Look for phrase endings first for fast TTFB
         boundary = this.findPhraseBoundary();
-        
+
         // If we have a reasonable amount of text, just send it
         if (boundary === 0 && this.buffer.length >= 15) {
           boundary = this.findWordBoundary(15);
@@ -473,6 +474,7 @@ export class VoicePipeline extends EventEmitter {
   private conversationMemory: ConversationMemory | null = null;
   private jarvisBrain: JarvisBrain | null = null;
   private emotionDetector: EmotionDetector | null = null;
+  private personalityContextBuilder: PersonalityContextBuilder | null = null;
   private naturalVoice: NaturalVoiceIntegration | null = null;
   private prosodyAnalyzer: ProsodyAnalyzer | null = null;
   private currentVoiceEmotion: ProsodyEmotionSignal | null = null;
@@ -503,6 +505,9 @@ export class VoicePipeline extends EventEmitter {
   // Tool tracking for pre-warming
   private recentToolCalls: string[] = [];
   private readonly maxRecentToolCalls = 10;
+
+  // Skip TTS for text-only interactions (when user types instead of speaks)
+  private skipTTSForCurrentInteraction = false;
 
   // Continuous listening state
   private continuousMode: ContinuousListeningMode = 'disabled';
@@ -754,6 +759,10 @@ export class VoicePipeline extends EventEmitter {
       this.emotionDetector = getEmotionDetector();
       logger.info('Emotion detector initialized');
 
+      // Initialize personality context builder for unified context aggregation
+      this.personalityContextBuilder = getPersonalityContextBuilder();
+      logger.info('Personality context builder initialized');
+
       // Initialize prosody analyzer for voice-based emotion detection
       this.prosodyAnalyzer = getProsodyAnalyzer();
       this.prosodyAnalyzer.on('emotion', (signal: ProsodyEmotionSignal) => {
@@ -885,6 +894,59 @@ export class VoicePipeline extends EventEmitter {
   }
 
   /**
+   * Send text directly to the LLM with full tool support.
+   * This allows text chat to use the same tool loop as voice.
+   * 
+   * @param text - The text message to process
+   * @param options - Options for processing
+   * @param options.skipTTS - If true, skip text-to-speech output
+   * @returns Promise that resolves when processing is complete
+   * 
+   * @example
+   * ```typescript
+   * await pipeline.sendText('Read the package.json file', { skipTTS: true });
+   * ```
+   */
+  async sendText(text: string, options?: { skipTTS?: boolean }): Promise<void> {
+    if (!text.trim()) {
+      logger.warn('sendText called with empty text');
+      return;
+    }
+
+    // Ensure pipeline components are initialized
+    if (!this.llmManager) {
+      logger.error('Cannot send text: LLM manager not initialized. Call start() first.');
+      throw new Error('Voice pipeline not started. Call start() first.');
+    }
+
+    logger.info('[sendText] Processing text with tools', {
+      textLength: text.length,
+      skipTTS: options?.skipTTS
+    });
+
+    // Store original TTS config if we need to skip it
+    const originalTts = this.tts;
+    if (options?.skipTTS) {
+      // Temporarily disable TTS for this request
+      this.tts = null;
+    }
+
+    try {
+      // Set the transcript and process through full LLM pipeline with tools
+      this.currentTranscript = text;
+      this.startInteraction();
+
+      // Process through the tool-enabled LLM pipeline
+      await this.processWithLLM(text);
+    } finally {
+      // Restore TTS
+      if (options?.skipTTS) {
+        this.tts = originalTts;
+      }
+    }
+  }
+
+  /**
    * Set up audio pipeline event handlers
    */
   private setupAudioPipelineHandlers(): void {
@@ -904,7 +966,7 @@ export class VoicePipeline extends EventEmitter {
 
     this.audioPipeline.on('speech-start', () => {
       this.emit('speech-start');
-      
+
       // Pre-warm LLM connection when speech starts
       // This establishes TCP/TLS connection speculatively, saving 100-300ms
       // when the actual LLM request is made after transcription completes
@@ -973,7 +1035,7 @@ export class VoicePipeline extends EventEmitter {
           formality: 'casual' as const,
           timeOfDay: this.getTimeOfDay(),
         };
-        
+
         // Only backchannel for longer requests that will take time to process
         if (result.text.split(/\s+/).length > 5) {
           this.naturalVoice.speakBackchannel('thinking', context).catch((err) => {
@@ -1149,7 +1211,7 @@ export class VoicePipeline extends EventEmitter {
         setTimeout(() => {
           if (this.state === 'processing' && this.sttManager) {
             logger.warn('STT transcript timeout - no response received');
-            this.sttManager.stop().catch(() => {});
+            this.sttManager.stop().catch(() => { });
             this.resetInteraction();
           }
         }, 10000); // 10 second timeout for transcript
@@ -1245,13 +1307,13 @@ export class VoicePipeline extends EventEmitter {
       // Build combined emotion context from text and voice prosody
       if (contextToUse && (this.currentUserEmotion || this.currentVoiceEmotion)) {
         let emotionContext = '\n\n[EMOTIONAL CONTEXT]';
-        
+
         // Add text-based emotion detection
         if (this.emotionDetector && this.currentUserEmotion) {
           const emotionModifier = this.emotionDetector.getSystemPromptModifier();
           emotionContext += `\nText analysis: The user appears to be feeling ${this.currentUserEmotion.primary.type} (${this.currentUserEmotion.primary.intensity} intensity, ${Math.round(this.currentUserEmotion.primary.confidence * 100)}% confidence).\n${emotionModifier}`;
         }
-        
+
         // Add voice prosody emotion detection
         if (this.prosodyAnalyzer && this.currentVoiceEmotion && this.currentVoiceEmotion.confidence > 0.5) {
           const prosodyModifier = this.prosodyAnalyzer.getSystemPromptModifier();
@@ -1262,7 +1324,7 @@ export class VoicePipeline extends EventEmitter {
           }
           emotionContext += `\nSuggested tone: ${this.currentVoiceEmotion.suggestedTone}.`;
         }
-        
+
         // Combined guidance if both sources detected emotion
         if (this.currentUserEmotion && this.currentVoiceEmotion && this.currentVoiceEmotion.confidence > 0.5) {
           const textEmotion = this.currentUserEmotion.primary.type;
@@ -1273,7 +1335,7 @@ export class VoicePipeline extends EventEmitter {
             emotionContext += `\n[MIXED SIGNALS] Text suggests ${textEmotion} but voice suggests ${voiceEmotion}. Trust voice prosody more for emotional state.`;
           }
         }
-        
+
         contextToUse = {
           ...contextToUse,
           systemPrompt: contextToUse.systemPrompt + emotionContext,
@@ -1319,6 +1381,30 @@ export class VoicePipeline extends EventEmitter {
         } catch (error) {
           // Non-fatal - browser system may not be initialized
           logger.debug('Failed to get browser context', { error });
+        }
+      }
+
+      // Inject personality context for personalized responses based on user profile,
+      // knowledge store, personas, emotions, trading, and business context
+      if (contextToUse && this.personalityContextBuilder) {
+        try {
+          const personalityResult = await this.personalityContextBuilder.buildContext(
+            processedText,
+            this.currentUserEmotion ?? undefined
+          );
+          if (personalityResult.contextString) {
+            contextToUse = {
+              ...contextToUse,
+              systemPrompt: contextToUse.systemPrompt + personalityResult.contextString,
+            };
+            logger.debug('Personality context added to system prompt', {
+              sections: personalityResult.metadata.sectionsIncluded,
+              estimatedTokens: personalityResult.metadata.estimatedTokens,
+            });
+          }
+        } catch (error) {
+          // Non-fatal - personality context is optional enhancement
+          logger.debug('Failed to build personality context', { error });
         }
       }
 
@@ -1415,7 +1501,8 @@ export class VoicePipeline extends EventEmitter {
             this.emit('response-chunk', chunk);
 
             // Stream to TTS if enabled (only for text content, not tool calls)
-            if (this.config.streamToTTS && this.tts && !chunk.toolCalls?.length) {
+            // Skip TTS if this is a text-only interaction and skipTTS is set
+            if (this.config.streamToTTS && this.tts && !chunk.toolCalls?.length && !this.skipTTSForCurrentInteraction) {
               // Use sentence boundary detector for optimal TTS chunking
               const sentences = this.sentenceDetector.addText(chunk.delta);
 
@@ -1451,7 +1538,7 @@ export class VoicePipeline extends EventEmitter {
                     const emotionForTTS = this.currentVoiceEmotion && this.currentVoiceEmotion.confidence > 0.6
                       ? this.createEmotionStateFromProsody(this.currentVoiceEmotion)
                       : this.currentUserEmotion;
-                    
+
                     const prepared = this.naturalVoice.prepareSpeech(
                       sentence,
                       emotionForTTS || undefined
@@ -1604,7 +1691,11 @@ export class VoicePipeline extends EventEmitter {
         logger.debug('Turn added to conversation memory');
       }
 
-      this.emit('response-complete', response);
+      // Include skipTTS flag so renderer knows not to use fallback TTS for text chat
+      this.emit('response-complete', {
+        ...response,
+        skipTTS: this.skipTTSForCurrentInteraction,
+      });
 
       // Flush remaining text from sentence detector
       if (this.tts) {
@@ -1743,6 +1834,10 @@ export class VoicePipeline extends EventEmitter {
     this.ttsBuffer = '';
     this.metrics = {};
 
+    // Reset skip TTS flag for new interaction (voice input will re-enable TTS)
+    // Text input via sendText() will set this to true explicitly
+    this.skipTTSForCurrentInteraction = false;
+
     // Reset streaming optimization state
     this.streamingMetrics = {};
     this.sentenceDetector.reset();
@@ -1800,42 +1895,42 @@ export class VoicePipeline extends EventEmitter {
    */
   private detectUserState(text: string): string | undefined {
     const lower = text.toLowerCase();
-    
+
     // Check for debugging indicators
-    if (lower.includes('error') || lower.includes('bug') || lower.includes('debug') || 
-        lower.includes('not working') || lower.includes('broken')) {
+    if (lower.includes('error') || lower.includes('bug') || lower.includes('debug') ||
+      lower.includes('not working') || lower.includes('broken')) {
       return 'debugging';
     }
-    
+
     // Check for coding indicators
     if (lower.includes('code') || lower.includes('function') || lower.includes('class') ||
-        lower.includes('implement') || lower.includes('refactor')) {
+      lower.includes('implement') || lower.includes('refactor')) {
       return 'coding';
     }
-    
+
     // Check for research indicators
     if (lower.includes('research') || lower.includes('find out') || lower.includes('look up') ||
-        lower.includes('search for') || lower.includes('what is')) {
+      lower.includes('search for') || lower.includes('what is')) {
       return 'researching';
     }
-    
+
     // Check for trading indicators
     if (lower.includes('trade') || lower.includes('position') || lower.includes('profit') ||
-        lower.includes('portfolio') || lower.includes('market')) {
+      lower.includes('portfolio') || lower.includes('market')) {
       return 'trading';
     }
-    
+
     // Check for git workflow indicators
     if (lower.includes('commit') || lower.includes('push') || lower.includes('pull') ||
-        lower.includes('branch') || lower.includes('merge')) {
+      lower.includes('branch') || lower.includes('merge')) {
       return 'git_workflow';
     }
-    
+
     // Check for testing indicators
     if (lower.includes('test') || lower.includes('run tests') || lower.includes('coverage')) {
       return 'testing';
     }
-    
+
     return undefined;
   }
 
@@ -1847,7 +1942,7 @@ export class VoicePipeline extends EventEmitter {
     if (this.recentToolCalls.length > this.maxRecentToolCalls) {
       this.recentToolCalls.shift();
     }
-    
+
     // Also record in the prewarmer for learning
     try {
       const prewarmer = getToolPrewarmer();
@@ -2024,7 +2119,10 @@ export class VoicePipeline extends EventEmitter {
    * await pipeline.sendText('What is the weather like today?');
    * ```
    */
-  async sendText(text: string): Promise<void> {
+  async sendText(text: string, options?: { skipTTS?: boolean }): Promise<void> {
+    // Store whether to skip TTS for this interaction (text chat mode)
+    this.skipTTSForCurrentInteraction = options?.skipTTS ?? true; // Default to skip TTS for text input
+
     // Allow text chat even if voice pipeline failed to fully start
     // We only need LLM to be initialized, not the audio components
     if (!this.llmManager) {
@@ -2033,18 +2131,18 @@ export class VoicePipeline extends EventEmitter {
         logger.info('Initializing LLM for text-only mode...');
         this.llmManager = getLLMManager();
         await this.llmManager.initialize();
-        
+
         // Also initialize TTS if not done (for optional voice output)
         if (!this.tts) {
           const { getTTSManager } = await import('../tts/manager');
           this.tts = getTTSManager();
         }
-        
+
         // Initialize emotion detector for empathetic responses
         if (!this.emotionDetector) {
           this.emotionDetector = getEmotionDetector();
         }
-        
+
         logger.info('Text-only mode initialized successfully');
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));

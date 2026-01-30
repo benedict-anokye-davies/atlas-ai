@@ -1,0 +1,778 @@
+/**
+ * ModernAtlas.module.css - Modern, clean Atlas interface styles
+ */
+
+.modernAtlas {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0f0f13;
+  color: #e2e2e2;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: #16161d;
+  border-bottom: 1px solid #25252d;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logoIcon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  color: white;
+}
+
+.logoText {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerButton {
+  padding: 8px 16px;
+  background: #6366f1;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.headerButton:hover {
+  background: #4f46e5;
+}
+
+.statusBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #1a1a22;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.statusDot.online {
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+}
+
+.statusDot.offline {
+  background: #ef4444;
+}
+
+/* Main Container */
+.mainContainer {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 260px;
+  background: #16161d;
+  border-right: 1px solid #25252d;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.newChatButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: #6366f1;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.newChatButton:hover {
+  background: #4f46e5;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #1a1a22;
+  border: 1px solid #25252d;
+  border-radius: 8px;
+}
+
+.searchBox input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #e2e2e2;
+  font-size: 13px;
+  outline: none;
+}
+
+.searchBox input::placeholder {
+  color: #6b7280;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #6b7280;
+  letter-spacing: 0.5px;
+}
+
+.chatList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chatItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chatItem:hover {
+  background: #1a1a22;
+}
+
+.chatIcon {
+  font-size: 16px;
+}
+
+.chatInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.chatName {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e2e2e2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chatPreview {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.viewList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.viewButton {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #9ca3af;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.viewButton:hover {
+  background: #1a1a22;
+  color: #e2e2e2;
+}
+
+.viewIcon {
+  font-size: 16px;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  background: #1a1a22;
+  border-radius: 8px;
+}
+
+.statValue {
+  font-size: 16px;
+  font-weight: 600;
+  color: #6366f1;
+}
+
+.statLabel {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.settingsButton {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #9ca3af;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: auto;
+}
+
+.settingsButton:hover {
+  background: #1a1a22;
+  color: #e2e2e2;
+}
+
+/* Chat Area */
+.chatArea {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #0f0f13;
+}
+
+.messagesContainer {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.messagesList {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.message {
+  display: flex;
+  gap: 12px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.messageAvatar {
+  flex-shrink: 0;
+}
+
+.userAvatar {
+  width: 32px;
+  height: 32px;
+  background: #374151;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+.aiAvatar {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+}
+
+.messageContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.messageHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.messageAuthor {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e2e2e2;
+}
+
+.messageTime {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.messageText {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #d1d5db;
+  white-space: pre-wrap;
+}
+
+.streamingCursor {
+  display: inline-block;
+  margin-left: 2px;
+  animation: blink 1s step-end infinite;
+  color: #6366f1;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Thinking Panel */
+.thinkingPanel {
+  max-width: 800px;
+  margin: 0 auto 20px;
+  padding: 16px 20px;
+  background: #16161d;
+  border: 1px solid #25252d;
+  border-radius: 12px;
+}
+
+.thinkingHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.thinkingIndicator {
+  display: flex;
+  gap: 4px;
+}
+
+.thinkingDot {
+  width: 6px;
+  height: 6px;
+  background: #6366f1;
+  border-radius: 50%;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.thinkingText {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6366f1;
+}
+
+.thinkingTime {
+  margin-left: auto;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.thinkingCancel {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid #ef4444;
+  border-radius: 6px;
+  color: #ef4444;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.thinkingCancel:hover {
+  background: #ef4444;
+  color: white;
+}
+
+.thinkingSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.thinkingStep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.thinkingStepActive {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #6366f1;
+}
+
+.stepNumber {
+  width: 20px;
+  height: 20px;
+  background: #25252d;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.stepTextActive {
+  font-weight: 500;
+}
+
+.thinkingTools {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #25252d;
+}
+
+.toolsLabel {
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.toolsList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.toolBadge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.toolBadge.running {
+  background: rgba(99, 102, 241, 0.2);
+  color: #6366f1;
+}
+
+.toolBadge.completed {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+}
+
+.toolBadge.error {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.toolBadge.pending {
+  background: rgba(107, 114, 128, 0.2);
+  color: #6b7280;
+}
+
+.toolIcon {
+  font-size: 10px;
+}
+
+.toolName {
+  font-weight: 500;
+}
+
+/* Input Area */
+.inputArea {
+  padding: 20px;
+  background: #0f0f13;
+  border-top: 1px solid #25252d;
+}
+
+.inputContainer {
+  display: flex;
+  gap: 12px;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 12px;
+  background: #16161d;
+  border: 1px solid #25252d;
+  border-radius: 12px;
+}
+
+.textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #e2e2e2;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  min-height: 24px;
+  max-height: 200px;
+}
+
+.textarea::placeholder {
+  color: #6b7280;
+}
+
+.textarea:disabled {
+  opacity: 0.6;
+}
+
+.inputActions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.sendButton {
+  width: 32px;
+  height: 32px;
+  background: #6366f1;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.sendButton:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.sendButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cancelButton {
+  width: 32px;
+  height: 32px;
+  background: #ef4444;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.cancelButton:hover {
+  background: #dc2626;
+}
+
+.inputHint {
+  text-align: center;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+/* Tool Panel */
+.toolPanel {
+  width: 300px;
+  background: #16161d;
+  border-left: 1px solid #25252d;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.toolPanelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.toolPanelTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e2e2e2;
+}
+
+.toolPanelCount {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.toolList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toolItem {
+  padding: 12px;
+  background: #1a1a22;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+}
+
+.toolItem.running {
+  border-left-color: #6366f1;
+}
+
+.toolItem.completed {
+  border-left-color: #22c55e;
+}
+
+.toolItem.error {
+  border-left-color: #ef4444;
+}
+
+.toolHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.toolStatusIcon {
+  font-size: 12px;
+}
+
+.spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.toolItemName {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: #e2e2e2;
+}
+
+.toolDuration {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.toolParams {
+  padding: 8px;
+  background: #0f0f13;
+  border-radius: 6px;
+  font-size: 11px;
+  overflow-x: auto;
+}
+
+.toolParams pre {
+  margin: 0;
+  color: #9ca3af;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .toolPanel {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+}

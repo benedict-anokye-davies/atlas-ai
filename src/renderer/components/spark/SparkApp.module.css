@@ -1,0 +1,70 @@
+.sparkApp {
+  width: 100vw;
+  height: 100vh;
+  background: var(--spark-bg-primary);
+  position: relative;
+  overflow: hidden;
+}
+
+.container {
+  display: grid;
+  grid-template-columns: 300px 1fr 320px;
+  height: 100vh;
+  gap: 1rem;
+  padding: 1rem;
+  position: relative;
+  z-index: 1;
+}
+
+.leftSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.centerContent {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow: hidden;
+}
+
+.avatarSection {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.chatSection {
+  height: auto;
+  max-height: 40%;
+}
+
+.rightSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .container {
+    grid-template-columns: 260px 1fr 280px;
+  }
+}
+
+@media (max-width: 900px) {
+  .container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .leftSidebar,
+  .rightSidebar {
+    display: none;
+  }
+}

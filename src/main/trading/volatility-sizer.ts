@@ -167,7 +167,7 @@ export class VolatilitySizer extends EventEmitter {
     }
 
     // 1. Calculate base risk amount
-    let riskPercent = this.config.baseRiskPercent;
+    const riskPercent = this.config.baseRiskPercent;
     const baseRiskAmount = portfolioValue * riskPercent;
 
     // 2. Calculate stop distance

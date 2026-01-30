@@ -1,0 +1,85 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.statItem {
+  text-align: center;
+}
+
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--spark-text-primary);
+}
+
+.statLabel {
+  font-size: 0.75rem;
+  color: var(--spark-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sectionTitle {
+  font-size: 0.875rem;
+  color: var(--spark-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.75rem;
+}
+
+.cognitiveGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.cognitiveItem {
+  text-align: center;
+}
+
+.cognitiveValue {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--spark-accent-primary);
+}
+
+.cognitiveLabel {
+  font-size: 0.7rem;
+  color: var(--spark-text-muted);
+  text-transform: uppercase;
+}
+
+.insightsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.insightCard {
+  background: rgba(74, 222, 128, 0.1);
+  border-left: 3px solid var(--spark-accent-primary);
+  padding: 0.75rem;
+  border-radius: 0 4px 4px 0;
+}
+
+.insightTag {
+  font-size: 0.65rem;
+  color: var(--spark-accent-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.25rem;
+}
+
+.insightText {
+  font-size: 0.8rem;
+  color: var(--spark-text-secondary);
+  line-height: 1.4;
+}

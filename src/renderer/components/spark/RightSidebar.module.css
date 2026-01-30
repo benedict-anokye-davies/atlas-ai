@@ -1,0 +1,119 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.syncStatus {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.syncLabel {
+  font-size: 0.8rem;
+  color: var(--spark-text-secondary);
+}
+
+.syncValue {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--spark-accent-primary);
+}
+
+.metricsGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.metricBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(74, 222, 128, 0.15);
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.metricLabel {
+  font-size: 0.7rem;
+  color: var(--spark-text-secondary);
+  text-transform: lowercase;
+}
+
+.metricValue {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--spark-accent-primary);
+}
+
+.sectionTitle {
+  font-size: 0.875rem;
+  color: var(--spark-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.75rem;
+}
+
+.knowsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.knowsItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: rgba(17, 17, 24, 0.5);
+  border-radius: 4px;
+  border-left: 3px solid var(--spark-accent-secondary);
+}
+
+.knowsLabel {
+  font-size: 0.8rem;
+  color: var(--spark-text-secondary);
+  flex: 1;
+}
+
+.knowsPercent {
+  font-size: 0.8rem;
+  color: var(--spark-accent-primary);
+  font-weight: 600;
+}
+
+.tasteGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.tasteItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem;
+  background: rgba(17, 17, 24, 0.5);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.tasteIcon {
+  font-size: 1.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.tasteLabel {
+  font-size: 0.7rem;
+  color: var(--spark-text-muted);
+  text-transform: uppercase;
+}
+
+.tasteValue {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--spark-accent-primary);
+}

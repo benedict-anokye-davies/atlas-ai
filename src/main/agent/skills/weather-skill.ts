@@ -1,13 +1,13 @@
 /**
  * Atlas Desktop - Weather Skill
- * 
+ *
  * Provides weather information and forecasts.
- * 
+ *
  * NOTE: This skill currently uses mock data. To enable real weather data:
  * 1. Sign up for OpenWeatherMap API (https://openweathermap.org/api)
  * 2. Add OPENWEATHERMAP_API_KEY to your .env file
  * 3. The skill will automatically use real data when the key is present
- * 
+ *
  * @see https://openweathermap.org/api for API documentation
  */
 
@@ -29,8 +29,6 @@ const logger = createModuleLogger('weather-skill');
 const WEATHER_API_KEY = process.env.OPENWEATHERMAP_API_KEY;
 const WEATHER_API_BASE = 'https://api.openweathermap.org/data/2.5';
 const USE_REAL_API = !!WEATHER_API_KEY;
-
-const logger = createModuleLogger('weather-skill');
 
 /**
  * Weather data structure
@@ -184,47 +182,94 @@ export class WeatherSkill extends BaseSkill {
 
   /**
    * Get current weather
-   * TODO: Replace with actual weather API call
+   * Uses OpenWeatherMap API when API key is available, otherwise falls back to mock data
    */
   private async getCurrentWeather(location: string): Promise<SkillResult> {
-    // Stub: Return mock data
-    // In production, this would call a weather API like OpenWeatherMap
-    const mockWeather: WeatherData = this.getMockWeather(location);
-
-    const response = this.formatCurrentWeather(mockWeather);
-
-    return this.success(mockWeather, response);
+    try {
+      if (USE_REAL_API) {
+        const weather = await this.fetchRealWeather(location);
+        const response = this.formatCurrentWeather(weather);
+        return this.success(weather, response);
+      } else {
+        // Fallback to mock data when no API key
+        const mockWeather = this.getMockWeather(location);
+        const response = this.formatCurrentWeather(mockWeather);
+        return this.success(mockWeather, response);
+      }
+    } catch (error) {
+      logger.error('Failed to fetch weather', { error, location });
+      // Fallback to mock data on error
+      const mockWeather = this.getMockWeather(location);
+      const response = this.formatCurrentWeather(mockWeather);
+      return this.success(mockWeather, response);
+    }
   }
 
   /**
    * Get weather forecast
-   * TODO: Replace with actual weather API call
+   * Uses OpenWeatherMap API when API key is available, otherwise falls back to mock data
    */
   private async getForecast(location: string): Promise<SkillResult> {
-    // Stub: Return mock forecast
-    const mockWeather = this.getMockWeather(location);
-    mockWeather.forecast = this.getMockForecast();
-
-    const response = this.formatForecast(mockWeather);
-
-    return this.success(mockWeather, response);
+    try {
+      if (USE_REAL_API) {
+        const weather = await this.fetchRealWeather(location);
+        weather.forecast = await this.fetchRealForecast(location);
+        const response = this.formatForecast(weather);
+        return this.success(weather, response);
+      } else {
+        // Fallback to mock data when no API key
+        const mockWeather = this.getMockWeather(location);
+        mockWeather.forecast = this.getMockForecast();
+        const response = this.formatForecast(mockWeather);
+        return this.success(mockWeather, response);
+      }
+    } catch (error) {
+      logger.error('Failed to fetch forecast', { error, location });
+      // Fallback to mock data on error
+      const mockWeather = this.getMockWeather(location);
+      mockWeather.forecast = this.getMockForecast();
+      const response = this.formatForecast(mockWeather);
+      return this.success(mockWeather, response);
+    }
   }
 
   /**
    * Check for rain
    */
   private async checkForRain(location: string): Promise<SkillResult> {
-    const mockWeather = this.getMockWeather(location);
+    try {
+      let weather: WeatherData;
 
-    const willRain =
-      mockWeather.condition.toLowerCase().includes('rain') ||
-      mockWeather.condition.toLowerCase().includes('storm');
+      if (USE_REAL_API) {
+        weather = await this.fetchRealWeather(location);
+      } else {
+        weather = this.getMockWeather(location);
+      }
 
-    const response = willRain
-      ? `Yes, it looks like rain is expected in ${location}. You might want to bring an umbrella.`
-      : `No rain is expected in ${location} right now. You should be fine without an umbrella.`;
+      const willRain =
+        weather.condition.toLowerCase().includes('rain') ||
+        weather.condition.toLowerCase().includes('storm') ||
+        weather.condition.toLowerCase().includes('drizzle');
 
-    return this.success({ willRain, weather: mockWeather }, response);
+      const response = willRain
+        ? `Yes, it looks like ${weather.condition.toLowerCase()} is expected in ${location}. You might want to bring an umbrella.`
+        : `No rain is expected in ${location} right now. You should be fine without an umbrella.`;
+
+      return this.success({ willRain, weather }, response);
+    } catch (error) {
+      logger.error('Failed to check for rain', { error, location });
+      // Fallback to mock data
+      const mockWeather = this.getMockWeather(location);
+      const willRain =
+        mockWeather.condition.toLowerCase().includes('rain') ||
+        mockWeather.condition.toLowerCase().includes('storm');
+
+      const response = willRain
+        ? `Yes, it looks like rain is expected in ${location}. You might want to bring an umbrella.`
+        : `No rain is expected in ${location} right now. You should be fine without an umbrella.`;
+
+      return this.success({ willRain, weather: mockWeather }, response);
+    }
   }
 
   /**
@@ -253,8 +298,171 @@ export class WeatherSkill extends BaseSkill {
   }
 
   /**
-   * Get mock weather data
-   * TODO: Replace with actual API call
+   * Fetch real weather data from OpenWeatherMap API
+   */
+  private async fetchRealWeather(location: string): Promise<WeatherData> {
+    if (!WEATHER_API_KEY) {
+      throw new Error('OpenWeatherMap API key not configured');
+    }
+
+    // First, geocode the location to get coordinates
+    const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(location)}&limit=1&appid=${WEATHER_API_KEY}`;
+
+    const geoResponse = await fetch(geoUrl);
+    if (!geoResponse.ok) {
+      throw new Error(`Geocoding failed: ${geoResponse.status}`);
+    }
+
+    const geoData = (await geoResponse.json()) as Array<{
+      lat: number;
+      lon: number;
+      name: string;
+      country: string;
+    }>;
+
+    if (!geoData || geoData.length === 0) {
+      throw new Error(`Location not found: ${location}`);
+    }
+
+    const { lat, lon, name } = geoData[0];
+
+    // Fetch current weather
+    const weatherUrl = `${WEATHER_API_BASE}/weather?lat=${lat}&lon=${lon}&units=metric&appid=${WEATHER_API_KEY}`;
+
+    const weatherResponse = await fetch(weatherUrl);
+    if (!weatherResponse.ok) {
+      throw new Error(`Weather API error: ${weatherResponse.status}`);
+    }
+
+    const weatherData = (await weatherResponse.json()) as {
+      main: {
+        temp: number;
+        feels_like: number;
+        humidity: number;
+      };
+      weather: Array<{
+        main: string;
+        description: string;
+      }>;
+      wind: {
+        speed: number;
+      };
+      name: string;
+    };
+
+    return {
+      location: name || location,
+      temperature: Math.round(weatherData.main.temp),
+      unit: 'celsius',
+      condition: this.capitalizeFirst(weatherData.weather[0]?.description || 'Unknown'),
+      humidity: weatherData.main.humidity,
+      windSpeed: Math.round(weatherData.wind.speed * 3.6), // Convert m/s to km/h
+      windUnit: 'km/h',
+      feelsLike: Math.round(weatherData.main.feels_like),
+    };
+  }
+
+  /**
+   * Fetch real weather forecast from OpenWeatherMap API
+   */
+  private async fetchRealForecast(location: string): Promise<DayForecast[]> {
+    if (!WEATHER_API_KEY) {
+      throw new Error('OpenWeatherMap API key not configured');
+    }
+
+    // First, geocode the location
+    const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(location)}&limit=1&appid=${WEATHER_API_KEY}`;
+
+    const geoResponse = await fetch(geoUrl);
+    if (!geoResponse.ok) {
+      throw new Error(`Geocoding failed: ${geoResponse.status}`);
+    }
+
+    const geoData = (await geoResponse.json()) as Array<{
+      lat: number;
+      lon: number;
+    }>;
+
+    if (!geoData || geoData.length === 0) {
+      throw new Error(`Location not found: ${location}`);
+    }
+
+    const { lat, lon } = geoData[0];
+
+    // Fetch 5-day forecast
+    const forecastUrl = `${WEATHER_API_BASE}/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${WEATHER_API_KEY}`;
+
+    const forecastResponse = await fetch(forecastUrl);
+    if (!forecastResponse.ok) {
+      throw new Error(`Forecast API error: ${forecastResponse.status}`);
+    }
+
+    const forecastData = (await forecastResponse.json()) as {
+      list: Array<{
+        dt: number;
+        main: {
+          temp_min: number;
+          temp_max: number;
+        };
+        weather: Array<{
+          main: string;
+          description: string;
+        }>;
+      }>;
+    };
+
+    // Group by day and get daily highs/lows
+    const dailyData = new Map<string, { min: number; max: number; condition: string }>();
+
+    for (const item of forecastData.list) {
+      const date = new Date(item.dt * 1000);
+      const dayKey = date.toLocaleDateString('en-US', { weekday: 'long' });
+
+      if (!dailyData.has(dayKey)) {
+        dailyData.set(dayKey, {
+          min: item.main.temp_min,
+          max: item.main.temp_max,
+          condition: this.capitalizeFirst(item.weather[0]?.description || 'Unknown'),
+        });
+      } else {
+        const existing = dailyData.get(dayKey)!;
+        existing.min = Math.min(existing.min, item.main.temp_min);
+        existing.max = Math.max(existing.max, item.main.temp_max);
+      }
+    }
+
+    // Convert to DayForecast array (limit to 5 days)
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const today = new Date().getDay();
+    const result: DayForecast[] = [];
+
+    for (let i = 0; i < 5; i++) {
+      const dayIndex = (today + i) % 7;
+      const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : days[dayIndex];
+      const data = dailyData.get(days[dayIndex]);
+
+      if (data) {
+        result.push({
+          day: dayName,
+          high: Math.round(data.max),
+          low: Math.round(data.min),
+          condition: data.condition,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Capitalize first letter of a string
+   */
+  private capitalizeFirst(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  /**
+   * Get mock weather data (fallback when API unavailable)
    */
   private getMockWeather(location: string): WeatherData {
     // Generate somewhat realistic mock data

@@ -19,10 +19,28 @@ files:
   - dist/**/*
   - package.json
   - "!node_modules/**/*"
+  # Voice/Audio native modules
   - node_modules/@picovoice/**/*
   - node_modules/@ricky0123/**/*
   - node_modules/onnxruntime-node/**/*
+  - node_modules/onnxruntime-common/**/*
   - node_modules/vosk-koffi/**/*
+  - node_modules/koffi/**/*
+  # Deepgram SDK and WebSocket
+  - node_modules/@deepgram/**/*
+  - node_modules/ws/**/*
+  # Database and utilities
+  - node_modules/better-sqlite3/**/*
+  - node_modules/keytar/**/*
+  - node_modules/node-pty/**/*
+  # Image processing
+  - node_modules/sharp/**/*
+  - node_modules/@img/**/*
+  # Trading/Finance
+  - node_modules/ccxt/**/*
+  # Discord integration
+  - node_modules/discord.js/**/*
+  - node_modules/@discordjs/**/*
 
 # Extra resources (copied to app bundle)
 extraResources:
@@ -39,7 +57,15 @@ asarUnpack:
   - "**/node_modules/@picovoice/**/*"
   - "**/node_modules/@ricky0123/**/*"
   - "**/node_modules/onnxruntime-node/**/*"
+  - "**/node_modules/onnxruntime-common/**/*"
   - "**/node_modules/vosk-koffi/**/*"
+  - "**/node_modules/koffi/**/*"
+  - "**/node_modules/@deepgram/**/*"
+  - "**/node_modules/better-sqlite3/**/*"
+  - "**/node_modules/keytar/**/*"
+  - "**/node_modules/node-pty/**/*"
+  - "**/node_modules/sharp/**/*"
+  - "**/node_modules/@img/**/*"
 
 # ============================================================================
 # Windows Configuration
@@ -74,8 +100,9 @@ nsis:
   deleteAppDataOnUninstall: false
   runAfterFinish: true
   license: LICENSE
-  installerSidebar: assets/installerSidebar.bmp
-  uninstallerSidebar: assets/installerSidebar.bmp
+  # Sidebar images are optional - remove if not available
+  # installerSidebar: assets/installerSidebar.bmp
+  # uninstallerSidebar: assets/installerSidebar.bmp
 
 # Portable configuration
 portable:
@@ -169,7 +196,6 @@ deb:
     - libuuid1
     - libsecret-1-0
   priority: optional
-  section: utils
 
 rpm:
   depends:

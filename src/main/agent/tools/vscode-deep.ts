@@ -1,10 +1,10 @@
 /**
  * VS Code Deep Integration Tool
- * 
+ *
  * Provides deep VS Code integration including LSP operations,
  * symbol navigation, code intelligence, and editor manipulation.
  * Uses VS Code's extensibility APIs for rich IDE features.
- * 
+ *
  * @module agent/tools/vscode-deep
  */
 
@@ -123,11 +123,11 @@ export interface TextEdit {
 async function executeVSCodeCommand(command: string, args: string[] = []): Promise<string> {
   const codePath = getVSCodePath();
   const fullCommand = `"${codePath}" ${command} ${args.join(' ')}`;
-  
+
   try {
     const { stdout, stderr } = await execAsync(fullCommand);
     if (stderr && !stderr.includes('warning')) {
-      logger.warn('VS Code stderr:', stderr);
+      logger.warn('VS Code stderr', { stderr });
     }
     return stdout.trim();
   } catch (error) {
@@ -141,28 +141,26 @@ async function executeVSCodeCommand(command: string, args: string[] = []): Promi
  */
 function getVSCodePath(): string {
   // Check common paths
-  const paths = process.platform === 'win32' 
-    ? [
-        'code',
-        'C:\\Program Files\\Microsoft VS Code\\bin\\code.cmd',
-        'C:\\Program Files (x86)\\Microsoft VS Code\\bin\\code.cmd',
-        `${process.env.LOCALAPPDATA}\\Programs\\Microsoft VS Code\\bin\\code.cmd`,
-      ]
-    : process.platform === 'darwin'
-    ? [
-        '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code',
-        '/usr/local/bin/code',
-      ]
-    : [
-        '/usr/bin/code',
-        '/snap/bin/code',
-      ];
-  
+  const paths =
+    process.platform === 'win32'
+      ? [
+          'code',
+          'C:\\Program Files\\Microsoft VS Code\\bin\\code.cmd',
+          'C:\\Program Files (x86)\\Microsoft VS Code\\bin\\code.cmd',
+          `${process.env.LOCALAPPDATA}\\Programs\\Microsoft VS Code\\bin\\code.cmd`,
+        ]
+      : process.platform === 'darwin'
+        ? [
+            '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code',
+            '/usr/local/bin/code',
+          ]
+        : ['/usr/bin/code', '/snap/bin/code'];
+
   for (const p of paths) {
     if (p === 'code') return p; // Default to PATH
     if (fs.existsSync(p)) return p;
   }
-  
+
   return 'code'; // Fallback to PATH
 }
 
@@ -182,21 +180,21 @@ export async function findSymbols(
   }
 ): Promise<SymbolInfo[]> {
   const { file, kind, limit = 50 } = options || {};
-  
+
   // Use ripgrep for fast symbol search with patterns
   const patterns = getSymbolPatterns(kind);
   const searchPath = file || '.';
-  
+
   try {
     const results: SymbolInfo[] = [];
-    
+
     for (const pattern of patterns) {
       const rgCommand = `rg --json -n "${pattern.replace(/"/g, '\\"')}" ${searchPath}`;
-      
+
       try {
         const { stdout } = await execAsync(rgCommand, { maxBuffer: 10 * 1024 * 1024 });
-        const lines = stdout.split('\n').filter(l => l.trim());
-        
+        const lines = stdout.split('\n').filter((l) => l.trim());
+
         for (const line of lines) {
           try {
             const match = JSON.parse(line);
@@ -214,10 +212,10 @@ export async function findSymbols(
       } catch {
         // ripgrep returns non-zero if no matches
       }
-      
+
       if (results.length >= limit) break;
     }
-    
+
     return results;
   } catch (error) {
     logger.error('Symbol search failed:', error);
@@ -234,17 +232,17 @@ function getSymbolPatterns(kind?: SymbolKind): string[] {
     '(async\\s+)?function\\s+\\w+',
     '(public|private|protected)?\\s*(static)?\\s*\\w+\\s*\\([^)]*\\)\\s*[:{]',
     '\\w+\\s*=\\s*(async\\s*)?\\([^)]*\\)\\s*=>',
-    
+
     // Classes/Interfaces
     '(export\\s+)?(class|interface|type|enum)\\s+\\w+',
-    
+
     // Variables/Constants
     '(const|let|var)\\s+\\w+\\s*[=:]',
     '(export\\s+)?(const|let)\\s+\\w+',
   ];
-  
+
   if (!kind) return allPatterns;
-  
+
   switch (kind) {
     case SymbolKind.Function:
     case SymbolKind.Method:
@@ -263,27 +261,30 @@ function getSymbolPatterns(kind?: SymbolKind): string[] {
 /**
  * Parse symbol info from ripgrep match
  */
-function parseSymbolFromMatch(match: {
-  data: {
-    path: { text: string };
-    line_number: number;
-    lines: { text: string };
-    submatches: Array<{ match: { text: string }; start: number }>;
-  };
-}, query: string): SymbolInfo | null {
+function parseSymbolFromMatch(
+  match: {
+    data: {
+      path: { text: string };
+      line_number: number;
+      lines: { text: string };
+      submatches: Array<{ match: { text: string }; start: number }>;
+    };
+  },
+  query: string
+): SymbolInfo | null {
   const { path: pathData, line_number, lines, submatches } = match.data;
   const lineText = lines.text;
-  
+
   // Extract symbol name from the matched text
   const symbolMatch = lineText.match(
     /(?:function|class|interface|type|enum|const|let|var)\s+(\w+)|(\w+)\s*[=:]\s*(?:async\s*)?\(|(\w+)\s*\(/
   );
-  
+
   if (!symbolMatch) return null;
-  
+
   const name = symbolMatch[1] || symbolMatch[2] || symbolMatch[3];
   if (!name) return null;
-  
+
   // Determine symbol kind
   let kind = SymbolKind.Variable;
   if (lineText.includes('function') || lineText.includes('=>')) {
@@ -299,7 +300,7 @@ function parseSymbolFromMatch(match: {
   } else if (lineText.includes('const')) {
     kind = SymbolKind.Constant;
   }
-  
+
   return {
     name,
     kind,
@@ -328,34 +329,33 @@ export async function findReferences(
   }
 ): Promise<Reference[]> {
   const { file, includeDeclaration = true, limit = 100 } = options || {};
-  
+
   try {
     const searchPath = file ? path.dirname(file) : '.';
     const pattern = `\\b${symbolName}\\b`;
-    
-    const { stdout } = await execAsync(
-      `rg --json -n "${pattern}" ${searchPath}`,
-      { maxBuffer: 10 * 1024 * 1024 }
-    );
-    
+
+    const { stdout } = await execAsync(`rg --json -n "${pattern}" ${searchPath}`, {
+      maxBuffer: 10 * 1024 * 1024,
+    });
+
     const references: Reference[] = [];
-    const lines = stdout.split('\n').filter(l => l.trim());
-    
+    const lines = stdout.split('\n').filter((l) => l.trim());
+
     for (const line of lines) {
       try {
         const match = JSON.parse(line);
         if (match.type === 'match') {
           const { path: pathData, line_number, lines: lineData, submatches } = match.data;
           const lineText = lineData.text.trim();
-          
+
           // Determine if this is a definition/declaration
           const isDefinition = isSymbolDefinition(lineText, symbolName);
           const isDeclaration = isSymbolDeclaration(lineText, symbolName);
-          
+
           if (!includeDeclaration && (isDefinition || isDeclaration)) {
             continue;
           }
-          
+
           references.push({
             location: {
               file: pathData.text,
@@ -366,14 +366,14 @@ export async function findReferences(
             isDefinition,
             isDeclaration,
           });
-          
+
           if (references.length >= limit) break;
         }
       } catch {
         // Skip invalid JSON
       }
     }
-    
+
     return references;
   } catch {
     // ripgrep returns non-zero if no matches
@@ -392,8 +392,8 @@ function isSymbolDefinition(line: string, symbolName: string): boolean {
     new RegExp(`${symbolName}\\s*:\\s*function`),
     new RegExp(`${symbolName}\\s*=\\s*(async\\s*)?\\(`),
   ];
-  
-  return definitionPatterns.some(p => p.test(line));
+
+  return definitionPatterns.some((p) => p.test(line));
 }
 
 /**
@@ -405,8 +405,8 @@ function isSymbolDeclaration(line: string, symbolName: string): boolean {
     new RegExp(`(export\\s+)?(declare\\s+)?(class|interface|type)\\s+${symbolName}`),
     new RegExp(`\\b${symbolName}\\s*:\\s*[A-Z]\\w+`), // Type annotation
   ];
-  
-  return declarationPatterns.some(p => p.test(line));
+
+  return declarationPatterns.some((p) => p.test(line));
 }
 
 // ============================================================================
@@ -425,14 +425,14 @@ export async function goToDefinition(
     includeDeclaration: true,
     limit: 50,
   });
-  
+
   // Find the definition
-  const definition = references.find(r => r.isDefinition || r.isDeclaration);
-  
+  const definition = references.find((r) => r.isDefinition || r.isDeclaration);
+
   if (definition) {
     return definition.location;
   }
-  
+
   // Fallback: return first reference
   return references.length > 0 ? references[0].location : null;
 }
@@ -444,25 +444,21 @@ export async function goToDefinition(
 /**
  * Get diagnostics (errors/warnings) for a file or workspace
  */
-export async function getDiagnostics(
-  file?: string
-): Promise<DiagnosticInfo[]> {
+export async function getDiagnostics(file?: string): Promise<DiagnosticInfo[]> {
   const diagnostics: DiagnosticInfo[] = [];
-  
+
   // Run TypeScript compiler for type errors
   try {
-    const tscCommand = file 
-      ? `npx tsc --noEmit "${file}" 2>&1`
-      : 'npx tsc --noEmit 2>&1';
-    
+    const tscCommand = file ? `npx tsc --noEmit "${file}" 2>&1` : 'npx tsc --noEmit 2>&1';
+
     const { stdout } = await execAsync(tscCommand, {
       maxBuffer: 10 * 1024 * 1024,
-    }).catch(e => ({ stdout: e.stdout || '', stderr: '' }));
-    
+    }).catch((e) => ({ stdout: e.stdout || '', stderr: '' }));
+
     // Parse TSC output
     const errorPattern = /(.+)\((\d+),(\d+)\):\s+(error|warning)\s+(\w+):\s+(.+)/g;
     let match;
-    
+
     while ((match = errorPattern.exec(stdout)) !== null) {
       diagnostics.push({
         file: match[1],
@@ -477,19 +473,19 @@ export async function getDiagnostics(
   } catch (error) {
     logger.debug('TSC diagnostics failed:', error);
   }
-  
+
   // Run ESLint
   try {
     const eslintCommand = file
       ? `npx eslint --format json "${file}" 2>/dev/null`
       : 'npx eslint --format json . 2>/dev/null';
-    
+
     const { stdout } = await execAsync(eslintCommand, {
       maxBuffer: 10 * 1024 * 1024,
-    }).catch(e => ({ stdout: e.stdout || '[]', stderr: '' }));
-    
+    }).catch((e) => ({ stdout: e.stdout || '[]', stderr: '' }));
+
     const eslintResults = JSON.parse(stdout || '[]');
-    
+
     for (const result of eslintResults) {
       for (const msg of result.messages || []) {
         diagnostics.push({
@@ -506,7 +502,7 @@ export async function getDiagnostics(
   } catch (error) {
     logger.debug('ESLint diagnostics failed:', error);
   }
-  
+
   return diagnostics;
 }
 
@@ -526,16 +522,16 @@ export async function openFile(
   }
 ): Promise<boolean> {
   const { line, column, preview = false } = options || {};
-  
+
   try {
     const args = [preview ? '--reuse-window' : '--goto'];
-    
+
     if (line) {
       args.push(`"${file}:${line}${column ? `:${column}` : ''}"`);
     } else {
       args.push(`"${file}"`);
     }
-    
+
     await executeVSCodeCommand('', args);
     return true;
   } catch (error) {
@@ -547,16 +543,13 @@ export async function openFile(
 /**
  * Create a new file with content
  */
-export async function createFile(
-  filePath: string,
-  content: string
-): Promise<boolean> {
+export async function createFile(filePath: string, content: string): Promise<boolean> {
   try {
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    
+
     fs.writeFileSync(filePath, content, 'utf-8');
     await openFile(filePath);
     return true;
@@ -581,13 +574,13 @@ export async function getWorkspaceInfo(): Promise<{
   const folders: string[] = [];
   const languages = new Set<string>();
   let fileCount = 0;
-  
+
   // Count files and detect languages
   try {
     const { stdout } = await execAsync('find . -type f -name "*.*" | head -10000');
-    const files = stdout.split('\n').filter(f => f.trim());
+    const files = stdout.split('\n').filter((f) => f.trim());
     fileCount = files.length;
-    
+
     // Detect languages from extensions
     const extMap: Record<string, string> = {
       '.ts': 'TypeScript',
@@ -606,7 +599,7 @@ export async function getWorkspaceInfo(): Promise<{
       '.swift': 'Swift',
       '.kt': 'Kotlin',
     };
-    
+
     for (const file of files) {
       const ext = path.extname(file);
       if (extMap[ext]) {
@@ -624,7 +617,7 @@ export async function getWorkspaceInfo(): Promise<{
       // Ignore
     }
   }
-  
+
   return {
     folders,
     files: fileCount,
@@ -640,9 +633,10 @@ export const vsCodeDeepTools = {
   /**
    * Find symbols in the codebase
    */
-  find_symbol: {
-    name: 'find_symbol',
-    description: 'Find symbols (functions, classes, variables) in the codebase by name',
+  vscode_find_symbol: {
+    name: 'vscode_find_symbol',
+    description:
+      'Find symbols (functions, classes, variables) in the codebase by name using VS Code',
     parameters: {
       type: 'object',
       properties: {
@@ -667,10 +661,10 @@ export const vsCodeDeepTools = {
         kind: args.kind as SymbolKind,
         file: args.file,
       });
-      
+
       return {
         success: true,
-        symbols: symbols.map(s => ({
+        symbols: symbols.map((s) => ({
           name: s.name,
           kind: s.kind,
           file: s.location.file,
@@ -680,7 +674,7 @@ export const vsCodeDeepTools = {
       };
     },
   },
-  
+
   /**
    * Find all references to a symbol
    */
@@ -705,11 +699,11 @@ export const vsCodeDeepTools = {
       const references = await findReferences(args.symbol, {
         file: args.file,
       });
-      
+
       return {
         success: true,
         count: references.length,
-        references: references.map(r => ({
+        references: references.map((r) => ({
           file: r.location.file,
           line: r.location.line,
           context: r.context,
@@ -718,7 +712,7 @@ export const vsCodeDeepTools = {
       };
     },
   },
-  
+
   /**
    * Go to definition of a symbol
    */
@@ -741,7 +735,7 @@ export const vsCodeDeepTools = {
     },
     execute: async (args: { symbol: string; fromFile?: string }) => {
       const location = await goToDefinition(args.symbol, args.fromFile);
-      
+
       if (location) {
         await openFile(location.file, { line: location.line });
         return {
@@ -753,14 +747,14 @@ export const vsCodeDeepTools = {
           },
         };
       }
-      
+
       return {
         success: false,
         error: `Definition for "${args.symbol}" not found`,
       };
     },
   },
-  
+
   /**
    * Get code diagnostics (errors/warnings)
    */
@@ -778,17 +772,17 @@ export const vsCodeDeepTools = {
     },
     execute: async (args: { file?: string }) => {
       const diagnostics = await getDiagnostics(args.file);
-      
-      const errors = diagnostics.filter(d => d.severity === 'error');
-      const warnings = diagnostics.filter(d => d.severity === 'warning');
-      
+
+      const errors = diagnostics.filter((d) => d.severity === 'error');
+      const warnings = diagnostics.filter((d) => d.severity === 'warning');
+
       return {
         success: true,
         summary: {
           errors: errors.length,
           warnings: warnings.length,
         },
-        diagnostics: diagnostics.map(d => ({
+        diagnostics: diagnostics.map((d) => ({
           file: d.file,
           line: d.line,
           severity: d.severity,
@@ -799,7 +793,7 @@ export const vsCodeDeepTools = {
       };
     },
   },
-  
+
   /**
    * Open a file in VS Code
    */

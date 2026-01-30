@@ -11,7 +11,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { homedir } from 'os';
 import { createModuleLogger } from '../../utils/logger';
-import { Lead, LeadStatus, LeadSource, Proposal } from '../types';
+import { Lead, LeadStage, ClientSource, Proposal } from '../types';
 
 const logger = createModuleLogger('LeadManager');
 
@@ -31,8 +31,8 @@ export interface LeadManagerEvents {
  * Lead search filters
  */
 export interface LeadSearchFilters {
-  status?: LeadStatus[];
-  source?: LeadSource[];
+  stage?: LeadStage[];
+  source?: ClientSource[];
   minValue?: number;
   maxValue?: number;
   searchText?: string;
@@ -84,7 +84,7 @@ export class LeadManager extends EventEmitter {
         lead.createdAt = new Date(lead.createdAt);
         lead.updatedAt = new Date(lead.updatedAt);
         if (lead.nextFollowUp) lead.nextFollowUp = new Date(lead.nextFollowUp);
-        if (lead.expectedCloseDate) lead.expectedCloseDate = new Date(lead.expectedCloseDate);
+        if (lead.lastContactDate) lead.lastContactDate = new Date(lead.lastContactDate);
         this.leads.set(lead.id, lead);
       }
     } catch {
@@ -96,8 +96,10 @@ export class LeadManager extends EventEmitter {
       const proposals = JSON.parse(proposalsData) as Proposal[];
       for (const proposal of proposals) {
         proposal.createdAt = new Date(proposal.createdAt);
-        if (proposal.sentAt) proposal.sentAt = new Date(proposal.sentAt);
-        if (proposal.expiresAt) proposal.expiresAt = new Date(proposal.expiresAt);
+        proposal.updatedAt = new Date(proposal.updatedAt);
+        if (proposal.sentDate) proposal.sentDate = new Date(proposal.sentDate);
+        if (proposal.validUntil) proposal.validUntil = new Date(proposal.validUntil);
+        if (proposal.respondedDate) proposal.respondedDate = new Date(proposal.respondedDate);
         const list = this.proposals.get(proposal.leadId) || [];
         list.push(proposal);
         this.proposals.set(proposal.leadId, list);
@@ -135,15 +137,17 @@ export class LeadManager extends EventEmitter {
     company?: string;
     email: string;
     phone?: string;
-    source: LeadSource;
+    source: ClientSource;
     sourceDetails?: string;
     projectDescription: string;
     estimatedValue?: number;
     probability?: number;
-    expectedCloseDate?: Date;
     nextFollowUp?: Date;
     notes?: string;
+    tags?: string[];
   }): Promise<Lead> {
+    const estimatedValue = data.estimatedValue || 0;
+    const probability = data.probability || 10;
     const lead: Lead = {
       id: randomUUID(),
       name: data.name,
@@ -152,13 +156,14 @@ export class LeadManager extends EventEmitter {
       phone: data.phone,
       source: data.source,
       sourceDetails: data.sourceDetails,
-      status: 'new',
+      stage: 'new',
       projectDescription: data.projectDescription,
-      estimatedValue: data.estimatedValue || 0,
-      probability: data.probability || 10,
-      expectedCloseDate: data.expectedCloseDate,
+      estimatedValue,
+      probability,
+      weightedValue: estimatedValue * (probability / 100),
       nextFollowUp: data.nextFollowUp,
       notes: data.notes || '',
+      tags: data.tags || [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -194,8 +199,8 @@ export class LeadManager extends EventEmitter {
   searchLeads(filters: LeadSearchFilters): Lead[] {
     let results = [...this.leads.values()];
 
-    if (filters.status && filters.status.length > 0) {
-      results = results.filter(l => filters.status!.includes(l.status));
+    if (filters.stage && filters.stage.length > 0) {
+      results = results.filter(l => filters.stage!.includes(l.stage));
     }
 
     if (filters.source && filters.source.length > 0) {
@@ -215,7 +220,7 @@ export class LeadManager extends EventEmitter {
       results = results.filter(l =>
         l.name.toLowerCase().includes(search) ||
         l.company?.toLowerCase().includes(search) ||
-        l.projectDescription.toLowerCase().includes(search)
+        l.projectDescription?.toLowerCase().includes(search)
       );
     }
 
@@ -245,10 +250,10 @@ export class LeadManager extends EventEmitter {
   }
 
   /**
-   * Update lead status
+   * Update lead stage
    */
-  async updateLeadStatus(leadId: string, status: LeadStatus): Promise<Lead | undefined> {
-    return this.updateLead(leadId, { status });
+  async updateLeadStage(leadId: string, stage: LeadStage): Promise<Lead | undefined> {
+    return this.updateLead(leadId, { stage });
   }
 
   /**
@@ -273,7 +278,7 @@ export class LeadManager extends EventEmitter {
    */
   async markContacted(leadId: string, notes?: string): Promise<Lead | undefined> {
     return this.updateLead(leadId, {
-      status: 'contacted',
+      stage: 'contacted',
       probability: 20,
       notes: notes ? `${this.getLead(leadId)?.notes}\n\n[Contacted] ${notes}` : undefined,
     });
@@ -284,18 +289,18 @@ export class LeadManager extends EventEmitter {
    */
   async markQualified(leadId: string, notes?: string): Promise<Lead | undefined> {
     return this.updateLead(leadId, {
-      status: 'qualified',
+      stage: 'qualified',
       probability: 40,
       notes: notes ? `${this.getLead(leadId)?.notes}\n\n[Qualified] ${notes}` : undefined,
     });
   }
 
   /**
-   * Move lead to proposal stage
+   * Move lead to proposal_sent stage
    */
-  async moveToProposalStage(leadId: string, proposalId?: string): Promise<Lead | undefined> {
+  async moveToProposalStage(leadId: string, _proposalId?: string): Promise<Lead | undefined> {
     return this.updateLead(leadId, {
-      status: 'proposal',
+      stage: 'proposal_sent',
       probability: 60,
     });
   }
@@ -305,7 +310,7 @@ export class LeadManager extends EventEmitter {
    */
   async markNegotiating(leadId: string, notes?: string): Promise<Lead | undefined> {
     return this.updateLead(leadId, {
-      status: 'negotiation',
+      stage: 'negotiation',
       probability: 80,
       notes: notes ? `${this.getLead(leadId)?.notes}\n\n[Negotiation] ${notes}` : undefined,
     });
@@ -316,7 +321,7 @@ export class LeadManager extends EventEmitter {
    */
   async convertToClient(leadId: string, clientId: string): Promise<Lead | undefined> {
     const lead = await this.updateLead(leadId, {
-      status: 'won',
+      stage: 'won',
       probability: 100,
       convertedClientId: clientId,
     });
@@ -334,8 +339,9 @@ export class LeadManager extends EventEmitter {
    */
   async markLost(leadId: string, reason?: string): Promise<Lead | undefined> {
     const lead = await this.updateLead(leadId, {
-      status: 'lost',
+      stage: 'lost',
       probability: 0,
+      lostReason: reason,
       notes: reason ? `${this.getLead(leadId)?.notes}\n\n[Lost] ${reason}` : undefined,
     });
 
@@ -369,7 +375,7 @@ export class LeadManager extends EventEmitter {
     return [...this.leads.values()].filter(l =>
       l.nextFollowUp &&
       new Date(l.nextFollowUp) <= now &&
-      !['won', 'lost'].includes(l.status)
+      !['won', 'lost'].includes(l.stage)
     ).sort((a, b) =>
       new Date(a.nextFollowUp!).getTime() - new Date(b.nextFollowUp!).getTime()
     );
@@ -386,7 +392,7 @@ export class LeadManager extends EventEmitter {
       l.nextFollowUp &&
       new Date(l.nextFollowUp) > now &&
       new Date(l.nextFollowUp) <= future &&
-      !['won', 'lost'].includes(l.status)
+      !['won', 'lost'].includes(l.stage)
     ).sort((a, b) =>
       new Date(a.nextFollowUp!).getTime() - new Date(b.nextFollowUp!).getTime()
     );
@@ -403,36 +409,28 @@ export class LeadManager extends EventEmitter {
     leadId: string;
     title: string;
     description: string;
-    scope: string[];
-    deliverables: string[];
-    timeline: string;
-    pricing: {
-      type: 'fixed' | 'hourly' | 'retainer';
-      amount: number;
-      hourlyRate?: number;
-      estimatedHours?: number;
-    };
+    items: Array<{ description: string; amount: number }>;
     validityDays?: number;
-    terms?: string;
   }): Promise<Proposal | undefined> {
     const lead = this.leads.get(data.leadId);
     if (!lead) return undefined;
+
+    const totalAmount = data.items.reduce((sum, item) => sum + item.amount, 0);
+    const now = new Date();
 
     const proposal: Proposal = {
       id: randomUUID(),
       leadId: data.leadId,
       title: data.title,
       description: data.description,
-      scope: data.scope,
-      deliverables: data.deliverables,
-      timeline: data.timeline,
-      pricing: data.pricing,
-      status: 'draft',
-      expiresAt: data.validityDays 
+      items: data.items,
+      totalAmount,
+      validUntil: data.validityDays 
         ? new Date(Date.now() + data.validityDays * 24 * 60 * 60 * 1000)
-        : undefined,
-      terms: data.terms,
-      createdAt: new Date(),
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days
+      status: 'draft',
+      createdAt: now,
+      updatedAt: now,
     };
 
     const list = this.proposals.get(data.leadId) || [];
@@ -460,11 +458,12 @@ export class LeadManager extends EventEmitter {
       const index = list.findIndex(p => p.id === proposalId);
       if (index !== -1) {
         list[index].status = 'sent';
-        list[index].sentAt = new Date();
+        list[index].sentDate = new Date();
+        list[index].updatedAt = new Date();
         await this.saveData();
 
-        // Also update lead status
-        await this.updateLead(leadId, { status: 'proposal', probability: 60 });
+        // Also update lead stage
+        await this.updateLead(leadId, { stage: 'proposal_sent', probability: 60 });
 
         this.emit('proposal-sent', list[index]);
         return list[index];
@@ -481,10 +480,12 @@ export class LeadManager extends EventEmitter {
       const index = list.findIndex(p => p.id === proposalId);
       if (index !== -1) {
         list[index].status = 'accepted';
+        list[index].respondedDate = new Date();
+        list[index].updatedAt = new Date();
         await this.saveData();
 
         // Update lead to negotiation
-        await this.updateLead(leadId, { status: 'negotiation', probability: 80 });
+        await this.updateLead(leadId, { stage: 'negotiation', probability: 80 });
 
         return list[index];
       }
@@ -500,6 +501,8 @@ export class LeadManager extends EventEmitter {
       const index = list.findIndex(p => p.id === proposalId);
       if (index !== -1) {
         list[index].status = 'rejected';
+        list[index].respondedDate = new Date();
+        list[index].updatedAt = new Date();
         await this.saveData();
         return list[index];
       }
@@ -522,28 +525,15 @@ export class LeadManager extends EventEmitter {
           ``,
           `Prepared for: ${lead?.name}${lead?.company ? ` - ${lead.company}` : ''}`,
           `Date: ${new Date(proposal.createdAt).toLocaleDateString('en-GB')}`,
-          proposal.expiresAt ? `Valid until: ${new Date(proposal.expiresAt).toLocaleDateString('en-GB')}` : '',
+          `Valid until: ${new Date(proposal.validUntil).toLocaleDateString('en-GB')}`,
           ``,
           `DESCRIPTION`,
           proposal.description,
           ``,
-          `SCOPE`,
-          ...proposal.scope.map(s => `- ${s}`),
+          `LINE ITEMS`,
+          ...proposal.items.map(item => `- ${item.description}: £${item.amount.toLocaleString()}`),
           ``,
-          `DELIVERABLES`,
-          ...proposal.deliverables.map(d => `- ${d}`),
-          ``,
-          `TIMELINE`,
-          proposal.timeline,
-          ``,
-          `PRICING`,
-          proposal.pricing.type === 'fixed' 
-            ? `Fixed Price: £${proposal.pricing.amount.toLocaleString()}`
-            : proposal.pricing.type === 'hourly'
-              ? `Hourly Rate: £${proposal.pricing.hourlyRate}/hour (Est. ${proposal.pricing.estimatedHours} hours = £${proposal.pricing.amount.toLocaleString()})`
-              : `Monthly Retainer: £${proposal.pricing.amount.toLocaleString()}/month`,
-          ``,
-          proposal.terms ? `TERMS\n${proposal.terms}` : '',
+          `TOTAL: £${proposal.totalAmount.toLocaleString()}`,
         ];
 
         return lines.filter(l => l !== '').join('\n');
@@ -559,19 +549,19 @@ export class LeadManager extends EventEmitter {
   /**
    * Get leads by stage
    */
-  getLeadsByStage(): Record<LeadStatus, Lead[]> {
-    const byStage: Record<LeadStatus, Lead[]> = {
+  getLeadsByStage(): Record<LeadStage, Lead[]> {
+    const byStage: Record<LeadStage, Lead[]> = {
       new: [],
       contacted: [],
       qualified: [],
-      proposal: [],
+      proposal_sent: [],
       negotiation: [],
       won: [],
       lost: [],
     };
 
     for (const lead of this.leads.values()) {
-      byStage[lead.status].push(lead);
+      byStage[lead.stage].push(lead);
     }
 
     return byStage;
@@ -583,13 +573,13 @@ export class LeadManager extends EventEmitter {
   getPipelineValue(): {
     total: number;
     weighted: number;
-    byStage: Record<LeadStatus, { count: number; value: number; weighted: number }>;
+    byStage: Record<LeadStage, { count: number; value: number; weighted: number }>;
   } {
-    const byStage: Record<LeadStatus, { count: number; value: number; weighted: number }> = {
+    const byStage: Record<LeadStage, { count: number; value: number; weighted: number }> = {
       new: { count: 0, value: 0, weighted: 0 },
       contacted: { count: 0, value: 0, weighted: 0 },
       qualified: { count: 0, value: 0, weighted: 0 },
-      proposal: { count: 0, value: 0, weighted: 0 },
+      proposal_sent: { count: 0, value: 0, weighted: 0 },
       negotiation: { count: 0, value: 0, weighted: 0 },
       won: { count: 0, value: 0, weighted: 0 },
       lost: { count: 0, value: 0, weighted: 0 },
@@ -600,11 +590,11 @@ export class LeadManager extends EventEmitter {
 
     for (const lead of this.leads.values()) {
       const leadWeighted = lead.estimatedValue * (lead.probability / 100);
-      byStage[lead.status].count++;
-      byStage[lead.status].value += lead.estimatedValue;
-      byStage[lead.status].weighted += leadWeighted;
+      byStage[lead.stage].count++;
+      byStage[lead.stage].value += lead.estimatedValue;
+      byStage[lead.stage].weighted += leadWeighted;
 
-      if (!['won', 'lost'].includes(lead.status)) {
+      if (!['won', 'lost'].includes(lead.stage)) {
         total += lead.estimatedValue;
         weighted += leadWeighted;
       }
@@ -618,8 +608,8 @@ export class LeadManager extends EventEmitter {
    */
   getConversionRate(): { rate: number; won: number; lost: number; total: number } {
     const all = [...this.leads.values()];
-    const won = all.filter(l => l.status === 'won').length;
-    const lost = all.filter(l => l.status === 'lost').length;
+    const won = all.filter(l => l.stage === 'won').length;
+    const lost = all.filter(l => l.stage === 'lost').length;
     const closed = won + lost;
 
     return {
@@ -640,19 +630,19 @@ export class LeadManager extends EventEmitter {
     weightedValue: number;
     conversionRate: number;
     dueFollowUps: number;
-    byStatus: Record<LeadStatus, number>;
-    bySource: Record<LeadSource, number>;
+    byStage: Record<LeadStage, number>;
+    bySource: Record<ClientSource, number>;
   } {
-    const byStatus: Record<LeadStatus, number> = {
+    const byStage: Record<LeadStage, number> = {
       new: 0,
       contacted: 0,
       qualified: 0,
-      proposal: 0,
+      proposal_sent: 0,
       negotiation: 0,
       won: 0,
       lost: 0,
     };
-    const bySource: Record<LeadSource, number> = {
+    const bySource: Record<ClientSource, number> = {
       referral: 0,
       website: 0,
       linkedin: 0,
@@ -663,7 +653,7 @@ export class LeadManager extends EventEmitter {
     };
 
     for (const lead of this.leads.values()) {
-      byStatus[lead.status]++;
+      byStage[lead.stage]++;
       bySource[lead.source]++;
     }
 
@@ -672,12 +662,12 @@ export class LeadManager extends EventEmitter {
 
     return {
       total: this.leads.size,
-      active: this.leads.size - byStatus.won - byStatus.lost,
+      active: this.leads.size - byStage.won - byStage.lost,
       pipelineValue: pipeline.total,
       weightedValue: pipeline.weighted,
       conversionRate: conversion.rate,
       dueFollowUps: this.getDueFollowUps().length,
-      byStatus,
+      byStage,
       bySource,
     };
   }

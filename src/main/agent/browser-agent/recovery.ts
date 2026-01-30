@@ -9,9 +9,7 @@
 
 import { EventEmitter } from 'events';
 import { createModuleLogger } from '../../utils/logger';
-import {
-  BrowserAction,
-} from './types';
+import { BrowserAction } from './types';
 
 const logger = createModuleLogger('RecoverySystem');
 
@@ -258,9 +256,7 @@ export class RecoverySystem extends EventEmitter {
   /**
    * Set callback for human intervention requests
    */
-  setHumanInterventionCallback(
-    callback: (context: RecoveryContext) => Promise<boolean>
-  ): void {
+  setHumanInterventionCallback(callback: (context: RecoveryContext) => Promise<boolean>): void {
     this.humanInterventionCallback = callback;
   }
 
@@ -269,7 +265,7 @@ export class RecoverySystem extends EventEmitter {
    */
   classifyError(error: Error | string): ErrorType {
     const message = typeof error === 'string' ? error : error.message;
-    
+
     for (const [type, patterns] of Object.entries(ERROR_PATTERNS)) {
       for (const pattern of patterns) {
         if (pattern.test(message)) {
@@ -277,7 +273,7 @@ export class RecoverySystem extends EventEmitter {
         }
       }
     }
-    
+
     return 'unknown';
   }
 
@@ -293,7 +289,7 @@ export class RecoverySystem extends EventEmitter {
           return true;
         }
       }
-      
+
       // Check page content for CAPTCHA-related text
       const bodyText = await this.page.evaluate(() => document.body?.innerText || '');
       for (const pattern of ERROR_PATTERNS.captcha) {
@@ -302,10 +298,12 @@ export class RecoverySystem extends EventEmitter {
           return true;
         }
       }
-      
+
       return false;
     } catch (e) {
-      logger.debug('CAPTCHA detection failed', { error: e instanceof Error ? e.message : String(e) });
+      logger.debug('CAPTCHA detection failed', {
+        error: e instanceof Error ? e.message : String(e),
+      });
       return false;
     }
   }
@@ -320,13 +318,13 @@ export class RecoverySystem extends EventEmitter {
       if (/login|signin|auth/i.test(url)) {
         return true;
       }
-      
+
       // Check for login forms
       const loginForm = await this.page.$('form[action*="login"], form[action*="signin"]');
       if (loginForm) {
         return true;
       }
-      
+
       // Check page content
       const bodyText = await this.page.evaluate(() => document.body?.innerText || '');
       for (const pattern of ERROR_PATTERNS.auth) {
@@ -334,7 +332,7 @@ export class RecoverySystem extends EventEmitter {
           return true;
         }
       }
-      
+
       return false;
     } catch (e) {
       logger.debug('Auth detection failed', { error: e instanceof Error ? e.message : String(e) });
@@ -352,7 +350,7 @@ export class RecoverySystem extends EventEmitter {
   ): Promise<RecoveryResult> {
     const errorType = this.classifyError(error);
     const strategy = this.strategies[errorType];
-    
+
     // Get or create recovery context
     let context = this.recoveryAttempts.get(actionKey);
     if (!context) {
@@ -366,24 +364,24 @@ export class RecoverySystem extends EventEmitter {
       };
       this.recoveryAttempts.set(actionKey, context);
     }
-    
+
     context.attemptNumber++;
     context.totalAttempts++;
     context.lastRetryTime = Date.now();
-    
+
     logger.info('Attempting recovery', {
       errorType,
       attempt: context.attemptNumber,
       maxRetries: strategy.maxRetries,
       action: action.type,
     });
-    
+
     // Check for CAPTCHA
     const hasCaptcha = await this.detectCaptcha();
     if (hasCaptcha) {
       logger.warn('CAPTCHA detected, requesting human intervention');
       this.emit('captcha-detected', context);
-      
+
       return {
         success: false,
         shouldRetry: false,
@@ -393,17 +391,17 @@ export class RecoverySystem extends EventEmitter {
         message: 'CAPTCHA detected. Human intervention required.',
       };
     }
-    
+
     // Check if we've exceeded max retries
     if (context.attemptNumber > strategy.maxRetries) {
       logger.warn('Max retries exceeded', { errorType, attempts: context.attemptNumber });
       this.emit('max-retries-exceeded', context);
-      
+
       // Check if human intervention is an option
       if (strategy.actions.includes('human_intervention')) {
         return await this.requestHumanIntervention(context);
       }
-      
+
       return {
         success: false,
         shouldRetry: false,
@@ -411,25 +409,25 @@ export class RecoverySystem extends EventEmitter {
         message: `Max retries (${strategy.maxRetries}) exceeded for ${errorType} error.`,
       };
     }
-    
+
     // Calculate delay with exponential backoff
     const delay = Math.min(
       strategy.baseDelay * Math.pow(strategy.backoffMultiplier, context.attemptNumber - 1),
       strategy.maxDelay
     );
-    
+
     // Determine recovery action
     const recoveryAction = await this.determineRecoveryAction(context, strategy);
-    
+
     // Execute recovery action
     const result = await this.executeRecoveryAction(recoveryAction, delay);
-    
+
     this.emit('recovery-attempted', {
       context,
       recoveryAction,
       result,
     });
-    
+
     return result;
   }
 
@@ -441,26 +439,26 @@ export class RecoverySystem extends EventEmitter {
     strategy: RecoveryStrategy
   ): Promise<string> {
     const { actions } = strategy;
-    
+
     // For element not found, try scrolling first
     if (context.errorType === 'element_not_found' && context.attemptNumber === 1) {
       if (actions.includes('scroll')) {
         return 'scroll';
       }
     }
-    
+
     // For navigation errors, try refresh on second attempt
     if (context.errorType === 'navigation' && context.attemptNumber === 2) {
       if (actions.includes('refresh')) {
         return 'refresh';
       }
     }
-    
+
     // Default to retry if available
     if (actions.includes('retry')) {
       return 'retry';
     }
-    
+
     // Fall back to first available action
     return actions[0] || 'abort';
   }
@@ -468,12 +466,9 @@ export class RecoverySystem extends EventEmitter {
   /**
    * Execute a recovery action
    */
-  private async executeRecoveryAction(
-    action: string,
-    delay: number
-  ): Promise<RecoveryResult> {
+  private async executeRecoveryAction(action: string, delay: number): Promise<RecoveryResult> {
     logger.debug('Executing recovery action', { action, delay });
-    
+
     switch (action) {
       case 'retry':
         return {
@@ -483,7 +478,7 @@ export class RecoverySystem extends EventEmitter {
           delay,
           message: `Retrying after ${delay}ms delay.`,
         };
-        
+
       case 'scroll':
         try {
           // Scroll the page to try to find the element
@@ -507,7 +502,7 @@ export class RecoverySystem extends EventEmitter {
             message: 'Scroll failed, falling back to retry.',
           };
         }
-        
+
       case 'wait':
         return {
           success: true,
@@ -516,7 +511,7 @@ export class RecoverySystem extends EventEmitter {
           delay: Math.max(delay, 2000),
           message: `Waiting ${delay}ms before retry.`,
         };
-        
+
       case 'refresh':
         try {
           await this.page.reload({ waitUntil: 'networkidle0' });
@@ -535,7 +530,7 @@ export class RecoverySystem extends EventEmitter {
             message: 'Page refresh failed.',
           };
         }
-        
+
       case 'human_intervention':
         return {
           success: false,
@@ -544,7 +539,7 @@ export class RecoverySystem extends EventEmitter {
           humanInterventionRequired: true,
           message: 'Human intervention required.',
         };
-        
+
       case 'abort':
       default:
         return {
@@ -559,16 +554,14 @@ export class RecoverySystem extends EventEmitter {
   /**
    * Request human intervention
    */
-  private async requestHumanIntervention(
-    context: RecoveryContext
-  ): Promise<RecoveryResult> {
+  private async requestHumanIntervention(context: RecoveryContext): Promise<RecoveryResult> {
     logger.info('Requesting human intervention', {
       errorType: context.errorType,
       attempts: context.totalAttempts,
     });
-    
+
     this.emit('human-intervention-needed', context);
-    
+
     if (this.humanInterventionCallback) {
       const resolved = await this.humanInterventionCallback(context);
       if (resolved) {
@@ -583,7 +576,7 @@ export class RecoverySystem extends EventEmitter {
         };
       }
     }
-    
+
     return {
       success: false,
       shouldRetry: false,
@@ -625,14 +618,14 @@ export class RecoverySystem extends EventEmitter {
       rate_limit: 0,
       unknown: 0,
     };
-    
+
     let totalAttempts = 0;
-    
+
     for (const context of this.recoveryAttempts.values()) {
       totalAttempts += context.totalAttempts;
       byErrorType[context.errorType]++;
     }
-    
+
     return {
       totalAttempts,
       activeRecoveries: this.recoveryAttempts.size,
@@ -677,7 +670,7 @@ export function createRecoverySystem(
 /**
  * Create a retry wrapper for browser operations
  */
-export function withRetry<T>(
+export async function withRetry<T>(
   operation: () => Promise<T>,
   options: {
     maxRetries?: number;
@@ -686,40 +679,33 @@ export function withRetry<T>(
     onRetry?: (error: Error, attempt: number) => void;
   } = {}
 ): Promise<T> {
-  const {
-    maxRetries = 3,
-    baseDelay = 1000,
-    backoffMultiplier = 2,
-    onRetry,
-  } = options;
-  
-  return new Promise(async (resolve, reject) => {
-    let lastError: Error;
-    
-    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-      try {
-        const result = await operation();
-        return resolve(result);
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        
-        if (attempt <= maxRetries) {
-          const delay = baseDelay * Math.pow(backoffMultiplier, attempt - 1);
-          logger.debug('Operation failed, retrying', {
-            attempt,
-            maxRetries,
-            delay,
-            error: lastError.message,
-          });
-          
-          onRetry?.(lastError, attempt);
-          await new Promise((r) => setTimeout(r, delay));
-        }
+  const { maxRetries = 3, baseDelay = 1000, backoffMultiplier = 2, onRetry } = options;
+
+  let lastError: Error | undefined;
+
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      const result = await operation();
+      return result;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      if (attempt <= maxRetries) {
+        const delay = baseDelay * Math.pow(backoffMultiplier, attempt - 1);
+        logger.debug('Operation failed, retrying', {
+          attempt,
+          maxRetries,
+          delay,
+          error: lastError.message,
+        });
+
+        onRetry?.(lastError, attempt);
+        await new Promise((r) => setTimeout(r, delay));
       }
     }
-    
-    reject(lastError!);
-  });
+  }
+
+  throw lastError!;
 }
 
 /**
@@ -734,15 +720,15 @@ export async function waitForCondition(
   } = {}
 ): Promise<void> {
   const { timeout = 30000, interval = 500, timeoutMessage = 'Condition timeout' } = options;
-  
+
   const startTime = Date.now();
-  
+
   while (Date.now() - startTime < timeout) {
     if (await condition()) {
       return;
     }
     await new Promise((r) => setTimeout(r, interval));
   }
-  
+
   throw new Error(timeoutMessage);
 }

@@ -180,8 +180,8 @@ export class StreamingConversation extends EventEmitter {
   }
 
   /**
-   * Stream from GLM-4.7 Thinking API (Fireworks)
-   * GLM-4.7 Thinking: #1 open-source LLM (Jan 2026), 95% AIME, exceptional reasoning
+   * Stream from Kimi K2.5 API (Fireworks)
+   * Kimi K2.5: 1 TRILLION parameter MoE, 256K context, vision + function calling
    */
   private async *streamDeepSeek(userMessage: string): AsyncGenerator<string> {
     const messages = [
@@ -189,7 +189,7 @@ export class StreamingConversation extends EventEmitter {
       ...this.conversationHistory,
     ];
 
-    // Using Fireworks AI endpoint for GLM-4.7 Thinking
+    // Using Fireworks AI endpoint for Kimi K2.5
     const response = await fetch('https://api.fireworks.ai/inference/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -197,11 +197,11 @@ export class StreamingConversation extends EventEmitter {
         'Authorization': `Bearer ${this.config.deepseekApiKey}`,
       },
       body: JSON.stringify({
-        model: 'accounts/fireworks/models/glm-4p7',
+        model: 'accounts/fireworks/models/kimi-k2p5',
         messages,
         stream: true,
         temperature: 0.7,
-        max_tokens: 8000, // Extended for thinking mode
+        max_tokens: 8000, // Extended context available
       }),
       signal: this.abortController?.signal,
     });

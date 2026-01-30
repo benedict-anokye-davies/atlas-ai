@@ -1,6 +1,6 @@
 /**
  * Atlas Desktop - Dashboard Styles
- * Grid layout for widgets
+ * Grid layout for widgets with entrance animations
  */
 
 .dashboard {
@@ -11,6 +11,17 @@
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  animation: dashboardFadeIn 0.4s ease-out;
+}
+
+@keyframes dashboardFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* Top row - Orb + Key Metrics */
@@ -21,20 +32,62 @@
   align-items: stretch;
 }
 
-/* Main grid layout */
+/* Main grid layout with animations */
 .dashboard__grid {
   display: grid;
   grid-template-columns: 1fr 2fr;
   gap: 16px;
   flex: 1;
   min-height: 0;
+  animation: gridSlideUp 0.5s ease-out 0.1s both;
 }
 
-/* Widget containers */
+@keyframes gridSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Widget containers with staggered entrance */
 .dashboard__widget {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  animation: widgetEnter 0.4s ease-out both;
+}
+
+.dashboard__widget:nth-child(1) {
+  animation-delay: 0.15s;
+}
+
+.dashboard__widget:nth-child(2) {
+  animation-delay: 0.25s;
+}
+
+.dashboard__widget:nth-child(3) {
+  animation-delay: 0.35s;
+}
+
+.dashboard__widget:nth-child(4) {
+  animation-delay: 0.45s;
+}
+
+@keyframes widgetEnter {
+  from {
+    opacity: 0;
+    transform: translateY(15px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .dashboard__widget--portfolio {
@@ -50,11 +103,11 @@
   .dashboard__top-row {
     grid-template-columns: auto 1fr;
   }
-  
-  .dashboard__top-row > *:nth-child(3) {
+
+  .dashboard__top-row>*:nth-child(3) {
     grid-column: 1 / -1;
   }
-  
+
   .dashboard__grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -64,15 +117,15 @@
   .dashboard__top-row {
     grid-template-columns: 1fr;
   }
-  
-  .dashboard__top-row > *:first-child {
+
+  .dashboard__top-row>*:first-child {
     justify-self: center;
   }
-  
+
   .dashboard__grid {
     grid-template-columns: 1fr;
   }
-  
+
   .dashboard__widget--portfolio,
   .dashboard__widget--feed {
     grid-column: 1;
@@ -84,7 +137,7 @@
     padding: 12px;
     gap: 12px;
   }
-  
+
   .dashboard__top-row,
   .dashboard__grid {
     gap: 12px;
@@ -110,30 +163,33 @@
 }
 
 /* Widget hover effects */
-.dashboard__widget > * {
+.dashboard__widget>* {
   transition: box-shadow var(--atlas-transition-medium);
 }
 
-.dashboard__widget > *:hover {
+.dashboard__widget>*:hover {
   box-shadow: var(--atlas-shadow-lg);
 }
 
 /* Loading skeleton animation */
 .dashboard__skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--atlas-bg-elevated) 0%,
-    var(--atlas-bg-hover) 50%,
-    var(--atlas-bg-elevated) 100%
-  );
+  background: linear-gradient(90deg,
+      var(--atlas-bg-elevated) 0%,
+      var(--atlas-bg-hover) 50%,
+      var(--atlas-bg-elevated) 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
   border-radius: var(--atlas-radius-md);
 }
 
 @keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* Command Bar at Bottom */
@@ -143,12 +199,10 @@
   left: 0;
   right: 0;
   padding: 16px;
-  background: linear-gradient(
-    to top,
-    var(--atlas-bg-base) 0%,
-    var(--atlas-bg-base) 60%,
-    transparent 100%
-  );
+  background: linear-gradient(to top,
+      var(--atlas-bg-base) 0%,
+      var(--atlas-bg-base) 60%,
+      transparent 100%);
   z-index: 100;
   margin: -16px -16px 0;
   padding-top: 32px;
@@ -162,12 +216,10 @@
   transform: translateX(-50%);
   width: 60%;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--atlas-cyan) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg,
+      transparent 0%,
+      var(--atlas-cyan) 50%,
+      transparent 100%);
   opacity: 0.3;
 }
 
@@ -191,7 +243,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: 
+  background-image:
     linear-gradient(var(--atlas-border-subtle) 1px, transparent 1px),
     linear-gradient(90deg, var(--atlas-border-subtle) 1px, transparent 1px);
   background-size: 50px 50px;
@@ -208,13 +260,10 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 0%,
-    transparent 60%,
-    rgba(0, 0, 0, 0.4) 100%
-  );
+  background: radial-gradient(ellipse at center,
+      transparent 0%,
+      transparent 60%,
+      rgba(0, 0, 0, 0.4) 100%);
   pointer-events: none;
   z-index: 9998;
 }
-

@@ -186,7 +186,7 @@ async function getPage(): Promise<any> {
  * Navigate to URL tool
  */
 export const navigateToUrlTool: AgentTool = {
-  name: 'browser_navigate',
+  name: 'puppeteer_navigate',
   description: 'Navigate to a URL in the browser. Returns page title and status.',
   parameters: {
     type: 'object',
@@ -313,7 +313,7 @@ export const getPageContentTool: AgentTool = {
  * Click element tool
  */
 export const clickElementTool: AgentTool = {
-  name: 'browser_click',
+  name: 'puppeteer_click',
   description: 'Click on an element in the current page.',
   parameters: {
     type: 'object',
@@ -361,7 +361,7 @@ export const clickElementTool: AgentTool = {
  * Type text tool
  */
 export const typeTextTool: AgentTool = {
-  name: 'browser_type',
+  name: 'puppeteer_type',
   description: 'Type text into an input field.',
   parameters: {
     type: 'object',
@@ -424,7 +424,7 @@ export const typeTextTool: AgentTool = {
  * Take screenshot tool
  */
 export const browserScreenshotTool: AgentTool = {
-  name: 'browser_screenshot',
+  name: 'puppeteer_screenshot',
   description: 'Take a screenshot of the current page.',
   parameters: {
     type: 'object',
@@ -492,7 +492,7 @@ export const browserScreenshotTool: AgentTool = {
  * Close browser tool
  */
 export const closeBrowserTool: AgentTool = {
-  name: 'browser_close',
+  name: 'puppeteer_close',
   description: 'Close the browser instance and clean up resources.',
   parameters: {
     type: 'object',

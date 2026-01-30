@@ -449,7 +449,7 @@ export class ScreenUnderstanding extends EventEmitter {
    * Detect changes between two screen states
    */
   private detectChanges(previous: ScreenState, current: ScreenState): ScreenChange {
-    let changedPixels = 0;
+    const changedPixels = 0;
     const totalPixels = current.resolution.width * current.resolution.height;
 
     // Simple hash comparison for now

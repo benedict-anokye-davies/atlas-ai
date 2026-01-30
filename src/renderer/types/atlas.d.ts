@@ -44,7 +44,13 @@ export interface CodingResponse {
 }
 
 /** Agent state */
-export type AgentState = 'idle' | 'thinking' | 'executing' | 'waiting-for-tool' | 'error' | 'complete';
+export type AgentState =
+  | 'idle'
+  | 'thinking'
+  | 'executing'
+  | 'waiting-for-tool'
+  | 'error'
+  | 'complete';
 
 /** Coding session */
 export interface CodingSession {
@@ -347,13 +353,15 @@ export interface SystemAPI {
   toggleDevTools: () => Promise<void>;
   minimizeWindow: () => Promise<void>;
   quit: () => Promise<void>;
-  getStats?: () => Promise<IPCResult<{
-    cpu: number;
-    memory: number;
-    gpu?: number;
-    disk?: number;
-    uptime: number;
-  }>>;
+  getStats?: () => Promise<
+    IPCResult<{
+      cpu: number;
+      memory: number;
+      gpu?: number;
+      disk?: number;
+      uptime: number;
+    }>
+  >;
 }
 
 /**
@@ -908,7 +916,7 @@ export interface AtlasAPI {
     authenticate: () => Promise<IPCResult>;
     logout: () => Promise<IPCResult>;
     getStatus: () => Promise<IPCResult<{ isAuthenticated: boolean; expiresAt?: number }>>;
-    
+
     // Playback
     getCurrentPlayback: () => Promise<IPCResult<unknown>>;
     play: (uri?: string, contextUri?: string) => Promise<IPCResult>;
@@ -919,22 +927,22 @@ export interface AtlasAPI {
     setVolume: (volumePercent: number) => Promise<IPCResult>;
     setShuffle: (state: boolean) => Promise<IPCResult>;
     setRepeat: (state: 'off' | 'context' | 'track') => Promise<IPCResult>;
-    
+
     // Library
     saveTrack: (trackId: string) => Promise<IPCResult>;
     removeTrack: (trackId: string) => Promise<IPCResult>;
     isTrackSaved: (trackId: string) => Promise<IPCResult<boolean>>;
-    
+
     // Search & Browse
     search: (query: string, types?: string[]) => Promise<IPCResult<unknown>>;
     getDevices: () => Promise<IPCResult<unknown[]>>;
     transferPlayback: (deviceId: string, play?: boolean) => Promise<IPCResult>;
     getPlaylists: (limit?: number) => Promise<IPCResult<unknown[]>>;
     addToQueue: (uri: string) => Promise<IPCResult>;
-    
+
     // Voice command
     executeVoiceCommand: (command: string) => Promise<IPCResult>;
-    
+
     // Events
     onPlaybackChanged: (callback: (data: unknown) => void) => (() => void) | undefined;
     onAuthenticated: (callback: () => void) => (() => void) | undefined;
@@ -976,64 +984,85 @@ export interface AtlasAPI {
 
   // Performance Profiler API
   performance?: {
-    getData: () => Promise<IPCResult<{
-      metrics: Record<string, { current: number; avg: number; min: number; max: number; unit: string }>;
-      snapshots: Array<{
-        timestamp: number;
-        memory: { heapUsed: number; heapTotal: number; rss: number; percentUsed: number };
-        cpu: { usage: number; cores: number };
-        ipc: { avgLatency: number; maxLatency: number; messageCount: number; errorCount: number };
-        voice?: {
-          wakeWordDetection?: number;
-          sttLatency?: number;
-          llmFirstToken?: number;
-          ttsFirstAudio?: number;
-          totalResponseTime?: number;
-        };
-        bottlenecks: Array<{ type: string; severity: string; description: string; value: number; threshold: number; recommendation: string }>;
-      }>;
-      status: { enabled: boolean; running: boolean; uptime: number; snapshotCount: number };
-    }>>;
-    getMetrics: () => Promise<IPCResult<Record<string, { current: number; avg: number; min: number; max: number; unit: string }>>>;
-    getMetricHistory: (metricName: string, limit?: number) => Promise<IPCResult<Array<{ timestamp: number; value: number }>>>;
+    getData: () => Promise<
+      IPCResult<{
+        metrics: Record<
+          string,
+          { current: number; avg: number; min: number; max: number; unit: string }
+        >;
+        snapshots: Array<{
+          timestamp: number;
+          memory: { heapUsed: number; heapTotal: number; rss: number; percentUsed: number };
+          cpu: { usage: number; cores: number };
+          ipc: { avgLatency: number; maxLatency: number; messageCount: number; errorCount: number };
+          voice?: {
+            wakeWordDetection?: number;
+            sttLatency?: number;
+            llmFirstToken?: number;
+            ttsFirstAudio?: number;
+            totalResponseTime?: number;
+          };
+          bottlenecks: Array<{
+            type: string;
+            severity: string;
+            description: string;
+            value: number;
+            threshold: number;
+            recommendation: string;
+          }>;
+        }>;
+        status: { enabled: boolean; running: boolean; uptime: number; snapshotCount: number };
+      }>
+    >;
+    getMetrics: () => Promise<
+      IPCResult<
+        Record<string, { current: number; avg: number; min: number; max: number; unit: string }>
+      >
+    >;
+    getMetricHistory: (
+      metricName: string,
+      limit?: number
+    ) => Promise<IPCResult<Array<{ timestamp: number; value: number }>>>;
     getSnapshots: (limit?: number) => Promise<IPCResult<unknown[]>>;
     start: () => Promise<IPCResult>;
     stop: () => Promise<IPCResult>;
     recordMetric: (name: string, value: number, unit?: string) => Promise<IPCResult>;
-    getStartupTiming: () => Promise<IPCResult<{
-      timeline: Array<{
-        phase: string;
-        timestamp: number;
-        type: 'start' | 'end';
-        metadata?: Record<string, unknown>;
-      }>;
-      phases: Array<{
-        phase: string;
-        startMs: number;
-        durationMs: number;
-        metadata?: Record<string, unknown>;
-      }>;
-      totalDurationMs: number;
-      isWarmStart: boolean;
-      recommendations: string[];
-      memoryUsage?: {
-        heapUsed: number;
-        heapTotal: number;
-        external: number;
-        rss: number;
-      };
-      slowModules: Array<{
-        modulePath: string;
-        loadTimeMs: number;
-        size?: number;
-      }>;
-      phaseSummaries: Array<{
-        phase: string;
-        durationMs: number;
-        percentOfTotal: number;
-        status: 'fast' | 'acceptable' | 'slow' | 'critical';
-      }>;
-    }>>;
+    getStartupTiming: () => Promise<
+      IPCResult<{
+        timeline: Array<{
+          phase: string;
+          timestamp: number;
+          type: 'start' | 'end';
+          metadata?: Record<string, unknown>;
+        }>;
+        phases: Array<{
+          phase: string;
+          startMs: number;
+          durationMs: number;
+          metadata?: Record<string, unknown>;
+        }>;
+        totalDurationMs: number;
+        isWarmStart: boolean;
+        recommendations: string[];
+        memoryUsage?: {
+          heapUsed: number;
+          heapTotal: number;
+          external: number;
+          rss: number;
+        };
+        slowModules: Array<{
+          modulePath: string;
+          loadTimeMs: number;
+          size?: number;
+        }>;
+        phaseSummaries: Array<{
+          phase: string;
+          durationMs: number;
+          percentOfTotal: number;
+          status: 'fast' | 'acceptable' | 'slow' | 'critical';
+        }>;
+      }>
+    >;
   };
 
   // Internationalization API
@@ -1049,9 +1078,13 @@ export interface AtlasAPI {
     /** Execute with streaming results */
     executeStream: (request: CodingRequest) => Promise<IPCResult>;
     /** Process a voice command for coding */
-    voiceCommand: (text: string) => Promise<IPCResult<{ command: VoiceCommand; response: CodingResponse }>>;
+    voiceCommand: (
+      text: string
+    ) => Promise<IPCResult<{ command: VoiceCommand; response: CodingResponse }>>;
     /** Parse voice command without executing */
-    parseVoice: (text: string) => Promise<IPCResult<{ prompt: string; command: VoiceCommand } | null>>;
+    parseVoice: (
+      text: string
+    ) => Promise<IPCResult<{ prompt: string; command: VoiceCommand } | null>>;
     /** Get current coding session */
     getSession: () => Promise<IPCResult<CodingSession | null>>;
     /** Abort current coding task */
@@ -1082,4 +1115,32 @@ declare global {
     atlas?: AtlasAPI;
     nova?: AtlasAPI; // Backward compatibility alias
   }
+}
+
+// CSS Module declarations
+// This allows importing .module.css files in TypeScript
+
+declare module '*.module.css' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+
+declare module '*.module.scss' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+
+declare module '*.module.sass' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+
+declare module '*.module.less' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+
+declare module '*.module.styl' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
 }

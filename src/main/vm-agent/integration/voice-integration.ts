@@ -1079,6 +1079,9 @@ export function getVoiceIntegrationManager(): VoiceIntegrationManager {
   return voiceIntegrationInstance;
 }
 
+// Alias for backwards compatibility
+export { getVoiceIntegrationManager as getVoiceIntegration };
+
 /**
  * Reset the voice integration manager (for testing)
  */

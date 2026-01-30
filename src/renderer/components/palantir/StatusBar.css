@@ -1,6 +1,6 @@
 /**
  * Atlas Desktop - Status Bar Styles
- * Compact information-dense bottom bar
+ * Compact information-dense bottom bar with glassmorphism
  */
 
 .status-bar {
@@ -9,10 +9,12 @@
   justify-content: space-between;
   height: 28px;
   padding: 0 12px;
-  background: var(--atlas-bg-sunken);
-  border-top: 1px solid var(--atlas-border);
+  background: linear-gradient(180deg, rgba(10, 14, 20, 0.9) 0%, rgba(5, 8, 10, 0.95) 100%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--atlas-glass-border);
   font-size: 11px;
-  color: var(--atlas-text-tertiary);
+  color: var(--atlas-text-muted);
   user-select: none;
 }
 
@@ -48,7 +50,7 @@
   border-radius: var(--atlas-radius-sm);
   color: inherit;
   cursor: default;
-  transition: all var(--atlas-transition-fast);
+  transition: all 0.2s ease;
 }
 
 button.status-bar__item {
@@ -56,7 +58,7 @@ button.status-bar__item {
 }
 
 button.status-bar__item:hover {
-  background: var(--atlas-bg-hover);
+  background: rgba(0, 212, 255, 0.08);
   color: var(--atlas-text-secondary);
 }
 
@@ -85,8 +87,15 @@ button.status-bar__item:hover {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* Voice states */
@@ -169,11 +178,11 @@ button.status-bar__item:hover {
   .status-bar__center {
     display: none;
   }
-  
+
   .status-bar__date {
     display: none;
   }
-  
+
   .status-bar__performance .status-bar__metric:nth-child(3),
   .status-bar__performance .status-bar__separator:nth-child(4),
   .status-bar__performance .status-bar__metric:nth-child(5) {
@@ -185,7 +194,7 @@ button.status-bar__item:hover {
   .status-bar__provider {
     display: none;
   }
-  
+
   .status-bar__performance {
     display: none;
   }

@@ -166,6 +166,21 @@ export { BaseAppPlugin, GenericWindowsPlugin, createAppPlugin } from './plugins/
 export { VoiceIntegrationManager, getVoiceIntegration } from './integration/voice-integration';
 export { registerVMAgentIPCHandlers, unregisterVMAgentIPCHandlers, IPC_CHANNELS } from './integration/ipc-handlers';
 
+// WorldBox Integration (Evolutionary Learning)
+export {
+  EvolutionaryObserver,
+  getEvolutionaryObserver,
+  shutdownEvolutionaryObserver,
+  TrackedCivilization,
+  SimulationEvent,
+  EvolutionaryInsight,
+  WorldSnapshot,
+  ObservationSession,
+  processWorldBoxCommand,
+  worldBoxVoiceCommand,
+  CommandResult,
+} from './worldbox';
+
 // =============================================================================
 // VM Agent Status
 // =============================================================================
@@ -687,6 +702,155 @@ export class VMAgent extends EventEmitter {
     }
 
     return { success: true, steps: executedSteps };
+  }
+
+  // ===========================================================================
+  // WorldBox Evolutionary Learning
+  // ===========================================================================
+
+  /**
+   * Start observing WorldBox simulation for evolutionary learning
+   * 
+   * @param mode - Observation mode: passive (watch only), active (with snapshots), experimental (with interventions)
+   * @returns Session ID or null if WorldBox not running
+   */
+  async startWorldBoxObservation(mode: 'passive' | 'active' | 'experimental' = 'active'): Promise<string | null> {
+    const { isRunning } = await this.checkWorldBox();
+    if (!isRunning) {
+      logger.warn('Cannot start observation - WorldBox not running');
+      return null;
+    }
+    
+    const screenshot = await this.connector.captureScreen();
+    if (!screenshot) return null;
+    
+    const screenState = await this.understanding.analyzeScreen(screenshot);
+    
+    const { getEvolutionaryObserver } = await import('./worldbox');
+    const observer = getEvolutionaryObserver();
+    
+    const sessionId = await observer.startObservation(screenState, mode);
+    logger.info('Started WorldBox observation', { sessionId, mode });
+    
+    // Start continuous observation loop
+    this.startObservationLoop();
+    
+    return sessionId;
+  }
+
+  /**
+   * Stop WorldBox observation and get insights
+   */
+  async stopWorldBoxObservation(): Promise<{
+    insights: unknown[];
+    wisdom: string[];
+    sessionSummary: {
+      duration: number;
+      events: number;
+      civilizations: number;
+    };
+  } | null> {
+    const { getEvolutionaryObserver } = await import('./worldbox');
+    const observer = getEvolutionaryObserver();
+    
+    // Stop the loop
+    this.stopObservationLoop();
+    
+    const session = await observer.stopObservation();
+    if (!session) return null;
+    
+    const insights = observer.getInsights();
+    const wisdom = observer.getEvolutionaryWisdom();
+    
+    logger.info('Stopped WorldBox observation', {
+      sessionId: session.sessionId,
+      insights: insights.length,
+    });
+    
+    return {
+      insights,
+      wisdom,
+      sessionSummary: {
+        duration: session.endTime ? session.endTime - session.startTime : 0,
+        events: session.events.length,
+        civilizations: session.civilizations.size,
+      },
+    };
+  }
+
+  /**
+   * Get evolutionary wisdom from WorldBox observations
+   * This can be injected into Atlas's responses
+   */
+  async getWorldBoxWisdom(): Promise<{
+    wisdom: string[];
+    recentInsights: unknown[];
+    observationStats: {
+      totalSessions: number;
+      totalInsights: number;
+      extinctionPatterns: Record<string, number>;
+    };
+  }> {
+    const { getEvolutionaryObserver } = await import('./worldbox');
+    const observer = getEvolutionaryObserver();
+    
+    const status = observer.getStatus();
+    const insights = observer.getInsights();
+    const wisdom = observer.getEvolutionaryWisdom();
+    const extinctionPatterns = observer.getExtinctionPatterns();
+    
+    return {
+      wisdom,
+      recentInsights: insights.slice(-5),
+      observationStats: {
+        totalSessions: status.isObserving ? 1 : 0, // Current session
+        totalInsights: status.insights,
+        extinctionPatterns,
+      },
+    };
+  }
+
+  /**
+   * Process a natural language WorldBox command with voice support
+   */
+  async processWorldBoxVoiceCommand(command: string): Promise<{
+    success: boolean;
+    message: string;
+    voiceResponse: string;
+    data?: unknown;
+  }> {
+    const { processWorldBoxCommand } = await import('./worldbox');
+    return processWorldBoxCommand(command);
+  }
+
+  // Private observation loop state
+  private observationInterval: NodeJS.Timeout | null = null;
+
+  private startObservationLoop(): void {
+    if (this.observationInterval) return;
+    
+    this.observationInterval = setInterval(async () => {
+      try {
+        const screenshot = await this.connector.captureScreen();
+        if (!screenshot) return;
+        
+        const screenState = await this.understanding.analyzeScreen(screenshot);
+        
+        const { getEvolutionaryObserver } = await import('./worldbox');
+        const observer = getEvolutionaryObserver();
+        
+        await observer.processScreenUpdate(screenState);
+      } catch (error) {
+        logger.warn('Error in observation loop', { error });
+      }
+    }, 5000); // Every 5 seconds
+  }
+
+  private stopObservationLoop(): void {
+    if (this.observationInterval) {
+      clearInterval(this.observationInterval);
+      this.observationInterval = null;
+    }
   }
 
   /**

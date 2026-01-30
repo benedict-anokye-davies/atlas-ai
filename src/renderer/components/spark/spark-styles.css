@@ -1,0 +1,101 @@
+/**
+ * Spark UI - CSS Variables and Base Styles
+ * Futuristic AI Interface Design System
+ */
+
+:root {
+  /* Background Colors */
+  --spark-bg-primary: #0a0a0f;
+  --spark-bg-secondary: #111118;
+  --spark-bg-tertiary: #1a1a24;
+  --spark-bg-panel: rgba(17, 17, 24, 0.7);
+
+  /* Accent Colors */
+  --spark-accent-primary: #4ade80;
+  --spark-accent-secondary: #22d3ee;
+  --spark-accent-tertiary: #a78bfa;
+  --spark-accent-glow: rgba(74, 222, 128, 0.5);
+
+  /* Text Colors */
+  --spark-text-primary: #ffffff;
+  --spark-text-secondary: #94a3b8;
+  --spark-text-muted: #64748b;
+  --spark-text-accent: #4ade80;
+
+  /* Border Colors */
+  --spark-border-subtle: rgba(148, 163, 184, 0.1);
+  --spark-border-glow: rgba(74, 222, 128, 0.3);
+  --spark-border-glow-hover: rgba(74, 222, 128, 0.5);
+
+  /* Status Colors */
+  --spark-success: #4ade80;
+  --spark-warning: #fbbf24;
+  --spark-error: #f87171;
+  --spark-info: #22d3ee;
+
+  /* Glassmorphism */
+  --spark-glass-bg: rgba(17, 17, 24, 0.6);
+  --spark-glass-border: rgba(74, 222, 128, 0.15);
+  --spark-glass-blur: 20px;
+
+  /* Spacing */
+  --spark-spacing-xs: 0.25rem;
+  --spark-spacing-sm: 0.5rem;
+  --spark-spacing-md: 1rem;
+  --spark-spacing-lg: 1.5rem;
+  --spark-spacing-xl: 2rem;
+
+  /* Border Radius */
+  --spark-radius-sm: 4px;
+  --spark-radius-md: 8px;
+  --spark-radius-lg: 12px;
+  --spark-radius-xl: 16px;
+
+  /* Shadows */
+  --spark-shadow-glow: 0 0 20px rgba(74, 222, 128, 0.3);
+  --spark-shadow-glow-strong: 0 0 40px rgba(74, 222, 128, 0.5);
+  --shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.4);
+
+  /* Transitions */
+  --spark-transition-fast: 150ms ease;
+  --spark-transition-normal: 300ms ease;
+  --spark-transition-slow: 500ms ease;
+
+  /* Typography */
+  --spark-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --spark-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Base Styles */
+.spark-ui {
+  font-family: var(--spark-font-family);
+  background: var(--spark-bg-primary);
+  color: var(--spark-text-primary);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* Scrollbar Styling */
+.spark-ui ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.spark-ui ::-webkit-scrollbar-track {
+  background: var(--spark-bg-secondary);
+}
+
+.spark-ui ::-webkit-scrollbar-thumb {
+  background: var(--spark-border-subtle);
+  border-radius: 3px;
+}
+
+.spark-ui ::-webkit-scrollbar-thumb:hover {
+  background: var(--spark-border-glow);
+}
+
+/* Selection */
+.spark-ui ::selection {
+  background: var(--spark-accent-primary);
+  color: var(--spark-bg-primary);
+}

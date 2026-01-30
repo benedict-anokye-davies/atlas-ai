@@ -2,7 +2,7 @@
  * Atlas Desktop - Skills Index
  * Session 043-A: Skill system architecture
  *
- * Export all built-in skills and provide registration utilities.
+ * Export all built-in skills, parser, registry, and utilities.
  */
 
 import type { Skill } from '../../../shared/types/skill';
@@ -18,6 +18,28 @@ export { BaseSkill } from './base-skill';
 export { CalculatorSkill } from './calculator-skill';
 export { TimerSkill } from './timer-skill';
 export { WeatherSkill } from './weather-skill';
+
+// Export skill parser
+export {
+  SkillParser,
+  getSkillParser,
+  type ParsedSkill,
+  type SkillFrontmatter,
+  type SkillGating,
+  type SkillToolDef,
+  type SkillPromptDef,
+  type GatingCheckResult,
+} from './skill-parser';
+
+// Export skill registry
+export {
+  SkillRegistry,
+  getSkillRegistry,
+  shutdownSkillRegistry,
+  type InstalledSkill,
+  type SkillSource,
+  type RegistryConfig,
+} from './skill-registry';
 
 /**
  * Get all built-in skills

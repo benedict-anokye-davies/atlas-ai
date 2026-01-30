@@ -580,13 +580,13 @@ async function listDirRecursive(
   depth: number,
   ctx: ListDirContext
 ): Promise<void> {
-  if (ctx.entries.length >= MAX_LIST_ENTRIES) return;
+  if (ctx.entries.length >= FILESYSTEM_LIMITS.MAX_LIST_ENTRIES) return;
   if (ctx.recursive && depth > ctx.maxDepth) return;
 
   const items = await fs.readdir(currentPath);
 
   for (const item of items) {
-    if (ctx.entries.length >= MAX_LIST_ENTRIES) break;
+    if (ctx.entries.length >= FILESYSTEM_LIMITS.MAX_LIST_ENTRIES) break;
 
     const itemPath = path.join(currentPath, item);
     try {
@@ -724,7 +724,7 @@ export const searchFilesTool: AgentTool = {
       const searchPath = path.resolve((params.path as string) || '.');
       const pattern = params.pattern as string;
       const contentSearch = params.content as string | undefined;
-      const maxResults = Math.min((params.maxResults as number) || 50, MAX_SEARCH_RESULTS);
+      const maxResults = Math.min((params.maxResults as number) || 50, FILESYSTEM_LIMITS.MAX_SEARCH_RESULTS);
 
       // Safety check
       const safety = validatePathSafety(searchPath);

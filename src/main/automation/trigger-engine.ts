@@ -308,7 +308,7 @@ class TriggerEngine extends EventEmitter {
     
     if (schedule.time) {
       const [hours, minutes] = schedule.time.split(':').map(Number);
-      let next = new Date(now);
+      const next = new Date(now);
       next.setHours(hours, minutes, 0, 0);
       
       // If time has passed today, move to next valid day

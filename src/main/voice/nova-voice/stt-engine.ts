@@ -80,6 +80,7 @@ export const DEFAULT_WHISPER_CONFIG: WhisperTurboConfig = {
   useFasterWhisper: true,
   maxChunkDuration: 30,
   overlapDuration: 1,
+};
 
 // ============================================================================
 // Internal Types for Whisper Results
@@ -108,7 +109,6 @@ interface WhisperResult {
   language: string;
   language_probability?: number;
 }
-};
 
 /**
  * WhisperTurbo STT Engine

@@ -1,6 +1,6 @@
 /**
  * Atlas Desktop - Metric Card Tech Styles
- * Enhanced with animations, sparklines, and accent variants
+ * Enhanced with glassmorphism, animations, sparklines, and accent variants
  */
 
 .metric-card {
@@ -9,19 +9,42 @@
   gap: 8px;
   padding: 16px;
   padding-top: 20px;
-  background: var(--atlas-bg-elevated);
-  border: 1px solid var(--atlas-border-subtle);
-  border-radius: 0;
+  background: var(--atlas-glass-bg);
+  backdrop-filter: var(--atlas-glass-blur);
+  -webkit-backdrop-filter: var(--atlas-glass-blur);
+  border: 1px solid var(--atlas-glass-border);
+  border-radius: var(--atlas-radius-xl);
   position: relative;
-  clip-path: polygon(
-    0 0, 
-    100% 0, 
-    100% calc(100% - 10px), 
-    calc(100% - 10px) 100%, 
-    0 100%
-  );
   overflow: hidden;
-  transition: all var(--atlas-transition-medium);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--atlas-inset-shadow), var(--atlas-shadow-md);
+}
+
+/* Animated gradient border effect */
+.metric-card__border-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--atlas-radius-xl);
+  padding: 1px;
+  background: var(--atlas-gradient-primary);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.metric-card:hover .metric-card__border-glow {
+  opacity: 1;
+}
+
+.metric-card:hover {
+  border-color: var(--atlas-glass-border-hover);
+  background: var(--atlas-glass-bg-light);
+  transform: translateY(-2px);
+  box-shadow: var(--atlas-glow-subtle), var(--atlas-shadow-lg);
 }
 
 /* Accent bar at top */
@@ -38,27 +61,39 @@
 .metric-card::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 10px;
-  height: 10px;
-  border-top: 2px solid var(--atlas-cyan);
-  border-left: 2px solid var(--atlas-cyan);
+  top: 4px;
+  left: 4px;
+  width: 12px;
+  height: 12px;
+  border-top: 2px solid var(--atlas-accent-cyan);
+  border-left: 2px solid var(--atlas-accent-cyan);
+  border-radius: 2px 0 0 0;
   pointer-events: none;
-  transition: all var(--atlas-transition-fast);
+  opacity: 0.6;
+  transition: all 0.3s ease;
 }
 
 .metric-card::after {
   content: '';
   position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 10px;
-  height: 10px;
-  border-bottom: 2px solid var(--atlas-cyan);
-  border-right: 2px solid var(--atlas-cyan);
+  bottom: 4px;
+  right: 4px;
+  width: 12px;
+  height: 12px;
+  border-bottom: 2px solid var(--atlas-accent-cyan);
+  border-right: 2px solid var(--atlas-accent-cyan);
+  border-radius: 0 0 2px 0;
   pointer-events: none;
-  transition: all var(--atlas-transition-fast);
+  opacity: 0.6;
+  transition: all 0.3s ease;
+}
+
+.metric-card:hover::before,
+.metric-card:hover::after {
+  opacity: 1;
+  width: 16px;
+  height: 16px;
+  filter: drop-shadow(0 0 4px var(--atlas-accent-cyan));
 }
 
 /* Color variants */
@@ -83,16 +118,12 @@
   inset: 0;
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--atlas-transition-medium);
+  border-radius: var(--atlas-radius-xl);
+  transition: opacity 0.3s ease;
 }
 
 .metric-card:hover .metric-card__hover-glow {
-  opacity: 0.03;
-}
-
-.metric-card:hover {
-  border-color: var(--atlas-border-focus);
-  background: var(--atlas-bg-hover);
+  opacity: 0.05;
 }
 
 .metric-card:hover::before,
@@ -247,9 +278,11 @@
     transform: translateY(-100%);
     opacity: 0;
   }
+
   50% {
     opacity: 0.1;
   }
+
   100% {
     transform: translateY(100%);
     opacity: 0;
@@ -259,4 +292,3 @@
 .metric-card:hover::selection {
   animation: metric-scan 2s ease-in-out infinite;
 }
-

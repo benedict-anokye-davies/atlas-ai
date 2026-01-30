@@ -322,12 +322,11 @@ export abstract class BaseAppPlugin extends EventEmitter implements IAppPlugin {
   }
 
   canHandle(context: ApplicationContext): boolean {
-    const processName = context.processName?.toLowerCase() || '';
-    const appName = context.name?.toLowerCase() || '';
+    // Use 'application' property which exists on ApplicationContext
+    const appName = context.application?.toLowerCase() || '';
 
     return this.metadata.supportedApps.some(
       (supported) =>
-        processName.includes(supported.toLowerCase()) ||
         appName.includes(supported.toLowerCase()),
     );
   }
@@ -347,9 +346,9 @@ export abstract class BaseAppPlugin extends EventEmitter implements IAppPlugin {
    */
   protected extractContext(_screenState: ScreenState, _elements: EnhancedUIElement[]): ApplicationContext {
     return {
-      name: this.metadata.name,
-      processName: this.metadata.supportedApps[0],
-      isReady: true,
+      application: this.metadata.name,
+      type: 'unknown',
+      screen: 'main',
     };
   }
 
@@ -481,7 +480,7 @@ export abstract class BaseAppPlugin extends EventEmitter implements IAppPlugin {
       // Check attributes
       if (pattern.attributes) {
         for (const [key, value] of Object.entries(pattern.attributes)) {
-          const elementAttr = (element as Record<string, unknown>)[key];
+          const elementAttr = (element as unknown as Record<string, unknown>)[key];
           if (String(elementAttr) === value) {
             score += 0.2;
           }
@@ -982,7 +981,5 @@ export class GenericWindowsPlugin extends BaseAppPlugin {
 }
 
 // =============================================================================
-// Export
+// All interfaces and classes are exported at declaration
 // =============================================================================
-
-export { IAppPlugin, BaseAppPlugin, GenericWindowsPlugin };

@@ -26,6 +26,15 @@ export { LeadManager, getLeadManager, initializeLeadManager } from './pipeline/l
 export { FollowUpEngine, getFollowUpEngine, initializeFollowUpEngine } from './automation/follow-up-engine';
 export { ReportGenerator, getReportGenerator, initializeReportGenerator } from './automation/report-generator';
 
+// Voice Integration
+export {
+  BusinessVoiceIntegration,
+  getBusinessVoiceIntegration,
+  initializeBusinessVoiceIntegration,
+  shutdownBusinessVoiceIntegration,
+} from './voice-integration';
+export type { BusinessContextSummary, BusinessVoiceCommandResult } from './voice-integration';
+
 import { createModuleLogger } from '../utils/logger';
 import { initializeClientManager, getClientManager } from './crm/client-manager';
 import { initializeProjectManager, getProjectManager } from './projects/project-manager';

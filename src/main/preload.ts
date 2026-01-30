@@ -91,7 +91,7 @@ const atlasAPI = {
 
     // Interaction
     triggerWake: (): Promise<IPCResult> => ipcRenderer.invoke('atlas:trigger-wake'),
-    sendText: (text: string): Promise<IPCResult> => ipcRenderer.invoke('atlas:send-text', text),
+    sendText: (text: string, options?: { skipTTS?: boolean }): Promise<IPCResult> => ipcRenderer.invoke('atlas:send-text', text, options),
 
     // Context management
     clearHistory: (): Promise<IPCResult> => ipcRenderer.invoke('atlas:clear-history'),
@@ -138,11 +138,11 @@ const atlasAPI = {
         results: Array<{
           memoryId: string;
           action:
-            | 'kept'
-            | 'decayed'
-            | 'flagged_for_deletion'
-            | 'flagged_for_consolidation'
-            | 'protected';
+          | 'kept'
+          | 'decayed'
+          | 'flagged_for_deletion'
+          | 'flagged_for_consolidation'
+          | 'protected';
           reason: string;
         }>;
         errors: Array<{ memoryId: string; error: string }>;
@@ -364,13 +364,13 @@ const atlasAPI = {
     getState: (): Promise<
       IPCResult<{
         status:
-          | 'idle'
-          | 'checking'
-          | 'available'
-          | 'not-available'
-          | 'downloading'
-          | 'downloaded'
-          | 'error';
+        | 'idle'
+        | 'checking'
+        | 'available'
+        | 'not-available'
+        | 'downloading'
+        | 'downloaded'
+        | 'error';
         updateInfo: {
           version: string;
           releaseNotes?: string | null;
@@ -2362,83 +2362,337 @@ const atlasAPI = {
     > => ipcRenderer.invoke('brain:associate', concept1, concept2, relationship, strength),
   },
 
+  // Code Intelligence API (Self-Coding Capabilities)
+  codeIntelligence: {
+    // Get code intelligence system status
+    getStatus: (): Promise<
+      IPCResult<{
+        initialized: boolean;
+        indexing: boolean;
+        workspaceRoot: string | null;
+        stats: {
+          totalFiles: number;
+          totalSymbols: number;
+          totalReferences: number;
+          indexedLanguages: string[];
+        } | null;
+        activeSessions: number;
+      }>
+    > => ipcRenderer.invoke('code-intelligence:get-status'),
+
+    // Initialize code intelligence for a workspace
+    initialize: (
+      workspaceRoot?: string
+    ): Promise<
+      IPCResult<{
+        workspaceRoot: string;
+        filesIndexed: number;
+        symbolsFound: number;
+      }>
+    > => ipcRenderer.invoke('code-intelligence:initialize', workspaceRoot),
+
+    // Shutdown code intelligence
+    shutdown: (): Promise<IPCResult<{ shutdown: boolean }>> =>
+      ipcRenderer.invoke('code-intelligence:shutdown'),
+
+    // Find a symbol by name
+    findSymbol: (
+      symbolName: string,
+      options?: { kind?: string; fuzzy?: boolean }
+    ): Promise<
+      IPCResult<
+        Array<{
+          name: string;
+          kind: string;
+          filePath: string;
+          line: number;
+          column: number;
+          documentation?: string;
+        }>
+      >
+    > => ipcRenderer.invoke('code-intelligence:find-symbol', symbolName, options),
+
+    // Find all references to a symbol
+    findReferences: (
+      symbolName: string,
+      filePath?: string
+    ): Promise<
+      IPCResult<
+        Array<{
+          filePath: string;
+          line: number;
+          column: number;
+          context: string;
+          isDefinition: boolean;
+        }>
+      >
+    > => ipcRenderer.invoke('code-intelligence:find-references', symbolName, filePath),
+
+    // Go to definition of a symbol
+    goToDefinition: (
+      symbolName: string,
+      filePath?: string
+    ): Promise<
+      IPCResult<{
+        filePath: string;
+        line: number;
+        column: number;
+        preview: string;
+      } | null>
+    > => ipcRenderer.invoke('code-intelligence:go-to-definition', symbolName, filePath),
+
+    // Build context for a coding task
+    buildContext: (
+      taskDescription: string,
+      options?: {
+        maxFiles?: number;
+        maxTokens?: number;
+        includeTests?: boolean;
+      }
+    ): Promise<
+      IPCResult<{
+        primaryFiles: Array<{
+          path: string;
+          relevance: number;
+          content: string;
+        }>;
+        supportingFiles: Array<{
+          path: string;
+          relevance: number;
+          summary: string;
+        }>;
+        symbols: Array<{
+          name: string;
+          kind: string;
+          file: string;
+        }>;
+        totalTokens: number;
+      }>
+    > => ipcRenderer.invoke('code-intelligence:build-context', taskDescription, options),
+
+    // Start a coding session
+    startSession: (
+      taskDescription: string
+    ): Promise<
+      IPCResult<{
+        sessionId: string;
+        taskDescription: string;
+        startedAt: number;
+      }>
+    > => ipcRenderer.invoke('code-intelligence:start-session', taskDescription),
+
+    // Get session details
+    getSession: (
+      sessionId: string
+    ): Promise<
+      IPCResult<{
+        sessionId: string;
+        taskDescription: string;
+        startedAt: number;
+        changes: Array<{
+          filePath: string;
+          description: string;
+          timestamp: number;
+          validated: boolean;
+          errors: string[];
+        }>;
+        totalChanges: number;
+        lastValidation: { success: boolean; errors: string[] } | null;
+      } | null>
+    > => ipcRenderer.invoke('code-intelligence:get-session', sessionId),
+
+    // Apply a code change
+    applyChange: (
+      sessionId: string,
+      change: {
+        filePath: string;
+        oldContent?: string;
+        newContent: string;
+        description: string;
+      }
+    ): Promise<
+      IPCResult<{
+        applied: boolean;
+        changeIndex: number;
+        validation: {
+          success: boolean;
+          errors: string[];
+        };
+      }>
+    > => ipcRenderer.invoke('code-intelligence:apply-change', sessionId, change),
+
+    // Validate current state
+    validate: (
+      sessionId: string
+    ): Promise<
+      IPCResult<{
+        success: boolean;
+        errors: Array<{
+          file: string;
+          line: number;
+          column: number;
+          message: string;
+          severity: string;
+        }>;
+      }>
+    > => ipcRenderer.invoke('code-intelligence:validate', sessionId),
+
+    // Revert last change
+    revertLast: (
+      sessionId: string
+    ): Promise<
+      IPCResult<{
+        reverted: boolean;
+        filePath: string;
+        remainingChanges: number;
+      }>
+    > => ipcRenderer.invoke('code-intelligence:revert-last', sessionId),
+
+    // End a coding session
+    endSession: (
+      sessionId: string,
+      options?: { discardChanges?: boolean }
+    ): Promise<
+      IPCResult<{
+        ended: boolean;
+        totalChanges: number;
+        finalValidation: { success: boolean; errors: string[] };
+      }>
+    > => ipcRenderer.invoke('code-intelligence:end-session', sessionId, options),
+
+    // Force rebuild the index
+    rebuildIndex: (): Promise<
+      IPCResult<{
+        filesIndexed: number;
+        symbolsFound: number;
+        duration: number;
+      }>
+    > => ipcRenderer.invoke('code-intelligence:rebuild-index'),
+
+    // Get index statistics
+    getIndexStats: (): Promise<
+      IPCResult<{
+        totalFiles: number;
+        totalSymbols: number;
+        totalReferences: number;
+        indexedLanguages: string[];
+        lastIndexed: number | null;
+        indexDuration: number | null;
+      }>
+    > => ipcRenderer.invoke('code-intelligence:get-index-stats'),
+
+    // Event listeners for indexing progress
+    onIndexProgress: (
+      callback: (progress: { current: number; total: number; file: string }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: unknown,
+        progress: { current: number; total: number; file: string }
+      ) => callback(progress);
+      ipcRenderer.on('code-intelligence:index-progress', listener);
+      return () => ipcRenderer.removeListener('code-intelligence:index-progress', listener);
+    },
+
+    onIndexComplete: (
+      callback: (stats: { filesIndexed: number; symbolsFound: number; duration: number }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: unknown,
+        stats: { filesIndexed: number; symbolsFound: number; duration: number }
+      ) => callback(stats);
+      ipcRenderer.on('code-intelligence:index-complete', listener);
+      return () => ipcRenderer.removeListener('code-intelligence:index-complete', listener);
+    },
+
+    onValidationResult: (
+      callback: (result: { sessionId: string; success: boolean; errors: unknown[] }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: unknown,
+        result: { sessionId: string; success: boolean; errors: unknown[] }
+      ) => callback(result);
+      ipcRenderer.on('code-intelligence:validation-result', listener);
+      return () => ipcRenderer.removeListener('code-intelligence:validation-result', listener);
+    },
+  },
+
   // Career Discovery System (legacy - separate from main career module)
   careerDiscovery: {
     // Profile
-    initProfile: (userId: string): Promise<IPCResult> => 
+    initProfile: (userId: string): Promise<IPCResult> =>
       ipcRenderer.invoke('career:initProfile', userId),
-    getProfile: (): Promise<IPCResult> => 
+    getProfile: (): Promise<IPCResult> =>
       ipcRenderer.invoke('career:getProfile'),
-    
+
     // Discovery
-    startDiscovery: (): Promise<IPCResult> => 
+    startDiscovery: (): Promise<IPCResult> =>
       ipcRenderer.invoke('career:startDiscovery'),
-    getNextQuestion: (): Promise<IPCResult> => 
+    getNextQuestion: (): Promise<IPCResult> =>
       ipcRenderer.invoke('career:getNextQuestion'),
-    answerQuestion: (questionId: string, answer: unknown): Promise<IPCResult> => 
+    answerQuestion: (questionId: string, answer: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('career:answerQuestion', questionId, answer),
-    getResults: (): Promise<IPCResult> => 
+    getResults: (): Promise<IPCResult> =>
       ipcRenderer.invoke('career:getResults'),
-    
+
     // Skills
-    analyzeSkillGaps: (): Promise<IPCResult> => 
+    analyzeSkillGaps: (): Promise<IPCResult> =>
       ipcRenderer.invoke('career:analyzeSkillGaps'),
-    
+
     // Projects
-    addProject: (project: unknown): Promise<IPCResult> => 
+    addProject: (project: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('career:addProject', project),
-    getPortfolio: (): Promise<IPCResult> => 
+    getPortfolio: (): Promise<IPCResult> =>
       ipcRenderer.invoke('career:getPortfolio'),
-    
+
     // Goals
-    addGoal: (goal: unknown, isLongTerm: boolean): Promise<IPCResult> => 
+    addGoal: (goal: unknown, isLongTerm: boolean): Promise<IPCResult> =>
       ipcRenderer.invoke('career:addGoal', goal, isLongTerm),
-    updateGoalStatus: (goalId: string, status: string): Promise<IPCResult> => 
+    updateGoalStatus: (goalId: string, status: string): Promise<IPCResult> =>
       ipcRenderer.invoke('career:updateGoalStatus', goalId, status),
-    
+
     // Stats
-    getStats: (): Promise<IPCResult> => 
+    getStats: (): Promise<IPCResult> =>
       ipcRenderer.invoke('career:getStats'),
   },
 
   // Study System
   study: {
     // Courses
-    createCourse: (course: unknown): Promise<IPCResult> => 
+    createCourse: (course: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('study:createCourse', course),
-    getCourses: (): Promise<IPCResult> => 
+    getCourses: (): Promise<IPCResult> =>
       ipcRenderer.invoke('study:getCourses'),
-    
+
     // Modules
-    addModule: (courseId: string, module: unknown): Promise<IPCResult> => 
+    addModule: (courseId: string, module: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('study:addModule', courseId, module),
-    
+
     // PDF Ingestion
-    ingestPDF: (courseId: string, moduleId: string, pdfPath: string): Promise<IPCResult> => 
+    ingestPDF: (courseId: string, moduleId: string, pdfPath: string): Promise<IPCResult> =>
       ipcRenderer.invoke('study:ingestPDF', courseId, moduleId, pdfPath),
-    
+
     // Flashcards
-    getDueFlashcards: (moduleId?: string): Promise<IPCResult> => 
+    getDueFlashcards: (moduleId?: string): Promise<IPCResult> =>
       ipcRenderer.invoke('study:getDueFlashcards', moduleId),
-    reviewFlashcard: (flashcardId: string, quality: number): Promise<IPCResult> => 
+    reviewFlashcard: (flashcardId: string, quality: number): Promise<IPCResult> =>
       ipcRenderer.invoke('study:reviewFlashcard', flashcardId, quality),
-    createFlashcard: (moduleId: string, flashcard: unknown): Promise<IPCResult> => 
+    createFlashcard: (moduleId: string, flashcard: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('study:createFlashcard', moduleId, flashcard),
-    
+
     // Study Sessions
-    startSession: (moduleId: string): Promise<IPCResult> => 
+    startSession: (moduleId: string): Promise<IPCResult> =>
       ipcRenderer.invoke('study:startSession', moduleId),
-    endSession: (sessionId: string, stats: unknown): Promise<IPCResult> => 
+    endSession: (sessionId: string, stats: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('study:endSession', sessionId, stats),
-    
+
     // Export
-    exportToObsidian: (courseId: string, vaultPath: string): Promise<IPCResult> => 
+    exportToObsidian: (courseId: string, vaultPath: string): Promise<IPCResult> =>
       ipcRenderer.invoke('study:exportToObsidian', courseId, vaultPath),
-    
+
     // Stats & Practice
-    getStats: (): Promise<IPCResult> => 
+    getStats: (): Promise<IPCResult> =>
       ipcRenderer.invoke('study:getStats'),
-    generatePracticeQuestions: (moduleId: string, count: number): Promise<IPCResult> => 
+    generatePracticeQuestions: (moduleId: string, count: number): Promise<IPCResult> =>
       ipcRenderer.invoke('study:generatePracticeQuestions', moduleId, count),
   },
 
@@ -2449,33 +2703,33 @@ const atlasAPI = {
     stop: (): Promise<IPCResult> => ipcRenderer.invoke('bot:stop'),
     emergencyStop: (): Promise<IPCResult> => ipcRenderer.invoke('bot:emergencyStop'),
     getStatus: (): Promise<IPCResult> => ipcRenderer.invoke('bot:getStatus'),
-    
+
     // Configuration
-    setDryRun: (dryRun: boolean): Promise<IPCResult> => 
+    setDryRun: (dryRun: boolean): Promise<IPCResult> =>
       ipcRenderer.invoke('bot:setDryRun', dryRun),
-    setRiskParameters: (params: unknown): Promise<IPCResult> => 
+    setRiskParameters: (params: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('bot:setRiskParameters', params),
-    enableStrategy: (strategyId: string, enabled: boolean): Promise<IPCResult> => 
+    enableStrategy: (strategyId: string, enabled: boolean): Promise<IPCResult> =>
       ipcRenderer.invoke('bot:enableStrategy', strategyId, enabled),
-    
+
     // Exchanges
-    addExchange: (config: unknown): Promise<IPCResult> => 
+    addExchange: (config: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('bot:addExchange', config),
-    removeExchange: (exchangeId: string): Promise<IPCResult> => 
+    removeExchange: (exchangeId: string): Promise<IPCResult> =>
       ipcRenderer.invoke('bot:removeExchange', exchangeId),
-    
+
     // Symbols
-    addSymbol: (symbol: string): Promise<IPCResult> => 
+    addSymbol: (symbol: string): Promise<IPCResult> =>
       ipcRenderer.invoke('bot:addSymbol', symbol),
-    removeSymbol: (symbol: string): Promise<IPCResult> => 
+    removeSymbol: (symbol: string): Promise<IPCResult> =>
       ipcRenderer.invoke('bot:removeSymbol', symbol),
-    
+
     // Analytics
     getPerformance: (): Promise<IPCResult> => ipcRenderer.invoke('bot:getPerformance'),
     getActivePositions: (): Promise<IPCResult> => ipcRenderer.invoke('bot:getActivePositions'),
-    getTradeHistory: (limit?: number): Promise<IPCResult> => 
+    getTradeHistory: (limit?: number): Promise<IPCResult> =>
       ipcRenderer.invoke('bot:getTradeHistory', limit),
-    
+
     // Events
     onTrade: (callback: (trade: unknown) => void): (() => void) => {
       const listener = (_event: unknown, trade: unknown) => callback(trade);
@@ -2499,32 +2753,32 @@ const atlasAPI = {
     // Control
     start: (): Promise<IPCResult> => ipcRenderer.invoke('proactive:start'),
     stop: (): Promise<IPCResult> => ipcRenderer.invoke('proactive:stop'),
-    setEnabled: (enabled: boolean): Promise<IPCResult> => 
+    setEnabled: (enabled: boolean): Promise<IPCResult> =>
       ipcRenderer.invoke('proactive:setEnabled', enabled),
-    
+
     // Triggers
     getTriggers: (): Promise<IPCResult> => ipcRenderer.invoke('proactive:getTriggers'),
-    addTrigger: (trigger: unknown): Promise<IPCResult> => 
+    addTrigger: (trigger: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('proactive:addTrigger', trigger),
-    removeTrigger: (triggerId: string): Promise<IPCResult> => 
+    removeTrigger: (triggerId: string): Promise<IPCResult> =>
       ipcRenderer.invoke('proactive:removeTrigger', triggerId),
-    enableTrigger: (triggerId: string, enabled: boolean): Promise<IPCResult> => 
+    enableTrigger: (triggerId: string, enabled: boolean): Promise<IPCResult> =>
       ipcRenderer.invoke('proactive:enableTrigger', triggerId, enabled),
-    
+
     // Context
     getContext: (): Promise<IPCResult> => ipcRenderer.invoke('proactive:getContext'),
-    setContextVariable: (key: string, value: unknown): Promise<IPCResult> => 
+    setContextVariable: (key: string, value: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('proactive:setContextVariable', key, value),
     recordInteraction: (): Promise<IPCResult> => ipcRenderer.invoke('proactive:recordInteraction'),
-    
+
     // Briefing
-    generateBriefing: (type: 'morning' | 'evening'): Promise<IPCResult> => 
+    generateBriefing: (type: 'morning' | 'evening'): Promise<IPCResult> =>
       ipcRenderer.invoke('proactive:generateBriefing', type),
-    
+
     // Events
-    emitEvent: (eventName: string, data?: unknown): Promise<IPCResult> => 
+    emitEvent: (eventName: string, data?: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('proactive:emitEvent', eventName, data),
-    
+
     // Listeners
     onSpeak: (callback: (data: unknown) => void): (() => void) => {
       const listener = (_event: unknown, data: unknown) => callback(data);
@@ -2551,21 +2805,21 @@ const atlasAPI = {
   // Discord Integration
   discord: {
     // Connection
-    connect: (config: unknown): Promise<IPCResult> => 
+    connect: (config: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('discord:connect', config),
     disconnect: (): Promise<IPCResult> => ipcRenderer.invoke('discord:disconnect'),
     getStatus: (): Promise<IPCResult> => ipcRenderer.invoke('discord:getStatus'),
-    
+
     // Notifications
-    sendNotification: (notification: unknown): Promise<IPCResult> => 
+    sendNotification: (notification: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('discord:sendNotification', notification),
-    sendTradeAlert: (trade: unknown): Promise<IPCResult> => 
+    sendTradeAlert: (trade: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('discord:sendTradeAlert', trade),
-    sendStudyReminder: (topic: string, dueCards: number): Promise<IPCResult> => 
+    sendStudyReminder: (topic: string, dueCards: number): Promise<IPCResult> =>
       ipcRenderer.invoke('discord:sendStudyReminder', topic, dueCards),
-    sendDailySummary: (summary: unknown): Promise<IPCResult> => 
+    sendDailySummary: (summary: unknown): Promise<IPCResult> =>
       ipcRenderer.invoke('discord:sendDailySummary', summary),
-    
+
     // Events
     onConnected: (callback: () => void): (() => void) => {
       const listener = () => callback();
@@ -2585,46 +2839,46 @@ const atlasAPI = {
     authenticate: (): Promise<IPCResult> => ipcRenderer.invoke('spotify:authenticate'),
     logout: (): Promise<IPCResult> => ipcRenderer.invoke('spotify:logout'),
     getStatus: (): Promise<IPCResult> => ipcRenderer.invoke('spotify:getStatus'),
-    
+
     // Playback
     getCurrentPlayback: (): Promise<IPCResult> => ipcRenderer.invoke('spotify:getCurrentPlayback'),
-    play: (uri?: string, contextUri?: string): Promise<IPCResult> => 
+    play: (uri?: string, contextUri?: string): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:play', uri, contextUri),
     pause: (): Promise<IPCResult> => ipcRenderer.invoke('spotify:pause'),
     next: (): Promise<IPCResult> => ipcRenderer.invoke('spotify:next'),
     previous: (): Promise<IPCResult> => ipcRenderer.invoke('spotify:previous'),
-    seek: (positionMs: number): Promise<IPCResult> => 
+    seek: (positionMs: number): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:seek', positionMs),
-    setVolume: (volumePercent: number): Promise<IPCResult> => 
+    setVolume: (volumePercent: number): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:setVolume', volumePercent),
-    setShuffle: (state: boolean): Promise<IPCResult> => 
+    setShuffle: (state: boolean): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:setShuffle', state),
-    setRepeat: (state: 'off' | 'context' | 'track'): Promise<IPCResult> => 
+    setRepeat: (state: 'off' | 'context' | 'track'): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:setRepeat', state),
-    
+
     // Library
-    saveTrack: (trackId: string): Promise<IPCResult> => 
+    saveTrack: (trackId: string): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:saveTrack', trackId),
-    removeTrack: (trackId: string): Promise<IPCResult> => 
+    removeTrack: (trackId: string): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:removeTrack', trackId),
-    isTrackSaved: (trackId: string): Promise<IPCResult> => 
+    isTrackSaved: (trackId: string): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:isTrackSaved', trackId),
-    
+
     // Search & Browse
-    search: (query: string, types?: string[]): Promise<IPCResult> => 
+    search: (query: string, types?: string[]): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:search', query, types),
     getDevices: (): Promise<IPCResult> => ipcRenderer.invoke('spotify:getDevices'),
-    transferPlayback: (deviceId: string, play?: boolean): Promise<IPCResult> => 
+    transferPlayback: (deviceId: string, play?: boolean): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:transferPlayback', deviceId, play),
-    getPlaylists: (limit?: number): Promise<IPCResult> => 
+    getPlaylists: (limit?: number): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:getPlaylists', limit),
-    addToQueue: (uri: string): Promise<IPCResult> => 
+    addToQueue: (uri: string): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:addToQueue', uri),
-    
+
     // Voice command
-    executeVoiceCommand: (command: string): Promise<IPCResult> => 
+    executeVoiceCommand: (command: string): Promise<IPCResult> =>
       ipcRenderer.invoke('spotify:executeVoiceCommand', command),
-    
+
     // Events
     onPlaybackChanged: (callback: (data: unknown) => void): (() => void) => {
       const listener = (_event: unknown, data: unknown) => callback(data);
@@ -2654,76 +2908,76 @@ const atlasAPI = {
     volumeUp: (amount?: number): Promise<IPCResult> => ipcRenderer.invoke('media:volumeUp', amount),
     volumeDown: (amount?: number): Promise<IPCResult> => ipcRenderer.invoke('media:volumeDown', amount),
     mute: (): Promise<IPCResult> => ipcRenderer.invoke('media:mute'),
-    control: (action: string, amount?: number): Promise<IPCResult> => 
+    control: (action: string, amount?: number): Promise<IPCResult> =>
       ipcRenderer.invoke('media:control', action, amount),
   },
 
   // Banking Integration (UK Open Banking via TrueLayer)
   banking: {
     // Connection
-    isConnected: (): Promise<IPCResult<boolean>> => 
+    isConnected: (): Promise<IPCResult<boolean>> =>
       ipcRenderer.invoke('banking:is-connected'),
-    getAuthorizationUrl: (institutionId?: string): Promise<IPCResult<string>> => 
+    getAuthorizationUrl: (institutionId?: string): Promise<IPCResult<string>> =>
       ipcRenderer.invoke('banking:get-authorization-url', institutionId),
-    completeAuthorization: (code: string): Promise<IPCResult<{ accessToken: string; refreshToken: string }>> => 
+    completeAuthorization: (code: string): Promise<IPCResult<{ accessToken: string; refreshToken: string }>> =>
       ipcRenderer.invoke('banking:complete-authorization', code),
-    disconnect: (institutionId?: string): Promise<IPCResult> => 
+    disconnect: (institutionId?: string): Promise<IPCResult> =>
       ipcRenderer.invoke('banking:disconnect', institutionId),
 
     // Accounts
-    getAccounts: (): Promise<IPCResult<unknown[]>> => 
+    getAccounts: (): Promise<IPCResult<unknown[]>> =>
       ipcRenderer.invoke('banking:get-accounts'),
-    getBalanceSummary: (): Promise<IPCResult<{ totalBalance: number; totalAvailable: number; netWorth: number; byType: Record<string, number> }>> => 
+    getBalanceSummary: (): Promise<IPCResult<{ totalBalance: number; totalAvailable: number; netWorth: number; byType: Record<string, number> }>> =>
       ipcRenderer.invoke('banking:get-balance-summary'),
-    syncAccounts: (institutionId?: string): Promise<IPCResult> => 
+    syncAccounts: (institutionId?: string): Promise<IPCResult> =>
       ipcRenderer.invoke('banking:sync-accounts', institutionId),
-    getConnectedInstitutions: (): Promise<IPCResult<unknown[]>> => 
+    getConnectedInstitutions: (): Promise<IPCResult<unknown[]>> =>
       ipcRenderer.invoke('banking:get-connected-institutions'),
 
     // Transactions
-    getTransactions: (options?: { accountId?: string; startDate?: string; endDate?: string; limit?: number; category?: string }): Promise<IPCResult<unknown[]>> => 
+    getTransactions: (options?: { accountId?: string; startDate?: string; endDate?: string; limit?: number; category?: string }): Promise<IPCResult<unknown[]>> =>
       ipcRenderer.invoke('banking:get-transactions', options),
-    getSpendingSummary: (period: 'day' | 'week' | 'month' | 'year'): Promise<IPCResult<{ totalSpent: number; totalIncome: number; netChange: number; byCategory: Record<string, number> }>> => 
+    getSpendingSummary: (period: 'day' | 'week' | 'month' | 'year'): Promise<IPCResult<{ totalSpent: number; totalIncome: number; netChange: number; byCategory: Record<string, number> }>> =>
       ipcRenderer.invoke('banking:get-spending-summary', period),
 
     // UK Payments (Open Banking Payment Initiation)
-    createPayment: (request: { recipientName: string; amount: number; sortCode: string; accountNumber: string; reference?: string }): Promise<IPCResult<{ paymentId: string; status: string }>> => 
+    createPayment: (request: { recipientName: string; amount: number; sortCode: string; accountNumber: string; reference?: string }): Promise<IPCResult<{ paymentId: string; status: string }>> =>
       ipcRenderer.invoke('banking:create-payment', request),
-    confirmPayment: (paymentId: string, pin?: string): Promise<IPCResult<{ paymentId: string; status: string; confirmationCode?: string }>> => 
+    confirmPayment: (paymentId: string, pin?: string): Promise<IPCResult<{ paymentId: string; status: string; confirmationCode?: string }>> =>
       ipcRenderer.invoke('banking:confirm-payment', paymentId, pin),
-    cancelPayment: (paymentId: string): Promise<IPCResult> => 
+    cancelPayment: (paymentId: string): Promise<IPCResult> =>
       ipcRenderer.invoke('banking:cancel-payment', paymentId),
-    getPaymentStatus: (paymentId: string): Promise<IPCResult<{ paymentId: string; status: string }>> => 
+    getPaymentStatus: (paymentId: string): Promise<IPCResult<{ paymentId: string; status: string }>> =>
       ipcRenderer.invoke('banking:get-payment-status', paymentId),
-    initiateUKPayment: (request: { recipientName: string; amount: number; sortCode: string; accountNumber: string; reference?: string }): Promise<IPCResult<{ paymentId: string; authUrl: string }>> => 
+    initiateUKPayment: (request: { recipientName: string; amount: number; sortCode: string; accountNumber: string; reference?: string }): Promise<IPCResult<{ paymentId: string; authUrl: string }>> =>
       ipcRenderer.invoke('banking:initiate-uk-payment', request),
-    getUKPaymentStatus: (paymentId: string): Promise<IPCResult<{ status: string; details?: unknown }>> => 
+    getUKPaymentStatus: (paymentId: string): Promise<IPCResult<{ status: string; details?: unknown }>> =>
       ipcRenderer.invoke('banking:get-uk-payment-status', paymentId),
 
     // Quick Pay (saved recipients)
-    quickPay: (recipientName: string, amount: number, description?: string): Promise<IPCResult<{ paymentId: string; status: string }>> => 
+    quickPay: (recipientName: string, amount: number, description?: string): Promise<IPCResult<{ paymentId: string; status: string }>> =>
       ipcRenderer.invoke('banking:quick-pay', recipientName, amount, description),
-    getSavedRecipients: (): Promise<IPCResult<unknown[]>> => 
+    getSavedRecipients: (): Promise<IPCResult<unknown[]>> =>
       ipcRenderer.invoke('banking:get-saved-recipients'),
-    saveRecipient: (recipient: { name: string; sortCode: string; accountNumber: string; nickname?: string }): Promise<IPCResult> => 
+    saveRecipient: (recipient: { name: string; sortCode: string; accountNumber: string; nickname?: string }): Promise<IPCResult> =>
       ipcRenderer.invoke('banking:save-recipient', recipient),
-    deleteRecipient: (name: string): Promise<IPCResult> => 
+    deleteRecipient: (name: string): Promise<IPCResult> =>
       ipcRenderer.invoke('banking:delete-recipient', name),
 
     // Security
-    setupPin: (pin: string): Promise<IPCResult> => 
+    setupPin: (pin: string): Promise<IPCResult> =>
       ipcRenderer.invoke('banking:setup-pin', pin),
-    verifyPin: (pin: string): Promise<IPCResult<boolean>> => 
+    verifyPin: (pin: string): Promise<IPCResult<boolean>> =>
       ipcRenderer.invoke('banking:verify-pin', pin),
-    changePin: (oldPin: string, newPin: string): Promise<IPCResult> => 
+    changePin: (oldPin: string, newPin: string): Promise<IPCResult> =>
       ipcRenderer.invoke('banking:change-pin', oldPin, newPin),
-    getSpendingLimits: (): Promise<IPCResult<{ daily: { limit: number; spent: number; remaining: number }; weekly: { limit: number; spent: number; remaining: number }; monthly: { limit: number; spent: number; remaining: number } }>> => 
+    getSpendingLimits: (): Promise<IPCResult<{ daily: { limit: number; spent: number; remaining: number }; weekly: { limit: number; spent: number; remaining: number }; monthly: { limit: number; spent: number; remaining: number } }>> =>
       ipcRenderer.invoke('banking:get-spending-limits'),
-    setSpendingLimit: (type: 'daily' | 'weekly' | 'monthly' | 'per_transaction', amount: number): Promise<IPCResult> => 
+    setSpendingLimit: (type: 'daily' | 'weekly' | 'monthly' | 'per_transaction', amount: number): Promise<IPCResult> =>
       ipcRenderer.invoke('banking:set-spending-limit', type, amount),
-    getSecuritySettings: (): Promise<IPCResult<unknown>> => 
+    getSecuritySettings: (): Promise<IPCResult<unknown>> =>
       ipcRenderer.invoke('banking:get-security-settings'),
-    updateSecuritySettings: (settings: Record<string, unknown>): Promise<IPCResult> => 
+    updateSecuritySettings: (settings: Record<string, unknown>): Promise<IPCResult> =>
       ipcRenderer.invoke('banking:update-security-settings', settings),
 
     // =========================================================================
@@ -2969,6 +3223,10 @@ const atlasAPI = {
       'atlas:started',
       'atlas:stopped',
       'atlas:provider-change',
+      // Tool execution events (Claude Code-like UI)
+      'atlas:tool-start',
+      'atlas:tool-complete',
+      'atlas:tool-error',
       // TTS audio for visualization
       'atlas:tts-audio',
       // Budget events
@@ -3059,7 +3317,7 @@ const atlasAPI = {
         ipcRenderer.removeListener(channel, subscription);
       };
     }
-    return () => {}; // No-op cleanup for invalid channels
+    return () => { }; // No-op cleanup for invalid channels
   },
 
   invoke: async <T>(channel: string, ...args: unknown[]): Promise<T> => {
@@ -3452,6 +3710,22 @@ const atlasAPI = {
       'intelligence:security:status',
       'intelligence:security:audit',
       'intelligence:security:permissions',
+      // Code Intelligence channels (Self-Coding)
+      'code-intelligence:get-status',
+      'code-intelligence:initialize',
+      'code-intelligence:shutdown',
+      'code-intelligence:find-symbol',
+      'code-intelligence:find-references',
+      'code-intelligence:go-to-definition',
+      'code-intelligence:build-context',
+      'code-intelligence:start-session',
+      'code-intelligence:get-session',
+      'code-intelligence:apply-change',
+      'code-intelligence:validate',
+      'code-intelligence:revert-last',
+      'code-intelligence:end-session',
+      'code-intelligence:rebuild-index',
+      'code-intelligence:get-index-stats',
       // Business Module channels
       'business:overview',
       'business:clients:list',

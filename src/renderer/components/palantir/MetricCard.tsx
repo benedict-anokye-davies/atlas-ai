@@ -23,10 +23,10 @@ export interface MetricCardProps {
 }
 
 // Animate number counting up
-const AnimatedValue: React.FC<{ value: string | number; prefix?: string; suffix?: string }> = ({ 
-  value, 
-  prefix = '', 
-  suffix = '' 
+const AnimatedValue: React.FC<{ value: string | number; prefix?: string; suffix?: string }> = ({
+  value,
+  prefix = '',
+  suffix = ''
 }) => {
   const [displayValue, setDisplayValue] = useState(value);
 
@@ -36,10 +36,10 @@ const AnimatedValue: React.FC<{ value: string | number; prefix?: string; suffix?
       const steps = 30;
       const stepDuration = duration / steps;
       const increment = (value - (typeof displayValue === 'number' ? displayValue : 0)) / steps;
-      
+
       let current = typeof displayValue === 'number' ? displayValue : 0;
       let step = 0;
-      
+
       const timer = setInterval(() => {
         step++;
         current += increment;
@@ -50,7 +50,7 @@ const AnimatedValue: React.FC<{ value: string | number; prefix?: string; suffix?
           setDisplayValue(Math.round(current * 100) / 100);
         }
       }, stepDuration);
-      
+
       return () => clearInterval(timer);
     } else {
       setDisplayValue(value);
@@ -96,16 +96,20 @@ export const MetricCard: React.FC<MetricCardProps> = ({
       transition={{ duration: 0.3 }}
     >
       {/* Accent glow bar */}
-      <div 
-        className="metric-card__accent-bar" 
+      <div
+        className="metric-card__accent-bar"
         style={{ background: colorVar }}
       />
-      
+
+      {/* Animated gradient border on hover */}
+      <div className="metric-card__border-glow" />
+
       <div className="metric-card__header">
+
         <span className="metric-card__label">{label}</span>
         {icon && <span className="metric-card__icon">{icon}</span>}
       </div>
-      
+
       <div className="metric-card__value">
         {animated ? (
           <AnimatedValue value={value} prefix={prefix} suffix={suffix} />
@@ -115,24 +119,24 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           </span>
         )}
       </div>
-      
+
       {/* Sparkline Chart */}
       {sparklineData && sparklineData.length > 0 && (
         <div className="metric-card__sparkline">
-          <MiniChart 
-            data={sparklineData} 
-            type="area" 
+          <MiniChart
+            data={sparklineData}
+            type="area"
             color={colorVar}
             height={40}
           />
         </div>
       )}
-      
+
       {(change !== undefined || changeLabel) && (
         <div className="metric-card__footer">
           <AnimatePresence mode="wait">
             {change !== undefined && (
-              <motion.span 
+              <motion.span
                 key={change}
                 className={`metric-card__change ${isPositive ? 'positive' : 'negative'}`}
                 initial={{ opacity: 0, x: -10 }}

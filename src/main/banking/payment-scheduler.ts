@@ -597,7 +597,7 @@ export class PaymentScheduler extends EventEmitter {
     dayOfMonth: number = 1
   ): ScheduledPayment {
     const now = new Date();
-    let firstPayment = new Date(now.getFullYear(), now.getMonth(), dayOfMonth);
+    const firstPayment = new Date(now.getFullYear(), now.getMonth(), dayOfMonth);
 
     // If day has passed this month, schedule for next month
     if (firstPayment.getTime() < now.getTime()) {

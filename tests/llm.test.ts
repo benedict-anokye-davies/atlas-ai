@@ -88,7 +88,7 @@ describe('FireworksLLM', () => {
       const config = instance.getConfig();
       expect(config.model).toBe('accounts/fireworks/models/llama-v3-70b');
       expect(config.temperature).toBe(0.5);
-      expect(config.maxTokens).toBe(2048); // Default
+      expect(config.maxTokens).toBe(8000); // Default (extended responses)
     });
 
     it('should use Fireworks base URL by default', () => {

@@ -11,6 +11,7 @@ const nativeModules = [
   '@picovoice/pvrecorder-node',
   '@ricky0123/vad-node',
   'onnxruntime-node',
+  'onnxruntime-common',
   'vosk-koffi',
   'koffi',
   'playwright',
@@ -77,6 +78,14 @@ export default defineConfig({
             sourcemap: true, // Enable source maps for debugging
             rollupOptions: {
               external: nativeModules,
+              output: {
+                // Inject crypto polyfill at the start of every bundle
+                // Required for @deepgram/sdk, grammy, baileys and other modules
+                banner: `
+                  const { webcrypto } = require('crypto');
+                  if (!globalThis.crypto) { globalThis.crypto = webcrypto; }
+                `,
+              },
             },
           },
         },

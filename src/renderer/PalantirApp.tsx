@@ -45,7 +45,7 @@ import {
   SafeWidgetWrapper, 
   SafeOrbWrapper, 
   SafeModalWrapper,
-  ComponentPlaceholder,
+  // ComponentPlaceholder is available for future use if needed
 } from './utils/safe-wrappers';
 import { safeAtlasCall, safeInvoke, createCleanupTracker } from './utils/stability';
 import { useAtlasState } from './hooks';

@@ -8,6 +8,13 @@
 
 /* eslint-disable @typescript-eslint/no-var-requires */
 
+// Polyfill globalThis.crypto for Node.js/Electron main process
+// Required by @deepgram/sdk and other modules that use Web Crypto API
+import { webcrypto } from 'crypto';
+if (!globalThis.crypto) {
+  (globalThis as any).crypto = webcrypto;
+}
+
 // Handle EPIPE errors globally to prevent crashes during shutdown/hot-reload
 process.stdout?.on?.('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EPIPE') return;
@@ -98,7 +105,25 @@ import { registerFinanceIPC, unregisterFinanceIPC } from './finance/ipc';
 import { registerDashboardIPC } from './dashboard/ipc';
 import { initializeGEPA, cleanupGEPA } from './gepa';
 import { initializeBusinessModule, getBusinessModule } from './business';
+import {
+  initializeBusinessVoiceIntegration,
+  shutdownBusinessVoiceIntegration,
+} from './business/voice-integration';
+import {
+  initializeTradingVoiceIntegration,
+  shutdownTradingVoiceIntegration,
+} from './trading/voice-integration';
 import { registerBusinessIPCHandlers } from './business/ipc';
+import {
+  initializeCodeIntelligence,
+  shutdownCodeIntelligence,
+  getCodeIntelligenceStatus,
+} from './code-intelligence';
+import {
+  registerCodeIntelligenceHandlers,
+  unregisterCodeIntelligenceHandlers,
+  setCodeIntelligenceMainWindow,
+} from './ipc/code-intelligence-handlers';
 
 // Keep a global reference of the window object
 let mainWindow: BrowserWindow | null = null;
@@ -164,9 +189,23 @@ function createWindow(): void {
   // Show window when ready to prevent visual flash
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
+    mainWindow?.focus();
+    mainWindow?.setAlwaysOnTop(true);
+    setTimeout(() => {
+      mainWindow?.setAlwaysOnTop(false);
+    }, 1000);
     startupTimer.end('createWindow');
-    mainLogger.info('Main window ready');
+    mainLogger.info('Main window ready and focused');
   });
+
+  // Force show window after 3 seconds in case ready-to-show doesn't fire
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainLogger.warn('Window not visible after timeout, forcing show');
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }, 3000);
 
   // Handle window closed
   mainWindow.on('closed', () => {
@@ -398,14 +437,16 @@ app.whenReady().then(async () => {
   try {
     mainLogger.info('Initializing Atlas Intelligence Platform...');
     await initializeIntelligencePlatform();
-    
+
     // Forward intelligence platform events to renderer
     const platformManager = getIntelligencePlatformManager();
     platformManager.on('module-ready', (moduleName: string) => {
       mainLogger.debug(`Intelligence module ready: ${moduleName}`);
     });
     platformManager.on('initialized', (status) => {
-      mainLogger.info('Atlas Intelligence Platform initialized', { startupTime: status.startupTime });
+      mainLogger.info('Atlas Intelligence Platform initialized', {
+        startupTime: status.startupTime,
+      });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('intelligence:ready', status);
       }
@@ -416,7 +457,7 @@ app.whenReady().then(async () => {
         mainWindow.webContents.send('intelligence:error', { error: (error as Error).message });
       }
     });
-    
+
     mainLogger.info('Atlas Intelligence Platform ready');
   } catch (error) {
     // Non-fatal - intelligence platform is optional but reduces functionality
@@ -450,7 +491,7 @@ app.whenReady().then(async () => {
   try {
     mainLogger.info('Initializing Business Module...');
     await initializeBusinessModule();
-    
+
     // Forward business events to renderer
     const businessModule = getBusinessModule();
     businessModule.followUps.on('reminder', (reminder) => {
@@ -471,8 +512,18 @@ app.whenReady().then(async () => {
     businessModule.invoices.on('payment-received', (data) => {
       mainWindow?.webContents.send('business:payment-received', data);
     });
-    
+
     mainLogger.info('Business Module initialized successfully');
+
+    // Initialize Business Voice Integration - Wire business context into voice pipeline
+    try {
+      await initializeBusinessVoiceIntegration();
+      mainLogger.info('Business Voice Integration initialized');
+    } catch (voiceError) {
+      mainLogger.warn('Failed to initialize Business Voice Integration', {
+        error: (voiceError as Error).message,
+      });
+    }
   } catch (error) {
     mainLogger.warn('Failed to initialize Business Module', {
       error: (error as Error).message,
@@ -482,11 +533,11 @@ app.whenReady().then(async () => {
   // Initialize autonomous trading system (connects to Go backend)
   try {
     await initializeTradingSystem();
-    
+
     // Connect trading proactive messages to voice pipeline
     const voicePipeline = getVoicePipeline();
     voicePipeline.connectTradingProactive();
-    
+
     // Forward trading events to renderer
     const tradingSystem = getTradingSystem();
     tradingSystem.on('trade', (trade) => {
@@ -507,11 +558,60 @@ app.whenReady().then(async () => {
     tradingSystem.on('ws-disconnected', () => {
       mainWindow?.webContents.send('trading:ws-status', { connected: false });
     });
-    
+
     mainLogger.info('Autonomous trading system initialized');
+
+    // Initialize Trading Voice Integration - Wire trading context into voice pipeline
+    try {
+      await initializeTradingVoiceIntegration();
+      mainLogger.info('Trading Voice Integration initialized');
+    } catch (voiceError) {
+      mainLogger.warn('Failed to initialize Trading Voice Integration', {
+        error: (voiceError as Error).message,
+      });
+    }
   } catch (error) {
     // Non-fatal - trading is optional
     mainLogger.warn('Failed to initialize trading system (Go backend may not be running)', {
+      error: (error as Error).message,
+    });
+  }
+
+  // Initialize Finance Intelligence - Market research, watchlists, alerts
+  try {
+    const { getFinanceIntelligence, seedFinanceIntelligence } =
+      await import('./trading/finance-intelligence');
+    const { seedFinanceIntelligence: seedData } = await import('./trading/finance-seed');
+
+    const fi = getFinanceIntelligence();
+    await fi.initialize();
+    fi.startAlertMonitoring();
+
+    // Seed with initial research data
+    await seedData();
+
+    // Forward alert events to renderer
+    fi.on('alert-triggered', (alert) => {
+      mainWindow?.webContents.send('finance:alert-triggered', alert);
+      // Also speak the alert via voice pipeline
+      const voicePipeline = getVoicePipeline();
+      voicePipeline.speakProactive(
+        `Alert: ${alert.ticker} hit ${alert.targetPrice}. ${alert.action}`,
+        { priority: 'high' }
+      );
+    });
+
+    fi.on('watchlist-added', (entry) => {
+      mainWindow?.webContents.send('finance:watchlist-updated', { type: 'added', entry });
+    });
+
+    mainLogger.info('Finance Intelligence initialized', {
+      research: fi.getAllResearch().length,
+      watchlist: fi.getWatchlist().length,
+      alerts: fi.getActiveAlerts().length,
+    });
+  } catch (error) {
+    mainLogger.warn('Failed to initialize Finance Intelligence', {
       error: (error as Error).message,
     });
   }
@@ -532,7 +632,7 @@ app.whenReady().then(async () => {
   try {
     const { initializeAtlas } = await import('./atlas-core');
     const atlas = await initializeAtlas({
-      voiceEnabled: true,
+      voiceEnabled: false,
       wakeWord: 'hey atlas',
       screenMonitoring: false, // Disabled - causes memory issues and DirectX crashes
       autonomous: true,
@@ -540,39 +640,72 @@ app.whenReady().then(async () => {
       crossProjectLearning: true,
       llmProvider: 'fireworks',
       model: 'accounts/fireworks/models/deepseek-v3p2',
-      voiceAlerts: true,
+      voiceAlerts: false,
     });
-    
+
     // Forward Atlas events to renderer
     atlas.on('taskStarted', (task) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('atlas:task-started', task);
       }
     });
-    
+
     atlas.on('taskCompleted', (task) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('atlas:task-completed', task);
       }
     });
-    
+
     atlas.on('errorDetected', (error) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('atlas:error-detected', error);
       }
     });
-    
+
     atlas.on('autoCommit', (record) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('atlas:auto-commit', record);
       }
     });
-    
+
     mainLogger.info('Atlas Core initialized - Autonomous coding agent ready');
   } catch (error) {
-    mainLogger.warn('Failed to initialize Atlas Core', { 
+    mainLogger.warn('Failed to initialize Atlas Core', {
       error: (error as Error).message,
-      stack: (error as Error).stack 
+      stack: (error as Error).stack,
+    });
+  }
+
+  // Initialize Code Intelligence - Enables Atlas to understand and modify its own codebase
+  try {
+    mainLogger.info('Initializing Code Intelligence...');
+
+    // Register IPC handlers first
+    registerCodeIntelligenceHandlers();
+    setCodeIntelligenceMainWindow(mainWindow);
+
+    // Initialize with Atlas's own codebase as the workspace root
+    // This enables self-coding capabilities
+    const workspaceRoot = app.isPackaged
+      ? undefined // Use cwd in production
+      : process.cwd(); // Dev: use project root
+
+    await initializeCodeIntelligence(workspaceRoot);
+
+    const status = getCodeIntelligenceStatus();
+    mainLogger.info('Code Intelligence initialized', {
+      workspaceRoot: status.workspaceRoot,
+      indexingComplete: status.indexingComplete,
+    });
+
+    // Forward code intelligence events to renderer
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('code-intelligence:ready', status);
+    }
+  } catch (error) {
+    // Non-fatal - code intelligence is optional but reduces self-coding capability
+    mainLogger.warn('Failed to initialize Code Intelligence', {
+      error: (error as Error).message,
     });
   }
 
@@ -775,6 +908,14 @@ app.on('will-quit', (event) => {
     shutdownSmartProviderManager();
     shutdownConnectivityManager();
     shutdownLazyLoader(); // Shutdown lazy loader (sync)
+
+    // Shutdown Code Intelligence
+    try {
+      unregisterCodeIntelligenceHandlers();
+      shutdownCodeIntelligence();
+    } catch (e) {
+      mainLogger.error('Code Intelligence cleanup error', { error: (e as Error).message });
+    }
     shutdownShortcuts(); // 047-B: Shutdown global shortcuts
 
     // Shutdown Atlas Intelligence Platform
@@ -801,9 +942,15 @@ app.on('will-quit', (event) => {
     // Shutdown Business Module
     try {
       const businessModule = getBusinessModule();
-      businessModule.shutdown().catch((e) =>
-        mainLogger.error('Business module cleanup error', { error: (e as Error).message })
-      );
+      businessModule
+        .shutdown()
+        .catch((e) =>
+          mainLogger.error('Business module cleanup error', { error: (e as Error).message })
+        );
+      // Shutdown Business Voice Integration
+      shutdownBusinessVoiceIntegration();
+      // Shutdown Trading Voice Integration
+      shutdownTradingVoiceIntegration();
     } catch (e) {
       mainLogger.error('Business module cleanup error', { error: (e as Error).message });
     }

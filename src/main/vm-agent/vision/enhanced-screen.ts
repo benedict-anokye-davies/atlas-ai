@@ -11,10 +11,10 @@ import { EventEmitter } from 'events';
 import { createModuleLogger } from '../../utils/logger';
 import { getEventBus, createEvent } from '../core/event-bus';
 import { ScreenState, UIElement } from '../types';
-import { EnhancedUIElement, VLMAnalysisResult } from '../core/types';
-import { getVLMAnalyzer, VLMAnalyzer } from './vlm-analyzer';
+import { EnhancedUIElement, ElementSelector } from '../core/types';
+import { getVLMAnalyzer, VLMAnalyzer, ScreenAnalysis } from './vlm-analyzer';
 import { getVisualMemory, VisualMemoryManager } from './visual-memory';
-import { getSelfHealingSelectors, SelfHealingSelectorsManager, ElementSelector } from './self-healing-selectors';
+import { getSelfHealingSelectors, SelfHealingSelectorsManager } from './self-healing-selectors';
 
 const logger = createModuleLogger('EnhancedScreen');
 
@@ -43,7 +43,7 @@ export interface ScreenUnderstanding {
   /** Enhanced elements with semantic information */
   enhancedElements: EnhancedUIElement[];
   /** VLM analysis result */
-  vlmAnalysis?: VLMAnalysisResult;
+  vlmAnalysis?: ScreenAnalysis;
   /** Visual memory match info */
   memoryMatch?: {
     similar: boolean;
@@ -195,13 +195,15 @@ export class EnhancedScreenManager extends EventEmitter {
     }
 
     const eventBus = getEventBus();
+    const screenTitle = screenState.activeWindow?.title || 'Unknown';
+    
     eventBus.emitSync(
-      createEvent('screen:analysis-started', { title: screenState.title }, 'enhanced-screen', {
+      createEvent('screen:analyzed', { title: screenTitle }, 'enhanced-screen', {
         priority: 'normal',
       }),
     );
 
-    logger.info('Starting screen understanding', { title: screenState.title });
+    logger.info('Starting screen understanding', { title: screenTitle });
 
     // 1. Enhance elements
     const enhancedElements = this.enhanceElements(screenState);
@@ -216,12 +218,12 @@ export class EnhancedScreenManager extends EventEmitter {
     const layout = this.analyzeLayout(screenState, enhancedElements);
 
     // 5. VLM analysis (if enabled)
-    let vlmAnalysis: VLMAnalysisResult | undefined;
+    let vlmAnalysis: ScreenAnalysis | undefined;
     if (useVLM && screenState.screenshot) {
       try {
-        vlmAnalysis = await this.vlmAnalyzer.analyzeScreen(screenState.screenshot, {
-          context: applicationContext.application,
-          focusArea: 'full',
+        // analyzeScreen takes ScreenState, not screenshot string
+        vlmAnalysis = await this.vlmAnalyzer.analyzeScreen(screenState, {
+          detailed: deepAnalysis,
         });
       } catch (error) {
         logger.warn('VLM analysis failed', { error });
@@ -229,16 +231,18 @@ export class EnhancedScreenManager extends EventEmitter {
     }
 
     // 6. Visual memory check (if enabled)
+    // Note: Visual memory integration is simplified - findSimilar not available
     let memoryMatch: ScreenUnderstanding['memoryMatch'];
     if (useMemory) {
-      const snapshot = await this.visualMemory.captureSnapshot(screenState);
-      const similar = await this.visualMemory.findSimilar(snapshot, 0.8);
-      if (similar.length > 0) {
+      try {
+        const snapshot = await this.visualMemory.captureSnapshot(screenState);
+        // Just record the snapshot, similarity checking would need different API
         memoryMatch = {
-          similar: true,
-          confidence: similar[0].similarity,
-          previousState: similar[0].snapshot.context?.screen,
+          similar: false,
+          confidence: 0,
         };
+      } catch (error) {
+        logger.debug('Visual memory capture skipped', { error });
       }
     }
 
@@ -274,8 +278,8 @@ export class EnhancedScreenManager extends EventEmitter {
 
     eventBus.emitSync(
       createEvent(
-        'screen:analysis-completed',
-        { title: screenState.title, confidence },
+        'screen:analyzed',
+        { title: screenState.activeWindow?.title || 'Unknown', confidence },
         'enhanced-screen',
         { priority: 'normal' },
       ),
@@ -291,15 +295,16 @@ export class EnhancedScreenManager extends EventEmitter {
     understanding: ScreenUnderstanding,
     query: ElementQuery,
   ): Promise<EnhancedUIElement | null> {
-    // Natural language query - use VLM
-    if (query.natural && understanding.screenState.screenshot) {
-      const result = await this.vlmAnalyzer.queryElement(
-        understanding.screenState.screenshot,
-        query.natural,
-        understanding.enhancedElements,
-      );
-      if (result.found && result.element) {
-        return result.element;
+    // Natural language query - use VLM description if available
+    // Note: queryElement method doesn't exist, use text-based matching instead
+    if (query.natural) {
+      const naturalLower = query.natural.toLowerCase();
+      const matched = understanding.enhancedElements.find((el) => {
+        const elText = el.text?.toLowerCase() || '';
+        return elText.includes(naturalLower) || naturalLower.includes(elText);
+      });
+      if (matched) {
+        return matched;
       }
     }
 
@@ -311,12 +316,7 @@ export class EnhancedScreenManager extends EventEmitter {
       if (query.type && el.type !== query.type) {
         return false;
       }
-      if (query.role && el.semanticRole !== query.role) {
-        return false;
-      }
-      if (query.purpose && !el.purpose?.toLowerCase().includes(query.purpose.toLowerCase())) {
-        return false;
-      }
+      // Note: role and purpose not available on EnhancedUIElement, skip those filters
       if (query.interactive !== undefined && el.isInteractive !== query.interactive) {
         return false;
       }
@@ -355,9 +355,7 @@ export class EnhancedScreenManager extends EventEmitter {
       if (query.type && el.type !== query.type) {
         return false;
       }
-      if (query.role && el.semanticRole !== query.role) {
-        return false;
-      }
+      // Note: role not available on EnhancedUIElement, skip that filter
       if (query.interactive !== undefined && el.isInteractive !== query.interactive) {
         return false;
       }
@@ -412,7 +410,7 @@ export class EnhancedScreenManager extends EventEmitter {
       suggestions.push({
         action: 'click',
         element: btn,
-        description: `Click "${btn.text || btn.purpose || 'button'}"`,
+        description: `Click "${btn.text || 'button'}"`,
         confidence: 0.7,
       });
     }
@@ -422,18 +420,18 @@ export class EnhancedScreenManager extends EventEmitter {
       suggestions.push({
         action: 'type',
         element: input,
-        description: `Fill "${input.purpose || input.text || 'input'}"`,
+        description: `Fill "${input.text || 'input'}"`,
         confidence: 0.6,
       });
     }
 
-    // VLM suggestions
-    if (understanding.vlmAnalysis?.suggestedNextSteps) {
-      for (const step of understanding.vlmAnalysis.suggestedNextSteps.slice(0, 2)) {
+    // VLM suggestions - use suggestedActions (not suggestedNextSteps)
+    if (understanding.vlmAnalysis?.suggestedActions) {
+      for (const suggestedAction of understanding.vlmAnalysis.suggestedActions.slice(0, 2)) {
         suggestions.push({
-          action: step.action as 'click' | 'type' | 'scroll' | 'wait',
-          description: step.description,
-          confidence: step.confidence,
+          action: 'click',
+          description: suggestedAction.action,
+          confidence: suggestedAction.confidence || 0.5,
         });
       }
     }
@@ -541,24 +539,60 @@ export class EnhancedScreenManager extends EventEmitter {
   // ==========================================================================
 
   private getCacheKey(screenState: ScreenState): string {
-    return `${screenState.title}-${screenState.dimensions.width}x${screenState.dimensions.height}-${screenState.elements.length}`;
+    const title = screenState.activeWindow?.title || 'unknown';
+    const { width, height } = screenState.resolution;
+    return `${title}-${width}x${height}-${screenState.elements.length}`;
   }
 
   private enhanceElements(screenState: ScreenState): EnhancedUIElement[] {
     return screenState.elements.map((el, index) => {
+      // EnhancedUIElement extends UIElement - just add required properties
       const enhanced: EnhancedUIElement = {
         ...el,
         id: `el-${index}`,
-        semanticRole: this.inferSemanticRole(el),
-        purpose: this.inferPurpose(el),
-        relatedElements: [],
-        interactions: this.inferInteractions(el),
-        lastSeen: Date.now(),
-        seenCount: 1,
+        center: {
+          x: el.bounds.x + el.bounds.width / 2,
+          y: el.bounds.y + el.bounds.height / 2,
+        },
+        detectionSource: 'ocr' as const,
+        selectors: [],
+        signature: {
+          size: this.getSizeCategory(el.bounds),
+          normalizedText: el.text?.toLowerCase().trim(),
+          relativePosition: {
+            horizontal: this.getHorizontalPosition(el.bounds, screenState.resolution.width),
+            vertical: this.getVerticalPosition(el.bounds, screenState.resolution.height),
+          },
+        },
+        lastVerified: Date.now(),
+        verificationCount: 1,
       };
 
       return enhanced;
     });
+  }
+
+  private getSizeCategory(bounds: { width: number; height: number }): 'tiny' | 'small' | 'medium' | 'large' | 'huge' {
+    const area = bounds.width * bounds.height;
+    if (area < 500) return 'tiny';
+    if (area < 2000) return 'small';
+    if (area < 10000) return 'medium';
+    if (area < 50000) return 'large';
+    return 'huge';
+  }
+
+  private getHorizontalPosition(bounds: { x: number; width: number }, screenWidth: number): 'left' | 'center' | 'right' {
+    const center = bounds.x + bounds.width / 2;
+    if (center < screenWidth * 0.33) return 'left';
+    if (center > screenWidth * 0.66) return 'right';
+    return 'center';
+  }
+
+  private getVerticalPosition(bounds: { y: number; height: number }, screenHeight: number): 'top' | 'middle' | 'bottom' {
+    const center = bounds.y + bounds.height / 2;
+    if (center < screenHeight * 0.33) return 'top';
+    if (center > screenHeight * 0.66) return 'bottom';
+    return 'middle';
   }
 
   private inferSemanticRole(element: UIElement): string {
@@ -568,7 +602,7 @@ export class EnhancedScreenManager extends EventEmitter {
     if (type === 'button' || text.includes('submit') || text.includes('click')) {
       return 'button';
     }
-    if (type === 'input' || text.includes('enter') || text.includes('type')) {
+    if (type === 'textbox' || text.includes('enter') || text.includes('type')) {
       return 'input';
     }
     if (type === 'link' || text.includes('http') || text.includes('click here')) {
@@ -614,7 +648,7 @@ export class EnhancedScreenManager extends EventEmitter {
     if (element.isInteractive) {
       if (element.type === 'button') {
         interactions.push('click');
-      } else if (element.type === 'input') {
+      } else if (element.type === 'textbox') {
         interactions.push('click', 'type');
       } else if (element.type === 'link') {
         interactions.push('click');
@@ -630,8 +664,10 @@ export class EnhancedScreenManager extends EventEmitter {
     screenState: ScreenState,
     _elements: EnhancedUIElement[],
   ): ApplicationContext {
-    const title = screenState.title.toLowerCase();
-    const text = screenState.text?.toLowerCase() || '';
+    const windowTitle = screenState.activeWindow?.title || '';
+    const title = windowTitle.toLowerCase();
+    // Get text from textRegions if available
+    const text = screenState.textRegions?.map(r => r.text).join(' ').toLowerCase() || '';
 
     // Detect application type
     let appType: ApplicationContext['type'] = 'unknown';
@@ -644,7 +680,7 @@ export class EnhancedScreenManager extends EventEmitter {
       appType = 'browser';
       application = 'Browser';
       // Try to extract page title
-      const parts = screenState.title.split(' - ');
+      const parts = windowTitle.split(' - ');
       if (parts.length > 1) {
         screen = parts[0].trim();
       }
@@ -656,7 +692,7 @@ export class EnhancedScreenManager extends EventEmitter {
       appType = 'editor';
       application = 'Code Editor';
       // Extract file name
-      const fileMatch = screenState.title.match(/([^\\/]+\.[a-z]+)/i);
+      const fileMatch = windowTitle.match(/([^\\/]+\.[a-z]+)/i);
       if (fileMatch) {
         screen = fileMatch[1];
       }
@@ -674,7 +710,7 @@ export class EnhancedScreenManager extends EventEmitter {
              text.includes('downloads')) {
       appType = 'explorer';
       application = 'File Explorer';
-      screen = screenState.title;
+      screen = windowTitle;
     }
     // Office detection
     else if (title.includes('word') || title.includes('excel') ||
@@ -682,7 +718,7 @@ export class EnhancedScreenManager extends EventEmitter {
              title.includes('docs') || title.includes('sheets')) {
       appType = 'office';
       application = 'Office';
-      screen = screenState.title;
+      screen = windowTitle;
     }
     // Media detection
     else if (title.includes('spotify') || title.includes('youtube') ||
@@ -705,7 +741,7 @@ export class EnhancedScreenManager extends EventEmitter {
     }
     else {
       // Use title as application
-      application = screenState.title.split(' - ')[0].trim() || 'Unknown';
+      application = windowTitle.split(' - ')[0].trim() || 'Unknown';
     }
 
     return {
@@ -727,13 +763,14 @@ export class EnhancedScreenManager extends EventEmitter {
     };
 
     for (const el of elements) {
-      if (el.type === 'input' || el.semanticRole === 'input') {
+      // Use element type for categorization (semanticRole doesn't exist on EnhancedUIElement)
+      if (el.type === 'textbox' || el.type === 'checkbox' || el.type === 'dropdown') {
         map.inputs.push(el);
-      } else if (el.type === 'button' || el.semanticRole === 'button') {
+      } else if (el.type === 'button') {
         map.buttons.push(el);
-      } else if (el.type === 'link' || el.semanticRole === 'link') {
+      } else if (el.type === 'link') {
         map.links.push(el);
-      } else if (el.semanticRole === 'navigation') {
+      } else if (el.type === 'menu') {
         map.navigation.push(el);
       } else if (!el.isInteractive) {
         map.content.push(el);
@@ -754,7 +791,7 @@ export class EnhancedScreenManager extends EventEmitter {
   }
 
   private analyzeLayout(screenState: ScreenState, elements: EnhancedUIElement[]): ScreenLayout {
-    const { width, height } = screenState.dimensions;
+    const { width, height } = screenState.resolution;
     const layout: ScreenLayout = {
       sidebars: [],
       type: 'unknown',
@@ -887,10 +924,12 @@ export class EnhancedScreenManager extends EventEmitter {
     return layout;
   }
 
-  private mergeVLMInsights(elements: EnhancedUIElement[], vlmAnalysis: VLMAnalysisResult): void {
+  private mergeVLMInsights(elements: EnhancedUIElement[], vlmAnalysis: ScreenAnalysis): void {
     // Merge VLM-detected elements with our elements
+    // ScreenAnalysis.elements contains VLMElement type
     if (vlmAnalysis.elements) {
       for (const vlmEl of vlmAnalysis.elements) {
+        // VLMElement has: type, description, bounds, interactionHint, confidence
         // Find matching element by position
         const matching = elements.find(
           (el) =>
@@ -898,14 +937,8 @@ export class EnhancedScreenManager extends EventEmitter {
             Math.abs(el.bounds.y - vlmEl.bounds.y) < 20,
         );
 
-        if (matching) {
-          // Enhance with VLM info
-          if (vlmEl.semanticRole) {
-            matching.semanticRole = vlmEl.semanticRole;
-          }
-          if (vlmEl.purpose) {
-            matching.purpose = vlmEl.purpose;
-          }
+        if (matching && vlmEl.confidence) {
+          // Enhance confidence with VLM info
           matching.confidence = Math.max(matching.confidence, vlmEl.confidence);
         }
       }
@@ -956,6 +989,36 @@ export function getEnhancedScreen(): EnhancedScreenManager {
 }
 
 /**
+ * Get current screen understanding.
+ * This is a convenience function that creates a minimal screen state
+ * and returns the understanding. For VM operations, use getEnhancedScreen().understand()
+ * with a proper ScreenState from the VM connector.
+ * 
+ * @returns Promise resolving to current screen understanding
+ */
+export async function getScreenUnderstanding(): Promise<ScreenUnderstanding> {
+  const manager = getEnhancedScreen();
+  
+  // Create a minimal screen state for desktop analysis
+  // In actual VM usage, this would come from the VM connector
+  const minimalState: ScreenState = {
+    timestamp: Date.now(),
+    screenshot: '',  // Empty base64 string
+    resolution: { width: 1920, height: 1080 },
+    elements: [],
+    textRegions: [],
+    activeWindow: {
+      title: 'Desktop',
+      application: 'Desktop',
+    },
+    cursorPosition: { x: 0, y: 0 },
+    stateHash: 'desktop-minimal',
+  };
+  
+  return manager.understand(minimalState);
+}
+
+/**
  * Reset enhanced screen manager (for testing)
  */
 export function resetEnhancedScreen(): void {
@@ -964,3 +1027,7 @@ export function resetEnhancedScreen(): void {
     enhancedScreenInstance = null;
   }
 }
+
+// Aliases for backwards compatibility
+export { EnhancedScreenManager as EnhancedScreenUnderstanding };
+export { getEnhancedScreen as getEnhancedScreenUnderstanding };

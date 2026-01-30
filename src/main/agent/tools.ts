@@ -5,6 +5,7 @@
 
 import { AgentTool, ActionResult } from './index';
 import { createModuleLogger } from '../utils/logger';
+import { getCodeIntelligenceTools } from '../code-intelligence/tools';
 
 const logger = createModuleLogger('AgentTools');
 
@@ -257,17 +258,20 @@ export function getBuiltInTools(): AgentTool[] {
 }
 
 /**
- * Get all registered tools (alias for getBuiltInTools)
+ * Get all registered tools (built-in + code intelligence)
  */
 export function getAllTools(): AgentTool[] {
-  return getBuiltInTools();
+  return [
+    ...getBuiltInTools(),
+    ...getCodeIntelligenceTools(),
+  ];
 }
 
 /**
  * Get a tool by name
  */
 export function getToolByName(name: string): AgentTool | undefined {
-  return getBuiltInTools().find(tool => tool.name === name);
+  return getAllTools().find(tool => tool.name === name);
 }
 
 export default {

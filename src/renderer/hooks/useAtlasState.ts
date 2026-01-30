@@ -15,7 +15,6 @@ import type {
 } from '../../shared/types/voice';
 import { audioFeedback } from '../utils/audioFeedback';
 import { useAtlasStore } from '../stores';
-import { webSpeechTTS } from '../utils/webSpeechTTS';
 
 /**
  * State returned by the hook
@@ -265,15 +264,19 @@ export function useAtlasState(): AtlasStateResult {
 
     cleanups.push(
       on('atlas:response-chunk', (data: unknown) => {
-        // IPC sends LLMStreamChunk object with content/text property
-        let text: string;
+        // IPC sends LLMStreamChunk object with delta/accumulated properties
         if (typeof data === 'object' && data !== null) {
-          const chunk = data as { content?: unknown; text?: unknown };
-          text = String(chunk.content || chunk.text || '');
-        } else {
-          text = String(data || '');
+          const chunk = data as { delta?: string; accumulated?: string; content?: string; text?: string };
+          // Use accumulated for full response so far, or delta to append
+          if (chunk.accumulated) {
+            setResponse(chunk.accumulated);
+          } else if (chunk.delta) {
+            setResponse((prev) => prev + chunk.delta);
+          } else if (chunk.content || chunk.text) {
+            // Fallback for older formats
+            setResponse((prev) => prev + String(chunk.content || chunk.text || ''));
+          }
         }
-        setResponse((prev) => prev + text);
       })
     );
 
@@ -289,31 +292,8 @@ export function useAtlasState(): AtlasStateResult {
         }
         setResponse(text);
         setIsThinking(false);
-
-        // Store the response for potential fallback TTS
-        pendingResponseRef.current = text;
-        receivedTTSAudioRef.current = false;
-
-        // Wait a short time for native TTS audio to arrive
-        // If no audio received, use Web Speech API fallback
-        setTimeout(() => {
-          if (!receivedTTSAudioRef.current && pendingResponseRef.current) {
-            console.log('[useAtlasState] No native TTS audio received, using Web Speech fallback');
-            if (webSpeechTTS.isAvailable()) {
-              setIsSpeaking(true);
-              setState('speaking');
-              webSpeechTTS.speak(pendingResponseRef.current).then(() => {
-                setIsSpeaking(false);
-                setState('idle');
-              }).catch((err) => {
-                console.error('[useAtlasState] Web Speech TTS error:', err);
-                setIsSpeaking(false);
-                setState('idle');
-              });
-            }
-            pendingResponseRef.current = null;
-          }
-        }, 500); // Wait 500ms for native TTS audio
+        setState('idle');
+        // TEXT-ONLY MODE: No TTS, just display text immediately
       })
     );
 
@@ -350,7 +330,7 @@ export function useAtlasState(): AtlasStateResult {
           console.error('[useAtlasState] Audio playback error:', e);
           playNextInQueue(); // Try next in queue
         };
-        
+
         // Set output device if specified in settings
         const outputDeviceId = useAtlasStore.getState().settings.outputDevice;
         if (outputDeviceId && 'setSinkId' in audioRef.current) {
@@ -395,13 +375,13 @@ export function useAtlasState(): AtlasStateResult {
           const chunk = data as { audio?: string; data?: string; format?: string };
           const audioData = chunk.audio || chunk.data;
           const format = chunk.format || 'wav';
-          
+
           if (typeof audioData === 'string' && audioData.length > 0) {
             // Determine MIME type from format
-            const mimeType = format.includes('mp3') || format === 'mpeg' 
-              ? 'audio/mpeg' 
+            const mimeType = format.includes('mp3') || format === 'mpeg'
+              ? 'audio/mpeg'
               : 'audio/wav';
-            
+
             // Convert to data URL if not already
             const dataUrl = audioData.startsWith('data:')
               ? audioData

@@ -1,0 +1,118 @@
+/**
+ * @fileoverview ToolCallBlock CSS Module
+ * Styling for Claude Code-like tool execution blocks
+ */
+
+.toolCallBlock {
+    background: rgba(0, 255, 136, 0.05);
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.toolCallBlock:hover {
+    background: rgba(0, 255, 136, 0.08);
+    border-color: rgba(0, 255, 136, 0.3);
+}
+
+.toolCallBlock.running {
+    border-color: rgba(0, 200, 255, 0.4);
+    background: rgba(0, 200, 255, 0.05);
+}
+
+.toolCallBlock.completed {
+    border-color: rgba(0, 255, 136, 0.3);
+}
+
+.toolCallBlock.error {
+    border-color: rgba(255, 100, 100, 0.4);
+    background: rgba(255, 100, 100, 0.05);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon {
+    font-size: 16px;
+}
+
+.toolName {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    color: var(--spark-primary, #00ff88);
+    flex: 1;
+}
+
+.status {
+    font-size: 14px;
+    width: 20px;
+    text-align: center;
+}
+
+.status .spinner {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+    color: #00c8ff;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.duration {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.params {
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.result {
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    max-height: 200px;
+    overflow: auto;
+}
+
+.result pre {
+    margin: 0;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.8);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.error {
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(255, 100, 100, 0.1);
+    border-radius: 4px;
+    font-size: 12px;
+    color: #ff6666;
+}

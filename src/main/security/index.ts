@@ -19,6 +19,9 @@ export * from './scanner';
 export * from './anonymizer';
 export * from './file-guard';
 export * from './sandbox';
+export * from './tool-profiles';
+export * from './exec-approvals';
+export * from './dm-pairing';
 
 // Re-export types from shared security types
 export type {

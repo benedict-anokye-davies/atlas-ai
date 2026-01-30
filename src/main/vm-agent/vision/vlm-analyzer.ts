@@ -37,8 +37,8 @@ export const VLM_CONSTANTS = {
   MAX_CACHE_ENTRIES: 100,
   /** Default temperature for analysis */
   DEFAULT_TEMPERATURE: 0.3,
-  /** Default model */
-  DEFAULT_MODEL: 'accounts/fireworks/models/llama-v3p2-11b-vision-instruct',
+  /** Default model - Kimi K2.5 supports vision! */
+  DEFAULT_MODEL: 'accounts/fireworks/models/kimi-k2p5',
 } as const;
 
 // =============================================================================

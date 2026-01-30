@@ -198,18 +198,18 @@ export function safeGetWebGLContext(
     if (!canvas) return null;
 
     // Try WebGL2 first
-    let gl = canvas.getContext('webgl2', {
+    let gl: WebGL2RenderingContext | WebGLRenderingContext | null = canvas.getContext('webgl2', {
       antialias: true,
       alpha: true,
       powerPreference: 'high-performance',
-    }) as WebGL2RenderingContext | null;
+    });
 
     // Fallback to WebGL1
     if (!gl) {
       gl = canvas.getContext('webgl', {
         antialias: true,
         alpha: true,
-      }) as WebGLRenderingContext | null;
+      });
     }
 
     return gl;

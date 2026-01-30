@@ -41,6 +41,38 @@
   --atlas-accent-purple-dim: rgba(155, 89, 182, 0.15);
   --atlas-accent-blue: #3498DB;
   
+  /* ========================================
+   * ENHANCED GRADIENTS & GLASSMORPHISM
+   * Premium visual effects for elevated UI
+   * ======================================== */
+  
+  /* Gradient Colors */
+  --atlas-gradient-primary: linear-gradient(135deg, #00D4FF 0%, #0088AA 50%, #004455 100%);
+  --atlas-gradient-success: linear-gradient(135deg, #00FF88 0%, #00D4AA 100%);
+  --atlas-gradient-ai: linear-gradient(135deg, #9B59B6 0%, #6366F1 50%, #00D4FF 100%);
+  --atlas-gradient-premium: linear-gradient(135deg, #00D4FF 0%, #9B59B6 50%, #FF4757 100%);
+  --atlas-gradient-cosmic: radial-gradient(ellipse at 30% 20%, rgba(0, 212, 255, 0.3) 0%, transparent 50%),
+                           radial-gradient(ellipse at 70% 80%, rgba(155, 89, 182, 0.2) 0%, transparent 40%);
+  
+  /* Glassmorphism */
+  --atlas-glass-bg: rgba(10, 14, 20, 0.75);
+  --atlas-glass-bg-light: rgba(17, 23, 33, 0.6);
+  --atlas-glass-border: rgba(0, 212, 255, 0.12);
+  --atlas-glass-border-hover: rgba(0, 212, 255, 0.25);
+  --atlas-glass-blur: blur(20px);
+  --atlas-glass-blur-heavy: blur(40px);
+  
+  /* Ambient Glow Effects */
+  --atlas-glow-cyan: 0 0 20px rgba(0, 212, 255, 0.4), 0 0 40px rgba(0, 212, 255, 0.2), 0 0 60px rgba(0, 212, 255, 0.1);
+  --atlas-glow-green: 0 0 20px rgba(0, 255, 136, 0.4), 0 0 40px rgba(0, 255, 136, 0.2);
+  --atlas-glow-purple: 0 0 20px rgba(155, 89, 182, 0.4), 0 0 40px rgba(155, 89, 182, 0.2);
+  --atlas-glow-red: 0 0 20px rgba(255, 71, 87, 0.4), 0 0 40px rgba(255, 71, 87, 0.2);
+  --atlas-glow-subtle: 0 0 15px rgba(0, 212, 255, 0.15);
+  
+  /* Inner shadows for depth */
+  --atlas-inset-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  --atlas-inset-glow: inset 0 0 30px rgba(0, 212, 255, 0.05);
+  
   /* Semantic Colors */
   --atlas-success: var(--atlas-accent-green);
   --atlas-error: var(--atlas-accent-red);

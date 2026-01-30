@@ -368,6 +368,22 @@ async function initializeVoicePipeline(
     sendToRenderer('atlas:provider-change', { type, provider });
   });
 
+  // Tool execution events (for Claude Code-like UI)
+  voicePipeline.on('tool-start', (toolName: string, params: Record<string, unknown>) => {
+    logger.info('Tool execution started', { toolName });
+    sendToRenderer('atlas:tool-start', { toolName, params, startTime: Date.now() });
+  });
+
+  voicePipeline.on('tool-complete', (toolName: string, result: unknown) => {
+    logger.info('Tool execution completed', { toolName });
+    sendToRenderer('atlas:tool-complete', { toolName, result, endTime: Date.now() });
+  });
+
+  voicePipeline.on('tool-error', (toolName: string, error: Error) => {
+    logger.warn('Tool execution failed', { toolName, error: error.message });
+    sendToRenderer('atlas:tool-error', { toolName, error: error.message, endTime: Date.now() });
+  });
+
   logger.info('Voice pipeline initialized with IPC event forwarding');
   return voicePipeline;
 }
@@ -541,8 +557,8 @@ export function registerIPCHandlers(): void {
     return { success: false, error: 'Pipeline not initialized' };
   });
 
-  // Send text directly (bypass STT)
-  ipcMain.handle('atlas:send-text', async (_event, text: unknown): Promise<IPCResult> => {
+  // Send text - simple direct approach with tools
+  ipcMain.handle('atlas:send-text', async (_event, text: unknown, _options?: { skipTTS?: boolean }): Promise<IPCResult> => {
     // Rate limit check
     if (!checkRateLimit('atlas:send-text')) {
       return {
@@ -558,15 +574,26 @@ export function registerIPCHandlers(): void {
       return { success: false, error: validation.error };
     }
 
-    if (voicePipeline) {
-      try {
-        await voicePipeline.sendText(validation.sanitized!);
-        return { success: true };
-      } catch (error) {
-        return { success: false, error: (error as Error).message };
-      }
+    // Simple direct approach - no voice pipeline
+    try {
+      logger.info('[Chat] Processing with tools (simple path)', { textLength: validation.sanitized!.length });
+
+      // Import and use simple chat with tools
+      const { chatWithTools } = await import('../chat/simple-chat-tools');
+
+      // Process and get response
+      const response = await chatWithTools(validation.sanitized!);
+
+      // Send response to renderer
+      sendToRenderer('atlas:response', { type: 'text', content: response });
+
+      return { success: true, data: response };
+    } catch (error) {
+      const errorMsg = (error as Error).message;
+      logger.error('[Chat] Processing failed', { error: errorMsg });
+      sendToRenderer('atlas:error', { type: 'llm', message: errorMsg });
+      return { success: false, error: errorMsg };
     }
-    return { success: false, error: 'Pipeline not initialized' };
   });
 
   // Clear conversation history
@@ -2419,11 +2446,11 @@ export function registerIPCHandlers(): void {
     try {
       const { getStartupProfiler } = require('../performance/startup-profiler');
       const profiler = getStartupProfiler();
-      
+
       const timeline = profiler.getTimeline();
       const jsonData = profiler.generateJsonTimeline();
       const report = profiler.generateReport();
-      
+
       return {
         success: true,
         data: {
@@ -2502,14 +2529,14 @@ export function registerIPCHandlers(): void {
         const profiler = getPerformanceProfiler();
         profiler.recordVoiceTiming(
           stage as
-            | 'wakeWordDetection'
-            | 'vadProcessing'
-            | 'sttLatency'
-            | 'llmFirstToken'
-            | 'llmTotalTime'
-            | 'ttsFirstAudio'
-            | 'ttsTotalTime'
-            | 'totalResponseTime',
+          | 'wakeWordDetection'
+          | 'vadProcessing'
+          | 'sttLatency'
+          | 'llmFirstToken'
+          | 'llmTotalTime'
+          | 'ttsFirstAudio'
+          | 'ttsTotalTime'
+          | 'totalResponseTime',
           duration
         );
         return { success: true };

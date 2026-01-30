@@ -527,29 +527,35 @@ describe('Rate Limiter with Retry', () => {
   }, 10000); // Longer timeout for retry test
 
   it('should call onRetry callback when retrying', async () => {
-    const operation = vi.fn().mockResolvedValue('success');
+    // This test verifies the retry mechanism works by simulating rate limit
+    // then recovering. Use a fresh limiter to avoid state pollution.
+    const freshLimiter = new RateLimiter({
+      llm: { maxRequests: 3, windowMs: 1000, cooldownMs: 100 },
+    });
+
+    let callCount = 0;
+    const operation = vi.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount < 3) {
+        // Simulate rate limit error on first attempts
+        throw new Error('Rate limited');
+      }
+      return Promise.resolve('success');
+    });
     const onRetry = vi.fn();
 
-    // Exhaust tokens to trigger cooldown
-    for (let i = 0; i < 6; i++) {
-      rateLimiter.checkLimit('llm');
-    }
-
-    // Small delay then manually end cooldown to allow retry to succeed
-    setTimeout(() => {
-      rateLimiter.endCooldown('llm');
-    }, 50);
-
-    const result = await rateLimiter.execute({
+    const result = await freshLimiter.execute({
       service: 'llm',
       operation,
       retry: true,
+      maxRetries: 5,
+      retryDelayMs: 50,
       onRetry,
     });
 
     expect(result).toBe('success');
-    // onRetry may or may not have been called depending on timing
-    // The important thing is the operation succeeded
     expect(operation).toHaveBeenCalled();
+    // onRetry should have been called at least once for the retries
+    expect(onRetry.mock.calls.length).toBeGreaterThanOrEqual(1);
   }, 10000);
 });

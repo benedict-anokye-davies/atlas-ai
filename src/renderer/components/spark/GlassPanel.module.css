@@ -1,0 +1,58 @@
+.glassPanel {
+  background: var(--spark-glass-bg);
+  backdrop-filter: blur(var(--spark-glass-blur));
+  -webkit-backdrop-filter: blur(var(--spark-glass-blur));
+  border-radius: var(--spark-radius-lg);
+  transition: all var(--spark-transition-normal);
+}
+
+.withBorder {
+  border: 1px solid var(--spark-glass-border);
+}
+
+.withBorder:hover {
+  border-color: var(--spark-border-glow-hover);
+  box-shadow: var(--spark-shadow-glow);
+}
+
+/* Glow Variants */
+.glowGreen {
+  box-shadow: 0 0 30px rgba(74, 222, 128, 0.2);
+}
+
+.glowGreen:hover {
+  box-shadow: 0 0 40px rgba(74, 222, 128, 0.4);
+}
+
+.glowCyan {
+  box-shadow: 0 0 30px rgba(34, 211, 238, 0.2);
+}
+
+.glowCyan:hover {
+  box-shadow: 0 0 40px rgba(34, 211, 238, 0.4);
+}
+
+.glowPurple {
+  box-shadow: 0 0 30px rgba(167, 139, 250, 0.2);
+}
+
+.glowPurple:hover {
+  box-shadow: 0 0 40px rgba(167, 139, 250, 0.4);
+}
+
+/* Padding Variants */
+.paddingNone {
+  padding: 0;
+}
+
+.paddingSm {
+  padding: var(--spark-spacing-sm);
+}
+
+.paddingMd {
+  padding: var(--spark-spacing-md);
+}
+
+.paddingLg {
+  padding: var(--spark-spacing-lg);
+}

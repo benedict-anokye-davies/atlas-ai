@@ -14,6 +14,9 @@
  */
 
 import { EventEmitter } from 'events';
+import * as fs from 'fs';
+import * as path from 'path';
+import { app } from 'electron';
 import { createModuleLogger } from '../../utils/logger';
 import { BrowserAction, ActionResult, IndexedElement } from './types';
 
@@ -121,13 +124,23 @@ export const COMMON_COMPOSITES: Record<string, Omit<CompositeAction, 'id'>> = {
     description: 'Fill and submit a login form',
     actions: [
       { type: 'type', text: '{username}', description: 'Enter username', elementIndex: 0 },
-      { type: 'type', text: '{password}', description: 'Enter password', elementIndex: 0, sensitive: true },
+      {
+        type: 'type',
+        text: '{password}',
+        description: 'Enter password',
+        elementIndex: 0,
+        sensitive: true,
+      },
       { type: 'click', clickType: 'single', description: 'Click submit button', elementIndex: 0 },
     ],
     parallelizable: false,
     transactional: false,
     preconditions: [
-      { type: 'element-exists', value: 'input[type="password"]', errorMessage: 'Password field not found' },
+      {
+        type: 'element-exists',
+        value: 'input[type="password"]',
+        errorMessage: 'Password field not found',
+      },
     ],
     expectedOutcome: 'User should be logged in and redirected',
     timeoutMs: 30000,
@@ -138,14 +151,28 @@ export const COMMON_COMPOSITES: Record<string, Omit<CompositeAction, 'id'>> = {
     name: 'Search and Select Result',
     description: 'Search for something and click the first relevant result',
     actions: [
-      { type: 'type', text: '{query}', description: 'Enter search query', elementIndex: 0, pressEnterAfter: true },
-      { type: 'wait', description: 'Wait for results', waitFor: { type: 'selector', value: '.search-results', timeoutMs: 5000 } },
+      {
+        type: 'type',
+        text: '{query}',
+        description: 'Enter search query',
+        elementIndex: 0,
+        pressEnterAfter: true,
+      },
+      {
+        type: 'wait',
+        description: 'Wait for results',
+        waitFor: { type: 'selector', value: '.search-results', timeoutMs: 5000 },
+      },
       { type: 'click', clickType: 'single', description: 'Click first result', elementIndex: 0 },
     ],
     parallelizable: false,
     transactional: false,
     preconditions: [
-      { type: 'element-exists', value: 'input[type="search"], [role="searchbox"]', errorMessage: 'Search box not found' },
+      {
+        type: 'element-exists',
+        value: 'input[type="search"], [role="searchbox"]',
+        errorMessage: 'Search box not found',
+      },
     ],
     expectedOutcome: 'Should navigate to the selected result',
     timeoutMs: 20000,
@@ -156,7 +183,12 @@ export const COMMON_COMPOSITES: Record<string, Omit<CompositeAction, 'id'>> = {
     name: 'Dismiss Cookie Consent',
     description: 'Automatically dismiss cookie consent popups',
     actions: [
-      { type: 'click', clickType: 'single', description: 'Click accept/dismiss button', elementIndex: 0 },
+      {
+        type: 'click',
+        clickType: 'single',
+        description: 'Click accept/dismiss button',
+        elementIndex: 0,
+      },
     ],
     parallelizable: false,
     transactional: false,
@@ -170,7 +202,13 @@ export const COMMON_COMPOSITES: Record<string, Omit<CompositeAction, 'id'>> = {
     name: 'Add Product to Cart',
     description: 'Add the current product to shopping cart',
     actions: [
-      { type: 'scroll', direction: 'down', scrollToElement: true, description: 'Scroll to add to cart button', elementIndex: 0 },
+      {
+        type: 'scroll',
+        direction: 'down',
+        scrollToElement: true,
+        description: 'Scroll to add to cart button',
+        elementIndex: 0,
+      },
       { type: 'click', clickType: 'single', description: 'Click add to cart', elementIndex: 0 },
       { type: 'wait', description: 'Wait for cart update', waitFor: { type: 'time', ms: 1000 } },
     ],
@@ -201,7 +239,11 @@ export const COMMON_COMPOSITES: Record<string, Omit<CompositeAction, 'id'>> = {
     description: 'Navigate to URL and wait for page to fully load',
     actions: [
       { type: 'navigate', url: '{url}', description: 'Navigate to URL' },
-      { type: 'wait', description: 'Wait for page load', waitFor: { type: 'navigation', timeoutMs: 10000 } },
+      {
+        type: 'wait',
+        description: 'Wait for page load',
+        waitFor: { type: 'navigation', timeoutMs: 10000 },
+      },
     ],
     parallelizable: false,
     transactional: false,
@@ -219,7 +261,8 @@ export const COMMON_COMPOSITES: Record<string, Omit<CompositeAction, 'id'>> = {
 export class ActionCompositor extends EventEmitter {
   private page: any;
   private macros: Map<string, ActionMacro> = new Map();
-  private actionHistory: Array<{ action: BrowserAction; result: ActionResult; timestamp: number }> = [];
+  private actionHistory: Array<{ action: BrowserAction; result: ActionResult; timestamp: number }> =
+    [];
   private executionStack: BrowserAction[] = [];
 
   constructor(page: any) {
@@ -240,7 +283,10 @@ export class ActionCompositor extends EventEmitter {
     const results: CompositeResult['actionResults'] = [];
     const rolledBack: BrowserAction[] = [];
 
-    logger.info('Executing composite action', { name: composite.name, actionCount: composite.actions.length });
+    logger.info('Executing composite action', {
+      name: composite.name,
+      actionCount: composite.actions.length,
+    });
 
     // Merge variables
     const vars = { ...composite.variables, ...variables };
@@ -261,7 +307,7 @@ export class ActionCompositor extends EventEmitter {
     }
 
     // Resolve variables in actions
-    const resolvedActions = composite.actions.map(action => this.resolveVariables(action, vars));
+    const resolvedActions = composite.actions.map((action) => this.resolveVariables(action, vars));
 
     // Batch actions if possible
     const batches = this.batchActions(resolvedActions);
@@ -271,9 +317,9 @@ export class ActionCompositor extends EventEmitter {
       if (batch.parallelWithPrevious && batch.order > 0) {
         // Execute in parallel (for non-dependent actions)
         const batchResults = await Promise.all(
-          batch.actions.map(action => this.executeAction(action, elementMap))
+          batch.actions.map((action) => this.executeAction(action, elementMap))
         );
-        
+
         for (let i = 0; i < batch.actions.length; i++) {
           results.push({
             action: batch.actions[i],
@@ -286,7 +332,7 @@ export class ActionCompositor extends EventEmitter {
         for (const action of batch.actions) {
           const actionStart = Date.now();
           const result = await this.executeAction(action, elementMap);
-          
+
           results.push({
             action,
             result,
@@ -338,8 +384,8 @@ export class ActionCompositor extends EventEmitter {
   ): ActionMacro {
     const recentActions = this.actionHistory
       .slice(-actionCount)
-      .filter(h => h.result.success)
-      .map(h => h.action);
+      .filter((h) => h.result.success)
+      .map((h) => h.action);
 
     const macro: ActionMacro = {
       id: `macro-${Date.now()}`,
@@ -365,7 +411,11 @@ export class ActionCompositor extends EventEmitter {
     this.macros.set(macro.id, macro);
     this.saveMacros();
 
-    logger.info('Created macro from history', { id: macro.id, name, actionCount: recentActions.length });
+    logger.info('Created macro from history', {
+      id: macro.id,
+      name,
+      actionCount: recentActions.length,
+    });
     this.emit('macro-created', macro);
 
     return macro;
@@ -374,11 +424,7 @@ export class ActionCompositor extends EventEmitter {
   /**
    * Find matching macro for current context
    */
-  findMatchingMacro(
-    url: string,
-    intent: string,
-    pageType?: string
-  ): ActionMacro | null {
+  findMatchingMacro(url: string, intent: string, pageType?: string): ActionMacro | null {
     const intentLower = intent.toLowerCase();
 
     for (const [_id, macro] of this.macros) {
@@ -396,7 +442,7 @@ export class ActionCompositor extends EventEmitter {
       }
 
       // Check intent keywords
-      const keywordMatch = trigger.intentKeywords.some(keyword =>
+      const keywordMatch = trigger.intentKeywords.some((keyword) =>
         intentLower.includes(keyword.toLowerCase())
       );
       if (!keywordMatch) continue;
@@ -423,7 +469,8 @@ export class ActionCompositor extends EventEmitter {
 
     // Update macro statistics
     macro.usageCount++;
-    macro.successRate = (macro.successRate * (macro.usageCount - 1) + (result.success ? 1 : 0)) / macro.usageCount;
+    macro.successRate =
+      (macro.successRate * (macro.usageCount - 1) + (result.success ? 1 : 0)) / macro.usageCount;
     this.saveMacros();
 
     return result;
@@ -507,10 +554,12 @@ export class ActionCompositor extends EventEmitter {
 
         while (j < actions.length) {
           const next = actions[j];
-          if (next.type === 'type' && 
-              'elementIndex' in next && 
-              next.elementIndex === current.elementIndex &&
-              !next.clearFirst) {
+          if (
+            next.type === 'type' &&
+            'elementIndex' in next &&
+            next.elementIndex === current.elementIndex &&
+            !next.clearFirst
+          ) {
             combinedText += next.text || '';
             j++;
           } else {
@@ -543,9 +592,9 @@ export class ActionCompositor extends EventEmitter {
       i++;
     }
 
-    logger.debug('Optimized action sequence', { 
-      original: actions.length, 
-      optimized: optimized.length 
+    logger.debug('Optimized action sequence', {
+      original: actions.length,
+      optimized: optimized.length,
     });
 
     return optimized;
@@ -582,13 +631,10 @@ export class ActionCompositor extends EventEmitter {
           return element !== null;
 
         case 'element-visible':
-          const visible = await this.page.$eval(
-            precondition.value,
-            (el: Element) => {
-              const style = window.getComputedStyle(el);
-              return style.display !== 'none' && style.visibility !== 'hidden';
-            }
-          );
+          const visible = await this.page.$eval(precondition.value, (el: Element) => {
+            const style = window.getComputedStyle(el);
+            return style.display !== 'none' && style.visibility !== 'hidden';
+          });
           return visible;
 
         case 'url-matches':
@@ -607,7 +653,10 @@ export class ActionCompositor extends EventEmitter {
     }
   }
 
-  private resolveVariables(action: BrowserAction, variables: Record<string, string>): BrowserAction {
+  private resolveVariables(
+    action: BrowserAction,
+    variables: Record<string, string>
+  ): BrowserAction {
     const resolved = { ...action };
 
     // Replace {variable} patterns
@@ -704,10 +753,10 @@ export class ActionCompositor extends EventEmitter {
     // This is a simplified executor - real implementation would call orchestrator
     try {
       this.executionStack.push(action);
-      
+
       // Placeholder - real implementation integrates with orchestrator
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       this.executionStack.pop();
 
       return {
@@ -766,13 +815,68 @@ export class ActionCompositor extends EventEmitter {
   }
 
   private loadMacros(): void {
-    // TODO: Load from persistent storage
-    logger.debug('Loading macros from storage');
+    try {
+      const storagePath = this.getMacrosStoragePath();
+
+      if (!fs.existsSync(storagePath)) {
+        logger.debug('No saved macros found, starting with empty macros');
+        return;
+      }
+
+      const data = fs.readFileSync(storagePath, 'utf-8');
+      const parsed = JSON.parse(data) as {
+        macros: ActionMacro[];
+        timestamp: number;
+        version: string;
+      };
+
+      if (parsed.macros && Array.isArray(parsed.macros)) {
+        this.macros.clear();
+        for (const macro of parsed.macros) {
+          this.macros.set(macro.id, macro);
+        }
+        logger.info('Loaded macros from storage', {
+          count: this.macros.size,
+          timestamp: new Date(parsed.timestamp).toISOString(),
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to load macros', { error: (error as Error).message });
+      // Continue with empty registry
+    }
   }
 
   private saveMacros(): void {
-    // TODO: Save to persistent storage
-    logger.debug('Saving macros to storage');
+    try {
+      const storagePath = this.getMacrosStoragePath();
+      const macros = Array.from(this.macros.values());
+
+      const data = {
+        macros,
+        timestamp: Date.now(),
+        version: '1.0.0',
+      };
+
+      // Ensure directory exists
+      const dir = path.dirname(storagePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      fs.writeFileSync(storagePath, JSON.stringify(data, null, 2), 'utf-8');
+      logger.debug('Saved macros to storage', { count: macros.length });
+    } catch (error) {
+      logger.error('Failed to save macros', { error: (error as Error).message });
+    }
+  }
+
+  /**
+   * Get the storage path for macros
+   */
+  private getMacrosStoragePath(): string {
+    // Use Electron's userData directory for persistent storage
+    const userDataPath = app.getPath('userData');
+    return path.join(userDataPath, 'browser-agent', 'macros.json');
   }
 }
 

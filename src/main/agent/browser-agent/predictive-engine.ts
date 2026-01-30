@@ -14,15 +14,12 @@
  */
 
 import { EventEmitter } from 'events';
+import * as fs from 'fs';
+import * as path from 'path';
+import { app } from 'electron';
 import { createModuleLogger } from '../../utils/logger';
 import { getLLMManager } from '../../llm/manager';
-import {
-  BrowserState,
-  BrowserAction,
-  IndexedElement,
-  BrowserTask,
-  SemanticPurpose,
-} from './types';
+import { BrowserState, BrowserAction, IndexedElement, BrowserTask, SemanticPurpose } from './types';
 
 const logger = createModuleLogger('PredictiveEngine');
 
@@ -268,27 +265,22 @@ export class PredictiveEngine extends EventEmitter {
 
     try {
       const llm = getLLMManager();
-      const prompt = PLAN_DECOMPOSITION_PROMPT
-        .replace('{objective}', objective)
+      const prompt = PLAN_DECOMPOSITION_PROMPT.replace('{objective}', objective)
         .replace('{instructions}', instructions || '')
         .replace('{url}', state.url)
         .replace('{pageType}', pageType);
 
-      const response = await llm.generateWithTools(
-        [{ role: 'user', content: prompt }],
-        [],
-        {
-          model: 'accounts/fireworks/models/qwen3-235b-a22b',
-          temperature: 0.2,
-          maxTokens: 2000,
-        }
-      );
+      const response = await llm.generateWithTools([{ role: 'user', content: prompt }], [], {
+        model: 'accounts/fireworks/models/qwen3-235b-a22b',
+        temperature: 0.2,
+        maxTokens: 2000,
+      });
 
       const plan = this.parsePlanResponse(response.content);
-      logger.info('Created task plan', { 
+      logger.info('Created task plan', {
         steps: plan.steps.length,
         estimatedActions: plan.estimatedActions,
-        successProbability: plan.successProbability
+        successProbability: plan.successProbability,
       });
 
       return plan;
@@ -310,8 +302,8 @@ export class PredictiveEngine extends EventEmitter {
     for (const prediction of predictions) {
       if (prediction.action.type === 'click' && 'elementIndex' in prediction.action) {
         const elementIndex = prediction.action.elementIndex;
-        const element = state.elements.find(e => e.index === elementIndex);
-        
+        const element = state.elements.find((e) => e.index === elementIndex);
+
         if (element) {
           enhanced.push({
             ...prediction,
@@ -324,7 +316,7 @@ export class PredictiveEngine extends EventEmitter {
             prediction.action.description || '',
             state.elements
           );
-          
+
           if (matchedElement) {
             enhanced.push({
               ...prediction,
@@ -369,25 +361,25 @@ export class PredictiveEngine extends EventEmitter {
     const patternKey = `${domain}:${pageType}`;
 
     const existing = this.pagePatterns.get(patternKey);
-    
+
     if (existing) {
       existing.encounters++;
       existing.lastUpdated = Date.now();
-      
+
       // Add new interaction patterns
       for (const action of successfulActions) {
         const existingPattern = existing.interactionPatterns.find(
-          p => p.name === action.description
+          (p) => p.name === action.description
         );
         if (existingPattern) {
-          existingPattern.successRate = 
-            (existingPattern.successRate * 0.9) + (0.1); // Weighted average
+          existingPattern.successRate = existingPattern.successRate * 0.9 + 0.1; // Weighted average
         } else {
           existing.interactionPatterns.push({
             name: action.description,
-            triggerSelector: ('elementIndex' in action && action.elementIndex)
-              ? state.elements.find(e => e.index === action.elementIndex)?.selector || ''
-              : '',
+            triggerSelector:
+              'elementIndex' in action && action.elementIndex
+                ? state.elements.find((e) => e.index === action.elementIndex)?.selector || ''
+                : '',
             outcome: '',
             successRate: 1.0,
             avgDurationMs: 0,
@@ -399,7 +391,7 @@ export class PredictiveEngine extends EventEmitter {
         urlPattern: this.createUrlPattern(url),
         domain,
         pageType,
-        interactionPatterns: successfulActions.map(action => ({
+        interactionPatterns: successfulActions.map((action) => ({
           name: action.description,
           triggerSelector: '',
           outcome: '',
@@ -426,11 +418,14 @@ export class PredictiveEngine extends EventEmitter {
   ): Promise<ActionPrediction[]> {
     try {
       const llm = getLLMManager();
-      
+
       const elementsStr = state.elements
-        .filter(e => e.interactivity.isClickable || e.interactivity.isTypeable)
+        .filter((e) => e.interactivity.isClickable || e.interactivity.isTypeable)
         .slice(0, 50)
-        .map(e => `[${e.index}] ${e.role}: "${e.text || e.ariaLabel || e.attributes.placeholder || ''}"`)
+        .map(
+          (e) =>
+            `[${e.index}] ${e.role}: "${e.text || e.ariaLabel || e.attributes.placeholder || ''}"`
+        )
         .join('\n');
 
       const historyStr = this.actionHistory
@@ -438,8 +433,7 @@ export class PredictiveEngine extends EventEmitter {
         .map((a, i) => `${i + 1}. ${a.type}: ${a.description}`)
         .join('\n');
 
-      const prompt = PREDICTION_PROMPT
-        .replace('{objective}', task.objective)
+      const prompt = PREDICTION_PROMPT.replace('{objective}', task.objective)
         .replace('{currentGoal}', currentGoal)
         .replace('{stepsCompleted}', String(stepsCompleted))
         .replace('{url}', state.url)
@@ -447,15 +441,11 @@ export class PredictiveEngine extends EventEmitter {
         .replace('{elements}', elementsStr)
         .replace('{history}', historyStr || 'None yet');
 
-      const response = await llm.generateWithTools(
-        [{ role: 'user', content: prompt }],
-        [],
-        {
-          model: 'accounts/fireworks/models/qwen3-235b-a22b',
-          temperature: 0.3,
-          maxTokens: 1500,
-        }
-      );
+      const response = await llm.generateWithTools([{ role: 'user', content: prompt }], [], {
+        model: 'accounts/fireworks/models/qwen3-235b-a22b',
+        temperature: 0.3,
+        maxTokens: 1500,
+      });
 
       return this.parsePredictionResponse(response.content);
     } catch (error) {
@@ -475,9 +465,10 @@ export class PredictiveEngine extends EventEmitter {
     // Match goal to known interaction patterns
     for (const interaction of pattern.interactionPatterns) {
       if (goalLower.includes(interaction.name.toLowerCase())) {
-        const element = state.elements.find(e => 
-          e.selector === interaction.triggerSelector ||
-          e.text?.toLowerCase().includes(interaction.name.toLowerCase())
+        const element = state.elements.find(
+          (e) =>
+            e.selector === interaction.triggerSelector ||
+            e.text?.toLowerCase().includes(interaction.name.toLowerCase())
         );
 
         if (element) {
@@ -500,17 +491,16 @@ export class PredictiveEngine extends EventEmitter {
 
     // Handle common page types
     if (pattern.pageType === 'login' && goalLower.includes('login')) {
-      const usernameField = state.elements.find(e => 
-        e.semanticPurpose === 'login' && 
-        (e.role === 'textbox' || e.attributes.type === 'email')
+      const usernameField = state.elements.find(
+        (e) =>
+          e.semanticPurpose === 'login' && (e.role === 'textbox' || e.attributes.type === 'email')
       );
-      const passwordField = state.elements.find(e =>
-        e.attributes.type === 'password'
-      );
-      const submitBtn = state.elements.find(e =>
-        e.semanticPurpose === 'submit' || 
-        e.text?.toLowerCase().includes('log in') ||
-        e.text?.toLowerCase().includes('sign in')
+      const passwordField = state.elements.find((e) => e.attributes.type === 'password');
+      const submitBtn = state.elements.find(
+        (e) =>
+          e.semanticPurpose === 'submit' ||
+          e.text?.toLowerCase().includes('log in') ||
+          e.text?.toLowerCase().includes('sign in')
       );
 
       if (usernameField) {
@@ -583,13 +573,13 @@ export class PredictiveEngine extends EventEmitter {
     if (/404|error|not.found/i.test(url)) return 'error';
 
     // Element-based detection
-    const hasPasswordField = state.elements.some(e => e.attributes.type === 'password');
-    const hasSearchField = state.elements.some(e => 
-      e.role === 'searchbox' || e.semanticPurpose === 'search'
+    const hasPasswordField = state.elements.some((e) => e.attributes.type === 'password');
+    const hasSearchField = state.elements.some(
+      (e) => e.role === 'searchbox' || e.semanticPurpose === 'search'
     );
-    const hasProductCards = state.elements.filter(e => 
-      /product|item|card/i.test(e.attributes.className || '')
-    ).length > 3;
+    const hasProductCards =
+      state.elements.filter((e) => /product|item|card/i.test(e.attributes.className || '')).length >
+      3;
 
     if (hasPasswordField && state.elements.length < 20) return 'login';
     if (hasSearchField && hasProductCards) return 'search-results';
@@ -600,7 +590,7 @@ export class PredictiveEngine extends EventEmitter {
 
   private matchPagePattern(url: string): PagePattern | null {
     const domain = new URL(url).hostname;
-    
+
     for (const [key, pattern] of this.pagePatterns) {
       if (key.startsWith(domain)) {
         // Check if URL matches pattern
@@ -610,7 +600,7 @@ export class PredictiveEngine extends EventEmitter {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -618,29 +608,29 @@ export class PredictiveEngine extends EventEmitter {
     try {
       const parsed = new URL(url);
       // Replace IDs with wildcards
-      const path = parsed.pathname
-        .replace(/\/\d+/g, '/*')
-        .replace(/\/[a-f0-9-]{36}/gi, '/*'); // UUIDs
+      const path = parsed.pathname.replace(/\/\d+/g, '/*').replace(/\/[a-f0-9-]{36}/gi, '/*'); // UUIDs
       return `${parsed.hostname}${path}`;
     } catch {
       return url;
     }
   }
 
-  private findElementByDescription(description: string, elements: IndexedElement[]): IndexedElement | null {
+  private findElementByDescription(
+    description: string,
+    elements: IndexedElement[]
+  ): IndexedElement | null {
     const descLower = description.toLowerCase();
-    
+
     // Exact text match
-    let match = elements.find(e => 
-      e.text?.toLowerCase() === descLower ||
-      e.ariaLabel?.toLowerCase() === descLower
+    let match = elements.find(
+      (e) => e.text?.toLowerCase() === descLower || e.ariaLabel?.toLowerCase() === descLower
     );
     if (match) return match;
 
     // Partial text match
-    match = elements.find(e =>
-      e.text?.toLowerCase().includes(descLower) ||
-      descLower.includes(e.text?.toLowerCase() || '')
+    match = elements.find(
+      (e) =>
+        e.text?.toLowerCase().includes(descLower) || descLower.includes(e.text?.toLowerCase() || '')
     );
     if (match) return match;
 
@@ -648,9 +638,8 @@ export class PredictiveEngine extends EventEmitter {
     const roleMatch = descLower.match(/^(click|type|select)\s+(the\s+)?(.+)$/i);
     if (roleMatch) {
       const target = roleMatch[3];
-      match = elements.find(e => 
-        e.text?.toLowerCase().includes(target) ||
-        e.ariaLabel?.toLowerCase().includes(target)
+      match = elements.find(
+        (e) => e.text?.toLowerCase().includes(target) || e.ariaLabel?.toLowerCase().includes(target)
       );
     }
 
@@ -711,12 +700,14 @@ export class PredictiveEngine extends EventEmitter {
 
   private createDefaultPlan(objective: string): TaskPlan {
     return {
-      steps: [{
-        description: `Complete: ${objective}`,
-        interactionType: 'click-sequence',
-        estimatedActions: 5,
-        dependsOn: [],
-      }],
+      steps: [
+        {
+          description: `Complete: ${objective}`,
+          interactionType: 'click-sequence',
+          estimatedActions: 5,
+          dependsOn: [],
+        },
+      ],
       estimatedActions: 10,
       successProbability: 0.6,
       potentialBlockers: ['Unknown page structure'],
@@ -725,13 +716,64 @@ export class PredictiveEngine extends EventEmitter {
   }
 
   private loadPatterns(): void {
-    // TODO: Load from persistent storage
-    logger.debug('Loading page patterns from storage');
+    try {
+      const storagePath = this.getPatternsStoragePath();
+
+      if (!fs.existsSync(storagePath)) {
+        logger.debug('No saved patterns found, starting with empty patterns');
+        return;
+      }
+
+      const data = fs.readFileSync(storagePath, 'utf-8');
+      const parsed = JSON.parse(data) as { patterns: PagePattern[]; timestamp: number };
+
+      if (parsed.patterns && Array.isArray(parsed.patterns)) {
+        this.pagePatterns.clear();
+        for (const pattern of parsed.patterns) {
+          this.pagePatterns.set(pattern.urlPattern, pattern);
+        }
+        logger.info('Loaded page patterns from storage', {
+          count: this.pagePatterns.size,
+          timestamp: new Date(parsed.timestamp).toISOString(),
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to load page patterns', { error: (error as Error).message });
+      // Continue with empty patterns
+    }
   }
 
   private savePatterns(): void {
-    // TODO: Save to persistent storage
-    logger.debug('Saving page patterns to storage');
+    try {
+      const storagePath = this.getPatternsStoragePath();
+      const patterns = Array.from(this.pagePatterns.values());
+
+      const data = {
+        patterns,
+        timestamp: Date.now(),
+        version: '1.0.0',
+      };
+
+      // Ensure directory exists
+      const dir = path.dirname(storagePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      fs.writeFileSync(storagePath, JSON.stringify(data, null, 2), 'utf-8');
+      logger.debug('Saved page patterns to storage', { count: patterns.length });
+    } catch (error) {
+      logger.error('Failed to save page patterns', { error: (error as Error).message });
+    }
+  }
+
+  /**
+   * Get the storage path for page patterns
+   */
+  private getPatternsStoragePath(): string {
+    // Use Electron's userData directory for persistent storage
+    const userDataPath = app.getPath('userData');
+    return path.join(userDataPath, 'browser-agent', 'page-patterns.json');
   }
 }
 

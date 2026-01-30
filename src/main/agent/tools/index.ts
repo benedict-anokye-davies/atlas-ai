@@ -33,7 +33,15 @@ export * from './clipboard';
 // search.ts uses fetch() which is cleaner, so we use that instead
 export * from './search';
 export * from './git';
-export * from './git-diff';
+// Export git-diff selectively to avoid DiffSummary conflict with git-commit-gen
+export {
+  getGitDiffTools,
+  gitDiffViewerTool,
+  gitDiffNavigateTool,
+  gitDiffSummaryTool,
+  gitDiffActionTool,
+  resetDiffViewerState,
+} from './git-diff';
 export * from './git-commit-gen';
 export * from './git-cleanup';
 export * from './git-pr';
@@ -68,6 +76,20 @@ export * from './code-explain';
 export * from './perplexity-research';
 export * from './image-generation';
 export * from './vision-analysis';
+// Gateway tools - Sessions, Cron, Nodes, Web
+export * from './sessions';
+export * from './cron';
+export * from './nodes';
+// web-search.ts has duplicate exports with search.ts
+// search.ts uses fetch() which is cleaner, so we don't re-export from web-search
+export * from './web-fetch';
+// Canvas and Message tools
+export * from './canvas';
+export * from './message';
+// Security tools
+export * from './security';
+// Skills tools
+export * from './skills';
 // Browser Agent - Advanced AI-powered browser automation
 export * from '../browser-agent/tools';
 // Business tools - CRM, projects, time tracking, invoicing, expenses, pipeline
@@ -136,6 +158,18 @@ import { getBrowserAgentTools } from '../browser-agent/tools';
 import { getCareerTools as getCareerModuleTools } from '../../career/tools';
 import { getBusinessTools } from './business';
 import { getVMAgentTools } from '../../vm-agent/tools';
+import { getFinanceIntelligenceTools } from '../../trading/finance-tools';
+// Gateway tools imports
+import { sessionTools } from './sessions';
+import { cronTools } from './cron';
+import { nodeTools } from './nodes';
+// Note: web-search.ts has duplicate webSearchTool with search.ts
+// We use search.ts version via getSearchTools() instead
+import { webFetchTool } from './web-fetch';
+import { canvasTools } from './canvas';
+import { messageTools } from './message';
+import { securityTools } from './security';
+import { skillsTools } from './skills';
 
 /**
  * Get all available agent tools across all categories.
@@ -204,8 +238,8 @@ export function getAllTools(): AgentTool[] {
     ...getScaffoldingTools(),
     ...getMultiFileEditorTools(),
     // VS Code Deep Integration & Code Explanation tools
-    ...Object.values(vsCodeDeepTools) as AgentTool[],
-    ...Object.values(codeExplainTools) as AgentTool[],
+    ...(Object.values(vsCodeDeepTools) as AgentTool[]),
+    ...(Object.values(codeExplainTools) as AgentTool[]),
     // Perplexity Research tools
     ...getPerplexityTools(),
     // Image Generation tools
@@ -213,33 +247,68 @@ export function getAllTools(): AgentTool[] {
     // Vision Analysis tools (Fireworks AI)
     ...getVisionAnalysisTools(),
     // Browser Agent - Advanced AI browser automation (surpasses Claude for Chrome & Antigravity)
-    ...getBrowserAgentTools().map((t) => ({
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters,
-      execute: t.handler,
-    } as AgentTool)),
+    ...getBrowserAgentTools().map(
+      (t) =>
+        ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters,
+          execute: t.handler,
+        }) as AgentTool
+    ),
     // Career Module - Profile, skills gap, job search, CV optimization, interview prep
-    ...getCareerModuleTools().map((t) => ({
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters,
-      execute: t.handler,
-    } as AgentTool)),
+    ...getCareerModuleTools().map(
+      (t) =>
+        ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters,
+          execute: t.handler,
+        }) as AgentTool
+    ),
     // Business Module - CRM, projects, time tracking, invoicing, expenses, pipeline
-    ...getBusinessTools().map((t) => ({
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters,
-      execute: t.handler,
-    } as AgentTool)),
+    ...getBusinessTools().map(
+      (t) =>
+        ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters,
+          execute: t.handler,
+        }) as AgentTool
+    ),
     // VM Agent - Autonomous VM control with machine learning
-    ...getVMAgentTools().map((t) => ({
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters,
-      execute: t.handler,
-    } as AgentTool)),
+    ...getVMAgentTools().map(
+      (t) =>
+        ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters,
+          execute: t.handler,
+        }) as AgentTool
+    ),
+    // Gateway tools - Sessions, Cron, Nodes, Web
+    // Note: webSearchTool is provided by getSearchTools() above
+    ...sessionTools,
+    ...cronTools,
+    ...nodeTools,
+    webFetchTool,
+    // Canvas and Message tools
+    ...canvasTools,
+    ...messageTools,
+    // Security tools
+    ...securityTools,
+    // Skills tools
+    ...skillsTools,
+    // Finance Intelligence - Market research, watchlists, alerts
+    ...getFinanceIntelligenceTools().map(
+      (t) =>
+        ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters,
+          execute: t.execute,
+        }) as AgentTool
+    ),
   ];
 }
 
@@ -305,31 +374,66 @@ export const toolCategories = {
   multiFileEditor: getMultiFileEditorTools(),
   vsCodeDeep: Object.values(vsCodeDeepTools) as AgentTool[],
   codeExplain: Object.values(codeExplainTools) as AgentTool[],
-  browserAgent: getBrowserAgentTools().map((t) => ({
-    name: t.name,
-    description: t.description,
-    parameters: t.parameters,
-    execute: t.handler,
-  } as AgentTool)),
-  career: getCareerModuleTools().map((t) => ({
-    name: t.name,
-    description: t.description,
-    parameters: t.parameters,
-    execute: t.handler,
-  } as AgentTool)),
-  business: getBusinessTools().map((t) => ({
-    name: t.name,
-    description: t.description,
-    parameters: t.parameters,
-    execute: t.handler,
-  } as AgentTool)),
-  vmAgent: getVMAgentTools().map((t) => ({
-    name: t.name,
-    description: t.description,
-    parameters: t.parameters,
-    execute: t.handler,
-  } as AgentTool)),
-} as const;
+  browserAgent: getBrowserAgentTools().map(
+    (t) =>
+      ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+        execute: t.handler,
+      }) as AgentTool
+  ),
+  career: getCareerModuleTools().map(
+    (t) =>
+      ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+        execute: t.handler,
+      }) as AgentTool
+  ),
+  business: getBusinessTools().map(
+    (t) =>
+      ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+        execute: t.handler,
+      }) as AgentTool
+  ),
+  vmAgent: getVMAgentTools().map(
+    (t) =>
+      ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+        execute: t.handler,
+      }) as AgentTool
+  ),
+  // Gateway tools
+  sessions: sessionTools,
+  cron: cronTools,
+  nodes: nodeTools,
+  // Note: webSearchTool is in search category via getSearchTools()
+  webTools: [webFetchTool],
+  // Canvas and Message tools
+  canvas: canvasTools,
+  message: messageTools,
+  // Security tools
+  security: securityTools,
+  // Skills tools
+  skills: skillsTools,
+  // Finance Intelligence - Market research, watchlists, alerts, news
+  financeIntelligence: getFinanceIntelligenceTools().map(
+    (t) =>
+      ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+        execute: t.execute,
+      }) as AgentTool
+  ),
+};
 
 /** Available tool category names */
 export type ToolCategoryName = keyof typeof toolCategories;

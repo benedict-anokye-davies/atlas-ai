@@ -5,11 +5,21 @@
 
 /**
  * Agent action result
+ *
+ * Standard response format for all agent tool executions.
+ * The `output` field provides a human-readable summary for display,
+ * while `data` contains structured data for programmatic use.
  */
 export interface ActionResult {
+  /** Whether the action completed successfully */
   success: boolean;
+  /** Structured data returned by the tool */
   data?: unknown;
+  /** Human-readable output text for display to the user/agent */
+  output?: string;
+  /** Error message if success is false */
   error?: string;
+  /** Additional metadata about the execution */
   metadata?: Record<string, unknown>;
 }
 

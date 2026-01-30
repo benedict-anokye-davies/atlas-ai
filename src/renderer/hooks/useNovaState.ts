@@ -205,15 +205,19 @@ export function useAtlasState(): AtlasStateResult {
 
     cleanups.push(
       on('atlas:response-chunk', (data: unknown) => {
-        // IPC sends LLMStreamChunk object with content/text property
-        let text: string;
+        // IPC sends LLMStreamChunk object with delta/accumulated properties
         if (typeof data === 'object' && data !== null) {
-          const chunk = data as { content?: unknown; text?: unknown };
-          text = String(chunk.content || chunk.text || '');
-        } else {
-          text = String(data || '');
+          const chunk = data as { delta?: string; accumulated?: string; content?: string; text?: string };
+          // Use accumulated for full response so far, or delta to append
+          if (chunk.accumulated) {
+            setResponse(chunk.accumulated);
+          } else if (chunk.delta) {
+            setResponse((prev) => prev + chunk.delta);
+          } else if (chunk.content || chunk.text) {
+            // Fallback for older formats
+            setResponse((prev) => prev + String(chunk.content || chunk.text || ''));
+          }
         }
-        setResponse((prev) => prev + text);
       })
     );
 
@@ -265,7 +269,7 @@ export function useAtlasState(): AtlasStateResult {
           console.error('[useAtlasState] Audio playback error:', e);
           playNextInQueue(); // Try next in queue
         };
-        
+
         // Set output device if specified in settings
         const outputDeviceId = useNovaStore.getState().settings.outputDevice;
         if (outputDeviceId && 'setSinkId' in audioRef.current) {

@@ -183,11 +183,11 @@ const defaultStore: StoreSchema = {
     autonomyLevel: 'autonomous',
     autoCommit: true,
     screenMonitoring: true,
-    voiceEnabled: true,
+    voiceEnabled: false,
     wakeWord: 'hey atlas',
-    voiceAlerts: true,
+    voiceAlerts: false,
     llmProvider: 'fireworks',
-    model: 'accounts/fireworks/models/deepseek-v3p2',
+    model: 'accounts/fireworks/models/kimi-k2p5',
   },
   cicd: {
     provider: 'github',
@@ -380,14 +380,14 @@ class AppStore {
 
     const parts = pathStr.split('.');
     let current: unknown = this.data;
-    
+
     for (const part of parts) {
       if (current === null || current === undefined || typeof current !== 'object') {
         return undefined;
       }
       current = (current as Record<string, unknown>)[part];
     }
-    
+
     return current as T;
   }
 
@@ -590,11 +590,11 @@ class AppStore {
    */
   private deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
     const result = { ...target };
-    
+
     for (const key of Object.keys(source)) {
       const sourceValue = source[key as keyof T];
       const targetValue = target[key as keyof T];
-      
+
       if (
         sourceValue !== null &&
         typeof sourceValue === 'object' &&
@@ -611,7 +611,7 @@ class AppStore {
         (result as Record<string, unknown>)[key] = sourceValue;
       }
     }
-    
+
     return result;
   }
 
@@ -620,13 +620,13 @@ class AppStore {
    */
   private deepMergeSchema(target: StoreSchema, source: Partial<StoreSchema>): StoreSchema {
     const result = { ...target };
-    
+
     for (const key of Object.keys(source) as Array<keyof StoreSchema>) {
       const sourceValue = source[key];
       const targetValue = target[key];
-      
+
       if (sourceValue === undefined) continue;
-      
+
       if (
         sourceValue !== null &&
         typeof sourceValue === 'object' &&
@@ -641,7 +641,7 @@ class AppStore {
         (result as any)[key] = sourceValue;
       }
     }
-    
+
     return result;
   }
 }

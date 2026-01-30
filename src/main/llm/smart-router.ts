@@ -84,18 +84,25 @@ export type ModelHealthStatus = 'healthy' | 'degraded' | 'unavailable';
 /**
  * Fireworks AI model identifiers
  *
- * Tiered Model Selection (Cross-Thinking Strategy):
- * - GLM-4.7: Best-in-class reasoning, 355B MoE (32B active), interleaved thinking
- * - Llama-3.3-70B: Fast responses for simple queries (no GLM flash variant available)
- * - DeepSeek V3: Alternative for high-volume, cost-sensitive workloads
+ * Primary Model Strategy (Jan 2026):
+ * - Kimi K2.5: NEW PRIMARY - 1000B MoE, 256K context, vision, function calling
+ *   → Best value at $0.60/$1.20 per M tokens (cached even cheaper!)
+ *   → Supports: vision, function calling, streaming
+ *   → 256K context window - massive for complex workflows
+ *
+ * - DeepSeek V3: Budget fallback ($0.56/$1.68 per M)
+ * - GLM-4.7: Alternative for specialized reasoning tasks
  */
 export const FIREWORKS_MODELS = {
-  // Text models - Tiered by complexity
-  TEXT_THINKING: 'accounts/fireworks/models/glm-4p7', // Complex reasoning, agentic, coding
-  TEXT_FLASH: 'accounts/fireworks/models/llama-v3p3-70b-instruct', // Simple queries, fast responses
+  // Primary text model - Kimi K2.5 (1 TRILLION parameters, MoE)
+  TEXT_PRIMARY: 'accounts/fireworks/models/kimi-k2p5', // Primary model for everything
+  TEXT_THINKING: 'accounts/fireworks/models/kimi-k2p5', // Alias for backward compat
+  TEXT_FLASH: 'accounts/fireworks/models/kimi-k2p5', // Use same model (no tiering)
   TEXT_DEEPSEEK: 'accounts/fireworks/models/deepseek-v3', // Fallback / budget alternative
+  TEXT_GLM: 'accounts/fireworks/models/glm-4p7', // Legacy GLM model
 
-  // Vision models (LLM + Vision)
+  // Vision models (LLM + Vision) - Kimi K2.5 supports vision natively!
+  VISION_PRIMARY: 'accounts/fireworks/models/kimi-k2p5', // Kimi supports vision
   VISION_THINKING: 'accounts/fireworks/models/qwen3-vl-235b-a22b-thinking',
   VISION_INSTRUCT: 'accounts/fireworks/models/qwen3-vl-235b-a22b-instruct',
   VISION_FAST: 'accounts/fireworks/models/llama-4-maverick-instruct-basic',
@@ -118,21 +125,28 @@ export const FIREWORKS_MODELS = {
  * When primary fails/degraded, try secondary, then budget
  */
 export const MODEL_FALLBACK_CHAINS: Record<string, string[]> = {
-  [FIREWORKS_MODELS.TEXT_THINKING]: [FIREWORKS_MODELS.TEXT_DEEPSEEK, FIREWORKS_MODELS.TEXT_FLASH],
+  // Kimi K2.5 primary - fall back to DeepSeek then GLM
+  [FIREWORKS_MODELS.TEXT_PRIMARY]: [FIREWORKS_MODELS.TEXT_DEEPSEEK, FIREWORKS_MODELS.TEXT_GLM],
+  [FIREWORKS_MODELS.TEXT_THINKING]: [FIREWORKS_MODELS.TEXT_DEEPSEEK, FIREWORKS_MODELS.TEXT_GLM],
   [FIREWORKS_MODELS.TEXT_FLASH]: [FIREWORKS_MODELS.TEXT_DEEPSEEK],
-  [FIREWORKS_MODELS.TEXT_DEEPSEEK]: [FIREWORKS_MODELS.TEXT_FLASH],
+  [FIREWORKS_MODELS.TEXT_DEEPSEEK]: [FIREWORKS_MODELS.TEXT_GLM],
+  [FIREWORKS_MODELS.VISION_PRIMARY]: [FIREWORKS_MODELS.VISION_INSTRUCT, FIREWORKS_MODELS.VISION_SMALL],
   [FIREWORKS_MODELS.VISION_THINKING]: [FIREWORKS_MODELS.VISION_INSTRUCT, FIREWORKS_MODELS.VISION_SMALL],
   [FIREWORKS_MODELS.VISION_INSTRUCT]: [FIREWORKS_MODELS.VISION_FAST, FIREWORKS_MODELS.VISION_SMALL],
 };
 
 /**
  * Model pricing per million tokens (or per unit for audio/image)
- * Updated Jan 2026 for GLM-4.7 family
+ * Updated Jan 2026 for Kimi K2.5 primary
  */
 export const MODEL_PRICING = {
-  [FIREWORKS_MODELS.TEXT_THINKING]: { input: 0.6, output: 2.2 }, // GLM-4.7 Thinking
-  [FIREWORKS_MODELS.TEXT_FLASH]: { input: 0.5, output: 0.5 }, // GLM-4.7 Flash (flat rate)
-  [FIREWORKS_MODELS.TEXT_DEEPSEEK]: { input: 0.56, output: 1.68 }, // DeepSeek V3.2
+  // Kimi K2.5 - Primary model ($0.60 cached, $1.20 uncached input, $1.20 output)
+  [FIREWORKS_MODELS.TEXT_PRIMARY]: { input: 1.2, output: 1.2, cached: 0.6 },
+  [FIREWORKS_MODELS.TEXT_THINKING]: { input: 1.2, output: 1.2, cached: 0.6 }, // Alias
+  [FIREWORKS_MODELS.TEXT_FLASH]: { input: 1.2, output: 1.2, cached: 0.6 }, // Same model
+  [FIREWORKS_MODELS.TEXT_DEEPSEEK]: { input: 0.56, output: 1.68 }, // DeepSeek V3
+  [FIREWORKS_MODELS.TEXT_GLM]: { input: 0.6, output: 2.2 }, // Legacy GLM-4.7
+  [FIREWORKS_MODELS.VISION_PRIMARY]: { input: 1.2, output: 1.2, cached: 0.6 }, // Kimi vision
   [FIREWORKS_MODELS.VISION_THINKING]: { input: 0.22, output: 0.88 },
   [FIREWORKS_MODELS.VISION_INSTRUCT]: { input: 0.22, output: 0.88 },
   [FIREWORKS_MODELS.VISION_FAST]: { input: 0.22, output: 0.88 },
@@ -147,9 +161,13 @@ export const MODEL_PRICING = {
  * Model context window sizes (max tokens)
  */
 export const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
-  [FIREWORKS_MODELS.TEXT_THINKING]: 200000, // 200K context
-  [FIREWORKS_MODELS.TEXT_FLASH]: 128000, // 128K context
+  // Kimi K2.5 - massive 256K context window!
+  [FIREWORKS_MODELS.TEXT_PRIMARY]: 256000, // 256K context
+  [FIREWORKS_MODELS.TEXT_THINKING]: 256000, // 256K context (alias)
+  [FIREWORKS_MODELS.TEXT_FLASH]: 256000, // 256K context (same model)
   [FIREWORKS_MODELS.TEXT_DEEPSEEK]: 128000,
+  [FIREWORKS_MODELS.TEXT_GLM]: 200000, // Legacy GLM 200K
+  [FIREWORKS_MODELS.VISION_PRIMARY]: 256000, // Kimi vision
   [FIREWORKS_MODELS.VISION_THINKING]: 128000,
   [FIREWORKS_MODELS.VISION_INSTRUCT]: 128000,
   [FIREWORKS_MODELS.VISION_FAST]: 32000,
@@ -163,9 +181,13 @@ export const MODEL_CAPABILITIES: Record<
   string,
   { tools: boolean; streaming: boolean; thinking: boolean; vision: boolean }
 > = {
-  [FIREWORKS_MODELS.TEXT_THINKING]: { tools: true, streaming: true, thinking: true, vision: false },
-  [FIREWORKS_MODELS.TEXT_FLASH]: { tools: true, streaming: true, thinking: false, vision: false },
+  // Kimi K2.5 - supports EVERYTHING (tools, streaming, vision)
+  [FIREWORKS_MODELS.TEXT_PRIMARY]: { tools: true, streaming: true, thinking: true, vision: true },
+  [FIREWORKS_MODELS.TEXT_THINKING]: { tools: true, streaming: true, thinking: true, vision: true },
+  [FIREWORKS_MODELS.TEXT_FLASH]: { tools: true, streaming: true, thinking: true, vision: true },
   [FIREWORKS_MODELS.TEXT_DEEPSEEK]: { tools: true, streaming: true, thinking: false, vision: false },
+  [FIREWORKS_MODELS.TEXT_GLM]: { tools: true, streaming: true, thinking: true, vision: false },
+  [FIREWORKS_MODELS.VISION_PRIMARY]: { tools: true, streaming: true, thinking: true, vision: true },
   [FIREWORKS_MODELS.VISION_THINKING]: { tools: true, streaming: true, thinking: true, vision: true },
   [FIREWORKS_MODELS.VISION_INSTRUCT]: { tools: true, streaming: true, thinking: false, vision: true },
   [FIREWORKS_MODELS.VISION_FAST]: { tools: false, streaming: true, thinking: false, vision: true },

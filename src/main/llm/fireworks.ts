@@ -2,9 +2,12 @@
  * Atlas Desktop - Fireworks AI LLM Provider
  * LLM integration using Fireworks AI (OpenAI-compatible API)
  *
- * Supports smart model routing:
- * - GLM-4.7 Thinking: Complex reasoning ($0.60/$2.20 per M)
- * - GLM-4.7 FlashX: Simple queries ($0.07/$0.40 per M)
+ * Primary Model: Kimi K2.5 (1 Trillion Parameters!)
+ * - 1000B MoE architecture
+ * - 256K context window
+ * - Vision support (image input)
+ * - Function calling (tools)
+ * - $0.60/1M cached, $1.20/1M uncached input, $1.20/1M output
  */
 
 import { EventEmitter } from 'events';
@@ -99,20 +102,22 @@ export interface FireworksConfig extends LLMConfig {
 const DEFAULT_FIREWORKS_CONFIG: Partial<FireworksConfig> = {
   ...DEFAULT_LLM_CONFIG,
   baseURL: 'https://api.fireworks.ai/inference/v1',
-  // Using GLM-4.7 Thinking - #1 ranked open-source LLM (Jan 2026)
-  // 95% AIME 2025, 89% LiveCodeBench, best-in-class reasoning
-  // "Thinking" mode enables step-by-step problem decomposition
-  model: FIREWORKS_MODELS.TEXT_THINKING,
-  maxTokens: 8000, // Allow extended thinking for complex reasoning
-  temperature: 0.7, // Optimal for reasoning tasks
+  // Using Kimi K2.5 - 1 TRILLION parameter MoE model (Jan 2026)
+  // - 1000B parameters (Mixture of Experts)
+  // - 256K context window (massive!)
+  // - Vision support (image input)
+  // - Function calling (tools)
+  // - Best value at $0.60-$1.20 per million tokens
+  model: FIREWORKS_MODELS.TEXT_PRIMARY,
+  maxTokens: 8000, // Allow extended responses
+  temperature: 0.7, // Optimal for general tasks
   lowLatencyStreaming: true, // Enable low-latency mode by default
-  enableSmartRouting: true, // Enable smart routing by default
+  enableSmartRouting: false, // No routing needed - one model for everything!
   budgetMode: false,
-  // GLM-4.7 Reasoning: Enable interleaved thinking by default
-  // This is what makes GLM-4.7 superior for agentic workflows
+  // Kimi K2.5 reasoning configuration
   reasoning: {
     effort: 'medium',           // Balanced reasoning depth
-    history: 'interleaved',     // Think before EACH tool call (killer feature)
+    history: 'interleaved',     // Think before EACH tool call
     autoAdjust: true,           // Auto-adjust based on task complexity
   },
 };
@@ -400,7 +405,37 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
         });
       }
 
-      // Build messages with task-aware system modifier
+      // CRITICAL FIX: When tools are provided, enforce low temperature for reliable tool calling
+      // Fireworks AI docs recommend 0.0-0.3 for best tool calling results
+      // Also add explicit instruction to use the function calling API
+      const hasTools = options?.tools && options.tools.length > 0;
+      if (hasTools) {
+        // Override temperature to 0.1 for reliable tool calling
+        const originalTemp = selectedTemperature;
+        selectedTemperature = Math.min(selectedTemperature, 0.1);
+        if (originalTemp !== selectedTemperature) {
+          logger.debug('Temperature lowered for tool calling', {
+            original: originalTemp,
+            adjusted: selectedTemperature,
+            toolCount: options.tools?.length,
+          });
+        }
+
+        // Add tool usage instruction to system modifier
+        const toolInstruction = `\n\n## Tool Calling Mode
+You have access to tools/functions. When you need to perform an action:
+- USE THE FUNCTION CALLING API - do NOT write JSON in your response
+- The system will automatically execute tools and provide results
+- Never output raw JSON like {"type": "function", ...} - use the tool_calls API
+- If a tool is needed, call it. Don't describe what you would call.
+- After receiving tool results, respond naturally to the user.`;
+        
+        systemModifier = systemModifier 
+          ? systemModifier + toolInstruction 
+          : toolInstruction;
+      }
+
+      // Build messages with task-aware system modifier (and tool instruction if applicable)
       const messages = this.buildMessages(message, context, systemModifier);
 
       // Determine reasoning parameters based on task complexity
@@ -608,7 +643,37 @@ export class FireworksLLM extends EventEmitter implements LLMProvider {
         });
       }
 
-      // Build messages with task-aware system modifier
+      // CRITICAL FIX: When tools are provided, enforce low temperature for reliable tool calling
+      // Fireworks AI docs recommend 0.0-0.3 for best tool calling results
+      // Also add explicit instruction to use the function calling API
+      const hasTools = options?.tools && options.tools.length > 0;
+      if (hasTools) {
+        // Override temperature to 0.1 for reliable tool calling
+        const originalTemp = selectedTemperature;
+        selectedTemperature = Math.min(selectedTemperature, 0.1);
+        if (originalTemp !== selectedTemperature) {
+          logger.debug('Temperature lowered for tool calling', {
+            original: originalTemp,
+            adjusted: selectedTemperature,
+            toolCount: options.tools?.length,
+          });
+        }
+
+        // Add tool usage instruction to system modifier
+        const toolInstruction = `\n\n## Tool Calling Mode
+You have access to tools/functions. When you need to perform an action:
+- USE THE FUNCTION CALLING API - do NOT write JSON in your response
+- The system will automatically execute tools and provide results
+- Never output raw JSON like {"type": "function", ...} - use the tool_calls API
+- If a tool is needed, call it. Don't describe what you would call.
+- After receiving tool results, respond naturally to the user.`;
+        
+        systemModifier = systemModifier 
+          ? systemModifier + toolInstruction 
+          : toolInstruction;
+      }
+
+      // Build messages with task-aware system modifier (and tool instruction if applicable)
       const messages = this.buildMessages(message, context, systemModifier);
 
       // Determine reasoning parameters based on task complexity

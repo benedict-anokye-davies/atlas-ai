@@ -840,7 +840,7 @@ export async function executeBankingTool(
         const detector = getRecurringPaymentDetector();
         const includeInactive = (params.include_inactive as boolean) || false;
 
-        let subscriptions = detector.getRecurringPayments({ activeOnly: !includeInactive });
+        const subscriptions = detector.getRecurringPayments({ activeOnly: !includeInactive });
 
         if (subscriptions.length === 0) {
           return {

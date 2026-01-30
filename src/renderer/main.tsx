@@ -1,6 +1,6 @@
 /**
  * Atlas Desktop - React Entry Point
- * Palantir-style Command Center UI
+ * Modern AI Chat Interface
  * 
  * This is the bulletproof entry point with:
  * - Global error handlers for unhandled rejections
@@ -10,12 +10,11 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import PalantirApp from './PalantirApp';
+import { SparkApp } from './components/spark';
 import { AppErrorBoundary } from './utils/error-boundary';
 import { installGlobalErrorHandlers } from './utils/stability';
 import './styles/index.css';
-import './styles/palantir-app.css';
-import './styles/palantir-theme.css';
+import './components/spark/spark-styles.css';
 
 // ============================================================================
 // Install Global Error Handlers FIRST (before React mounts)
@@ -46,11 +45,11 @@ function mountApp(): void {
 function mountToElement(element: HTMLElement): void {
   try {
     const reactRoot = ReactDOM.createRoot(element);
-    
+
     reactRoot.render(
       <React.StrictMode>
         <AppErrorBoundary>
-          <PalantirApp />
+          <SparkApp />
         </AppErrorBoundary>
       </React.StrictMode>
     );

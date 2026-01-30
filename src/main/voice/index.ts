@@ -17,3 +17,6 @@ export * from './emotion-to-voice-mapper';
 export * from './backchanneling';
 export * from './speech-naturalizer';
 export * from './natural-voice-integration';
+
+// Fast Mode - Ultra-low latency optimizations
+export * from './fast-mode';

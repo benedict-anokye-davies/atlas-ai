@@ -279,7 +279,7 @@ export abstract class BaseIntelligenceAgent extends EventEmitter implements IInt
     const store = getOntologyStore();
 
     // Get relevant entities for this agent
-    let recentEntities: string[] = [];
+    const recentEntities: string[] = [];
     for (const entityType of this.focusEntities) {
       const entities = store.getEntitiesByType(entityType, 10);
       recentEntities.push(...entities.map(e => e.id));

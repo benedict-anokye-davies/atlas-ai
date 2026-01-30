@@ -1937,3 +1937,19 @@ export type {
 
 // Export note-writer forgetting functions
 export { forgetNote, forgetNotes } from './note-writer';
+
+// Export Unified Memory Brain - central orchestrator for all memory systems
+export {
+  UnifiedMemoryBrain,
+  getUnifiedBrain,
+  initializeUnifiedBrain,
+  shutdownUnifiedBrain,
+} from './unified-brain';
+export type {
+  UnifiedMemory,
+  MemoryQuery,
+  ContextBundle,
+  RememberRequest,
+  UnifiedBrainConfig,
+  UnifiedBrainStatus,
+} from './unified-brain';

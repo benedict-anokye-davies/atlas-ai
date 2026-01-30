@@ -780,10 +780,12 @@ describe('KeychainManager', () => {
       expect(SUPPORTED_API_KEYS).toContain('FIREWORKS_API_KEY');
       expect(SUPPORTED_API_KEYS).toContain('OPENROUTER_API_KEY');
       expect(SUPPORTED_API_KEYS).toContain('PERPLEXITY_API_KEY');
+      expect(SUPPORTED_API_KEYS).toContain('CARTESIA_API_KEY');
+      expect(SUPPORTED_API_KEYS).toContain('SPOTIFY_CLIENT_ID');
     });
 
-    it('should have exactly 6 supported keys', () => {
-      expect(SUPPORTED_API_KEYS.length).toBe(6);
+    it('should have exactly 8 supported keys', () => {
+      expect(SUPPORTED_API_KEYS.length).toBe(8);
     });
   });
 

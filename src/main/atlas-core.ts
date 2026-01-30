@@ -53,31 +53,31 @@ const logger = createModuleLogger('AtlasCore');
 export interface AtlasConfig {
   /** Enable voice-first interaction */
   voiceEnabled: boolean;
-  
+
   /** Wake word for activation ("hey atlas" by default) */
   wakeWord: string;
-  
+
   /** Enable continuous screen monitoring */
   screenMonitoring: boolean;
-  
+
   /** Enable autonomous mode (no approvals needed) */
   autonomous: boolean;
-  
+
   /** Auto-commit changes to git */
   autoCommit: boolean;
-  
+
   /** Enable cross-project learning */
   crossProjectLearning: boolean;
-  
+
   /** LLM provider (fireworks, openrouter) */
   llmProvider: 'fireworks' | 'openrouter';
-  
+
   /** Model to use */
   model: string;
-  
+
   /** Working directory */
   workingDirectory: string;
-  
+
   /** Voice alerts for important events */
   voiceAlerts: boolean;
 }
@@ -99,7 +99,7 @@ export interface AtlasStatus {
 // ============================================================================
 
 const DEFAULT_CONFIG: AtlasConfig = {
-  voiceEnabled: true,
+  voiceEnabled: false,
   wakeWord: 'hey atlas',
   screenMonitoring: true,
   autonomous: true,
@@ -119,7 +119,7 @@ export class AtlasCore extends EventEmitter {
   private config: AtlasConfig;
   private isInitialized: boolean = false;
   private startTime: number = 0;
-  
+
   // Subsystems
   private agent: AutonomousAgent | null = null;
   private screenMonitor: ContinuousScreenMonitor | null = null;
@@ -129,22 +129,22 @@ export class AtlasCore extends EventEmitter {
   private projectManagement: ProjectManagement | null = null;
   private figma: FigmaIntegration | null = null;
   private visualTesting: VisualTestRunner | null = null;
-  
+
   constructor(config?: Partial<AtlasConfig>) {
     super();
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
-  
+
   // ==========================================================================
   // Initialization
   // ==========================================================================
-  
+
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
-    
+
     logger.info('🚀 Initializing Atlas Core...');
     this.startTime = Date.now();
-    
+
     try {
       // 1. Initialize the brain (memory, knowledge graph)
       logger.info('Initializing cognitive systems...');
@@ -153,7 +153,7 @@ export class AtlasCore extends EventEmitter {
         silentLearning: true,
         enableReasoning: true,
       });
-      
+
       // 2. Initialize autonomous agent
       logger.info('Initializing autonomous agent...');
       this.agent = await initializeAutonomousAgent({
@@ -164,7 +164,7 @@ export class AtlasCore extends EventEmitter {
         workingDirectory: this.config.workingDirectory,
         learnFromProject: true,
       });
-      
+
       // 3. Initialize screen monitor
       if (this.config.screenMonitoring) {
         logger.info('Initializing screen monitoring...');
@@ -175,83 +175,83 @@ export class AtlasCore extends EventEmitter {
           onError: (error) => this.handleScreenError(error),
         });
       }
-      
+
       // 4. Initialize cross-project learning
       if (this.config.crossProjectLearning) {
         logger.info('Initializing cross-project learning...');
         this.learning = await getCrossProjectLearning();
         this.learning.registerProject(this.config.workingDirectory);
       }
-      
+
       // 5. Initialize voice handler
       if (this.config.voiceEnabled) {
         logger.info('Initializing voice interface...');
         this.voiceHandler = getVoiceCommandHandler();
         this.voiceHandler.setCurrentProject(this.config.workingDirectory);
       }
-      
+
       // 6. Initialize integrations
       logger.info('Initializing integrations...');
       this.cicd = getCICDMonitor();
       this.projectManagement = getProjectManagement();
       this.figma = getFigmaIntegration();
       this.visualTesting = await initializeVisualTesting();
-      
+
       // 7. Wire up event handlers
       this.setupEventHandlers();
-      
+
       // 8. Load configurations from store
       await this.loadStoredConfigurations();
-      
+
       this.isInitialized = true;
       this.emit('initialized');
-      
+
       // Welcome message
       if (this.config.voiceAlerts) {
         await this.speak("Atlas is online and ready. I'm watching your screen and listening for commands.");
       }
-      
+
       logger.info('✅ Atlas Core initialized successfully');
-      
+
     } catch (error) {
       logger.error('Failed to initialize Atlas Core', { error });
       throw error;
     }
   }
-  
+
   async shutdown(): Promise<void> {
     logger.info('Shutting down Atlas Core...');
-    
+
     if (this.screenMonitor) {
       await this.screenMonitor.stop();
     }
-    
+
     if (this.agent) {
       await (this.agent as any).shutdown?.();
     }
-    
+
     if (this.learning) {
       await this.learning.close();
     }
-    
+
     if (this.cicd) {
       this.cicd.stopAll();
     }
-    
+
     if (this.visualTesting) {
       this.visualTesting.cleanup();
     }
-    
+
     this.isInitialized = false;
     this.emit('shutdown');
-    
+
     logger.info('Atlas Core shut down');
   }
-  
+
   // ==========================================================================
   // Event Handlers
   // ==========================================================================
-  
+
   private setupEventHandlers(): void {
     // Screen monitor events
     if (this.screenMonitor) {
@@ -259,16 +259,16 @@ export class AtlasCore extends EventEmitter {
         this.emit('errorDetected', error);
       });
     }
-    
+
     // Autonomous agent events
     if (this.agent) {
       this.agent.on('taskStarted', (task) => {
         this.emit('taskStarted', task);
       });
-      
+
       this.agent.on('taskCompleted', (task) => {
         this.emit('taskCompleted', task);
-        
+
         // Learn from completed task
         if (this.learning && task.status === 'completed') {
           this.learning.learnPattern({
@@ -282,10 +282,10 @@ export class AtlasCore extends EventEmitter {
           });
         }
       });
-      
+
       this.agent.on('autoCommit', (record) => {
         this.emit('autoCommit', record);
-        
+
         // Update Jira/Linear if configured
         this.projectManagement?.linkCommit?.(
           record.description,
@@ -294,58 +294,58 @@ export class AtlasCore extends EventEmitter {
         );
       });
     }
-    
+
     // CI/CD events
     if (this.cicd) {
       this.cicd.on('buildFailure', async (data) => {
         this.emit('buildFailure', data);
-        
+
         if (this.config.voiceAlerts) {
           await this.speak(`Build failed: ${data.failure.errorMessage}`);
         }
-        
+
         // Auto-investigate if autonomous
         if (this.config.autonomous && this.agent) {
           await this.agent.executeTask(`Investigate and fix CI failure: ${data.failure.errorMessage}`);
         }
       });
-      
+
       this.cicd.on('buildSuccess', async (pipeline) => {
         this.emit('buildSuccess', pipeline);
-        
+
         if (this.config.voiceAlerts) {
           await this.speak(`Build passed: ${pipeline.name}`);
         }
       });
     }
   }
-  
+
   private async handleScreenError(error: any): Promise<void> {
     logger.info('Screen error detected', { error: error.message });
-    
+
     if (this.config.voiceAlerts) {
       await this.speak(`I noticed an error: ${error.message}. Want me to fix it?`);
     }
-    
+
     if (this.config.autonomous && this.agent && error.canAutoFix) {
       await this.agent.executeTask(`Fix detected error: ${error.message}`);
     }
-    
+
     this.emit('errorDetected', error);
   }
-  
+
   // ==========================================================================
   // Voice Interface
   // ==========================================================================
-  
+
   async processVoiceCommand(transcript: string): Promise<any> {
     if (!this.voiceHandler) {
       throw new Error('Voice handler not initialized');
     }
-    
+
     return this.voiceHandler.processCommand(transcript);
   }
-  
+
   private async speak(text: string): Promise<void> {
     try {
       const tts = getTTSManager();
@@ -356,33 +356,33 @@ export class AtlasCore extends EventEmitter {
       logger.debug('TTS failed', { error });
     }
   }
-  
+
   // ==========================================================================
   // Task Execution
   // ==========================================================================
-  
+
   async executeTask(description: string): Promise<any> {
     if (!this.agent) {
       throw new Error('Agent not initialized');
     }
-    
+
     return this.agent.executeTask(description);
   }
-  
+
   // ==========================================================================
   // Configuration
   // ==========================================================================
-  
+
   private async loadStoredConfigurations(): Promise<void> {
     const store = getStore();
-    
+
     // Load GitHub Actions config from nested apiKeys and cicd objects
     const storeData = store.getAll();
     const ghToken = storeData.apiKeys?.github;
     if (ghToken) {
       const owner = storeData.cicd?.owner;
       const repo = storeData.cicd?.repo;
-      
+
       if (owner && repo) {
         this.cicd?.addProvider('github', {
           provider: 'github-actions',
@@ -397,7 +397,7 @@ export class AtlasCore extends EventEmitter {
         this.cicd?.startAll();
       }
     }
-    
+
     // Load Linear config
     const linearToken = storeData.apiKeys?.linear;
     if (linearToken) {
@@ -407,24 +407,24 @@ export class AtlasCore extends EventEmitter {
         teamId: storeData.projectManagement?.teamId,
       });
     }
-    
+
     // Load Figma config
     const figmaToken = storeData.apiKeys?.figma;
     if (figmaToken) {
       await this.figma?.initialize(figmaToken);
     }
   }
-  
+
   setConfig(config: Partial<AtlasConfig>): void {
     this.config = { ...this.config, ...config };
-    
+
     // Update subsystems
     if (this.agent) {
       this.agent.setAutonomyLevel(
         config.autonomous ? 'autonomous' : 'trusted'
       );
     }
-    
+
     if (this.screenMonitor) {
       if (config.screenMonitoring === false) {
         this.screenMonitor.pause();
@@ -432,22 +432,22 @@ export class AtlasCore extends EventEmitter {
         this.screenMonitor.resume();
       }
     }
-    
+
     this.emit('configChanged', this.config);
   }
-  
+
   getConfig(): AtlasConfig {
     return { ...this.config };
   }
-  
+
   // ==========================================================================
   // Status
   // ==========================================================================
-  
+
   getStatus(): AtlasStatus {
     const agentStatus = this.agent?.getStatus();
     const monitorStatus = this.screenMonitor?.getStatus();
-    
+
     return {
       initialized: this.isInitialized,
       voiceActive: this.config.voiceEnabled,
@@ -460,35 +460,35 @@ export class AtlasCore extends EventEmitter {
       uptime: this.startTime ? Date.now() - this.startTime : 0,
     };
   }
-  
+
   // ==========================================================================
   // Subsystem Access
   // ==========================================================================
-  
+
   getAgent(): AutonomousAgent | null {
     return this.agent;
   }
-  
+
   getScreenMonitor(): ContinuousScreenMonitor | null {
     return this.screenMonitor;
   }
-  
+
   getLearning(): CrossProjectLearning | null {
     return this.learning;
   }
-  
+
   getCICD(): CICDMonitor | null {
     return this.cicd;
   }
-  
+
   getProjectManagement(): ProjectManagement | null {
     return this.projectManagement;
   }
-  
+
   getFigma(): FigmaIntegration | null {
     return this.figma;
   }
-  
+
   getVisualTesting(): VisualTestRunner | null {
     return this.visualTesting;
   }
@@ -533,7 +533,7 @@ export async function shutdownAtlas(): Promise<void> {
  */
 export async function startAtlas(): Promise<AtlasCore> {
   const atlas = await initializeAtlas({
-    voiceEnabled: true,
+    voiceEnabled: false,
     wakeWord: 'hey atlas',
     screenMonitoring: true,
     autonomous: true,
@@ -541,9 +541,9 @@ export async function startAtlas(): Promise<AtlasCore> {
     crossProjectLearning: true,
     llmProvider: 'fireworks',
     model: 'accounts/fireworks/models/deepseek-v3p2',
-    voiceAlerts: true,
+    voiceAlerts: false,
   });
-  
+
   return atlas;
 }
 
